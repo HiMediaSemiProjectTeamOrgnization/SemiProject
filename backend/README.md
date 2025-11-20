@@ -12,7 +12,7 @@ from database import create_tables
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await create_tables()
+    create_tables()
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -46,7 +46,7 @@ DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
 
-DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 engine = create_engine(
     DATABASE_URL,
