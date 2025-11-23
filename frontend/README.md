@@ -3,7 +3,7 @@
 1. npm create vite@latest
 2. cd frontend
 3. npm install
-4. npm install react-router-dom zustand @tanstack/react-query
+4. npm install react-router-dom zustand @tanstack/react-query axios
 5. npm install tailwindcss @tailwindcss/vite
 ### vite.config.js (Tailwind CSS 설정)
 ```
@@ -27,7 +27,7 @@ export default defineConfig({
 ```
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 import App from './App.jsx';
@@ -50,7 +50,7 @@ import { createBrowserRouter } from "react-router-dom";
 import './App.css';
 import Layout from "./components/Layout.jsx";
 import Home from "./pages/Home.jsx";
-import About from "./pages/About.jsx";
+import About from "./pages/Test.jsx";
 
 const router = createBrowserRouter([
     {
