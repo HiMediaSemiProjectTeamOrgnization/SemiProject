@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import axios from 'axios';
 
 // Zustand (전역 상태 관리 함수) 사용법
 /*
@@ -39,6 +40,22 @@ const usePostStore = create((set) => ({
 */
 
 export const useTestStore = create((set) => ({
-    selectedUserId: null,
-    setSelectedUserId: (id) => set({ selectedUserId: id })
+    posts: [],
+    isLoading: false,
+    isError: null,
+    fetchPosts: async (id) => {
+        set({ isLoading: true });
+        try {
+            const url = id
+            ? `https://jsonplaceholder.typicode.com/posts/${id}`
+            : `https://jsonplaceholder.typicode.com/posts/`
+            const res = await axios.get(url);
+            const data = Array.isArray(res.data) ? res.data : [res.data];
+            set({ posts: data });
+        } catch (e) {
+            set({ isError: e });
+        } finally {
+            set({ isLoading: false });
+        }
+    }
 }));

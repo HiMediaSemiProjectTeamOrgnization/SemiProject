@@ -1,8 +1,11 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from .database import Base
+from database import Base
 
+# -------------------------------------------------------------------
+# PRODUCTS
+# -------------------------------------------------------------------
 class Product(Base):
     __tablename__ = "products"
 
@@ -15,6 +18,9 @@ class Product(Base):
 
     orders = relationship("Order", back_populates="product")
 
+# -------------------------------------------------------------------
+# SEATS
+# -------------------------------------------------------------------
 class Seat(Base):
     __tablename__ = "seats"
 
@@ -24,6 +30,9 @@ class Seat(Base):
     fixed_members = relationship("Member", back_populates="fixed_seat")
     seat_usages = relationship("SeatUsage", back_populates="seat")
 
+# -------------------------------------------------------------------
+# MEMBERS
+# -------------------------------------------------------------------
 class Member(Base):
     __tablename__ = "members"
 
@@ -50,6 +59,9 @@ class Member(Base):
     seat_usages = relationship("SeatUsage", back_populates="member", cascade="all, delete")
     mileage_history = relationship("MileageHistory", back_populates="member", cascade="all, delete")
 
+# -------------------------------------------------------------------
+# TOKENS
+# -------------------------------------------------------------------
 class Token(Base):
     __tablename__ = "tokens"
 
@@ -62,6 +74,9 @@ class Token(Base):
 
     member = relationship("Member", back_populates="tokens")
 
+# -------------------------------------------------------------------
+# ORDERS
+# -------------------------------------------------------------------
 class Order(Base):
     __tablename__ = "orders"
 
@@ -76,6 +91,9 @@ class Order(Base):
     product = relationship("Product", back_populates="orders")
     seat_usage = relationship("SeatUsage", back_populates="order", uselist=False)
 
+# -------------------------------------------------------------------
+# SEAT_USAGE
+# -------------------------------------------------------------------
 class SeatUsage(Base):
     __tablename__ = "seat_usage"
 
@@ -91,6 +109,9 @@ class SeatUsage(Base):
     seat = relationship("Seat", back_populates="seat_usages")
     member = relationship("Member", back_populates="seat_usages")
 
+# -------------------------------------------------------------------
+# MILEAGE_HISTORY
+# -------------------------------------------------------------------
 class MileageHistory(Base):
     __tablename__ = "mileage_history"
 

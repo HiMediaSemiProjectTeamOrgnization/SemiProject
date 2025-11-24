@@ -1,13 +1,13 @@
 import { Outlet, Link } from 'react-router-dom';
 
-const Layout = () => {
+const WebLayout = () => {
     return (
         <div className="min-h-screen flex flex-col">
             {/* 헤더 (네비게이션) */}
             <header className="bg-blue-600 text-white p-4 shadow-md">
                 <nav className="flex gap-4 container mx-auto">
                     <Link to="/" className="font-bold hover:text-blue-200">Home</Link>
-                    <Link to="/about" className="font-bold hover:text-blue-200">About</Link>
+                    <Link to="/test" className="font-bold hover:text-blue-200">Test</Link>
                 </nav>
             </header>
 
@@ -24,4 +24,4 @@ const Layout = () => {
     );
 };
 
-export default Layout;
+export default WebLayout;

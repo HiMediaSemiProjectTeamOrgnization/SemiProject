@@ -2,18 +2,18 @@ from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import datetime
 from typing import Optional
 
-# 1. 공통 설정 (ORM 객체를 Pydantic 모델로 변환 허용)
+# 공통 설정 (ORM 객체를 Pydantic 모델로 변환 허용)
 class BaseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 # -------------------------------------------------------------------
-# 1. PRODUCTS (이용권)
+# PRODUCTS
 # -------------------------------------------------------------------
 class ProductBase(BaseSchema):
     name: str
-    type: str  # 시간제 / 기간제
+    type: str
     price: int
-    value: int # 시간(분) 또는 기간(일)
+    value: int
     is_exposured: bool = True
 
 class ProductCreate(ProductBase):
@@ -23,7 +23,7 @@ class ProductResponse(ProductBase):
     product_id: int
 
 # -------------------------------------------------------------------
-# 2. SEATS (좌석)
+# SEATS
 # -------------------------------------------------------------------
 class SeatBase(BaseSchema):
     type: str
@@ -36,25 +36,24 @@ class SeatResponse(SeatBase):
     seat_id: int
 
 # -------------------------------------------------------------------
-# 3. MEMBERS (회원)
+# MEMBERS
 # -------------------------------------------------------------------
 class MemberBase(BaseSchema):
     login_id: Optional[str] = None
     phone: str
-    email: EmailStr  # 이메일 형식 자동 검증
+    email: EmailStr
     age: Optional[int] = None
     social_type: Optional[str] = None
     pin_code: Optional[int] = None
 
 class MemberCreate(MemberBase):
-    password: Optional[str] = None # 생성 시에만 비밀번호 입력
+    password: Optional[str] = None
 
 class MemberUpdate(BaseSchema):
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
     age: Optional[int] = None
     pin_code: Optional[int] = None
-    # 필요한 수정 필드 추가 가능
 
 class MemberResponse(MemberBase):
     member_id: int
@@ -66,10 +65,9 @@ class MemberResponse(MemberBase):
     created_at: datetime
     updated_at: datetime
     is_deleted_at: bool
-    # password는 보안상 응답에서 제외함
 
 # -------------------------------------------------------------------
-# 4. TOKENS (토큰)
+# TOKENS
 # -------------------------------------------------------------------
 class TokenCreate(BaseSchema):
     member_id: int
@@ -84,7 +82,7 @@ class TokenResponse(BaseSchema):
     created_at: datetime
 
 # -------------------------------------------------------------------
-# 5. ORDERS (구매기록)
+# ORDERS
 # -------------------------------------------------------------------
 class OrderBase(BaseSchema):
     member_id: Optional[int] = None
@@ -100,7 +98,7 @@ class OrderResponse(OrderBase):
     created_at: datetime
 
 # -------------------------------------------------------------------
-# 6. SEAT_USAGE (입퇴실 기록)
+# SEAT_USAGE
 # -------------------------------------------------------------------
 class SeatUsageBase(BaseSchema):
     seat_id: Optional[int] = None
@@ -117,11 +115,11 @@ class SeatUsageResponse(SeatUsageBase):
     ticket_expired_time: Optional[datetime] = None
 
 # -------------------------------------------------------------------
-# 7. MILEAGE_HISTORY (마일리지 내역)
+# MILEAGE_HISTORY
 # -------------------------------------------------------------------
 class MileageHistoryBase(BaseSchema):
     amount: int
-    type: str # 적립 / 사용
+    type: str
 
 class MileageHistoryCreate(MileageHistoryBase):
     member_id: int

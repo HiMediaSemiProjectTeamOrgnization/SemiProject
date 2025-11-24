@@ -1,4 +1,4 @@
-<img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" /><img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" /><img src="https://img.shields.io/badge/React-20232a?style=for-the-badge&logo=react&logoColor=61DAFB" /><img src="https://img.shields.io/badge/React_Query-FF4154?style=for-the-badge&logo=react-query&logoColor=white" /><img src="https://img.shields.io/badge/Zustand-20232a?style=for-the-badge&logo=react&logoColor=white" /><img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" /><img src="https://img.shields.io/badge/scikit_learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white" /><img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" /><img src="https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white" />
+<img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" /><img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" /><img src="https://img.shields.io/badge/React-20232a?style=for-the-badge&logo=react&logoColor=61DAFB" /><img src="https://img.shields.io/badge/scikit_learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white" /><img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" /><img src="https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white" />
 
 # 세미프로젝트
 ## 주제 - 스터디 카페 관리 시스템
@@ -29,19 +29,19 @@
 📂 frontend/
 ├── 📂 public/                   # 파비콘 등 정적 파일, 잘 안쓰임
 ├── 📂 src/
-│   ├── 📂 api/                  # 서버 API 호출 함수 모음 
-│   │    └── testApi.js         - 임시 API 호출 함수  
-│   ├── 📂 assets/               # 이미지, 스타일 
-│   ├── 📂 components/           # 재사용 가능한 작은 조각들 (버튼, 카드 등)
-│   │    ├── CommonButton.jsx   - 임시 재사용 가능한 공통 버튼  
-│   │    └── Layout.jsx         - 헤더, 푸터 레이아웃                                     
-│   ├── 📂 pages/                # 라우터 주소에 해당하는 큰 페이지
-│   │    ├── Test.jsx           - 임시 페이지 
-│   │    └── Home.jsx           - 메인 페이지 
-│   ├── 📂 stores/               # Zustand 상태 저장소
-│   │    └── useTestStore.js    - 임시 Zustand 스토어  
-│   └── 📂 utils/                # 도구 함수 저장소 예) 날짜 변환
-└── App.jsx
+│   ├── 📂 assets/               # 이미지, 스타일 위치한 폴더
+│   ├── 📂 components/           # 재사용 가능한 작은 조각들 (버튼, 카드 등) 모인 폴더
+│   │    ├── CommonButton.jsx   * 테스트 재사용 가능한 공통 버튼  
+│   │    └── WebLayout.jsx      * 웹 페이지 전용 헤더, 푸터 레이아웃                                     
+│   ├── 📂 pages/                # 페이지들 모은 폴더
+│   │    ├── Test.jsx           * 테스트 페이지 
+│   │    └── Home.jsx           * 메인 페이지 
+│   └── 📂 stores/               # Zustand 스토어 및 유틸 함수 모음 폴더
+│        └── useTestStore.js    * 임시 Zustand 스토어  
+├── App.css                     * 메인 어플리케이션 스타일 
+├── App.jsx                     * 메인 어플리케이션
+├── index.css                   * TailwindCSS 불러오는 스타일 파일
+└── main.jsx                    * html 감싸는 리액트 파일
 ```
 ### 프레임워크
 - React
@@ -51,34 +51,36 @@
 - React Query
 - Tailwind CSS
 ### 프로젝트 설치
-- (node.js 설치, 최신 LTS 다운로드) https://nodejs.org/ko/download
-> cd frontend <br>
-> npm install
+1. (node.js 설치, 최신 LTS 다운로드) https://nodejs.org/ko/download
+2. cd frontend 
+3. npm install
 ### 프로젝트 실행
-- 개발중 실행
-> npm run dev
+1. npm run dev
 ## 백엔드
 ### 폴더 구조도
 ```
-📂 backend/
-├── 📂 routers/                  # 라우터 관련 폴더 
-├── database.py
-├── main.py                
-├── models.py
-├── schemas.py
-├── 📂 ml/                       # 머신러닝 관련 폴더
-│   ├── 📂 routers/              # 머신러닝 엔드포인트 관련 폴더
-│   ├── 📂 model_artifacts/      # 학습된 모델 파일 저장소
-│   └── 📂 notebooks/            # 주피터 노트북 관련 폴더
-└── .env
+📂 backend/              # 백엔드 프로젝트 폴더          
+├── 📂 alembic/          # DB 관리 라이브러리 Alembic 관련 폴더   
+│   ├── 📂 versions/     # Alembic 버전들 관리하는 폴더
+│   └── env.py          * Alembic 환경 설정 파일 (py)
+├── 📂 app/              # 메인 로직이 있는 어플리케이션 폴더     
+│   ├── 📂 routers/      # 엔드포인트 관련 라우터 폴더     
+│   │   └── test.py     * 테스트 라우터 파일     
+│   ├── database.py     * DB 관련 설정 파일
+│   ├── main.py         * 메인(실행 및 서버) 파일                
+│   ├── models.py       * ORM 정의 파일
+│   └── schemas.py      * pydantic 정의 파일
+├── .env                * 환경설정 관련 파일
+└── alembic.ini         * Alembic 환경 설정 파일 (ini)                          
 ```
 ### 프레임워크
 - FastAPI
 ### 라이브러리
 - pyproject.toml 참고
 ### 프로젝트 설치
-- (윈도우 기준 uv 설치) `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"` 
-- (맥 기준 uv 설치) `brew install uv` 또는 `curl -LsSf https://astral.sh/uv/install.sh | sh` 
-> uv sync
+1. (윈도우 기준 uv 설치) `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"` 
+2. (맥 기준 uv 설치) `brew install uv` 또는 `curl -LsSf https://astral.sh/uv/install.sh | sh` 
+3. uv sync
 ### 프로젝트 실행
-> uv run main.py
+1. cd backend/app
+2. uv run main.py

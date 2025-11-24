@@ -74,6 +74,3 @@ def get_db():
 def create_tables():
     Base.metadata.create_all(bind=engine)
 ```
-### Alembic 설치
-1. uv run alembic init alembic
-2. 

@@ -2,9 +2,7 @@
 ### 설치 명령어
 1. npm create vite@latest
 2. cd frontend
-3. npm install
-4. npm install react-router-dom zustand @tanstack/react-query axios
-5. npm install tailwindcss @tailwindcss/vite
+3. npm install react-router-dom zustand axios tailwindcss @tailwindcss/vite
 ### vite.config.js (Tailwind CSS 설정)
 ```
 import { defineConfig } from 'vite'
@@ -27,35 +25,28 @@ export default defineConfig({
 ```
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider } from 'react-router-dom';
 import './index.css';
-import App from './App.jsx';
-
-const queryClient = new QueryClient();
+import router from './App.jsx';
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </QueryClientProvider>
-  </StrictMode>,
+    <StrictMode>
+        <RouterProvider router={router} />
+    </StrictMode>
 );
 ```
 ### App.jsx
 ```
 import { createBrowserRouter } from "react-router-dom";
 import './App.css';
-import Layout from "./components/Layout.jsx";
+import WebLayout from "./components/WebLayout.jsx";
 import Home from "./pages/Home.jsx";
 import About from "./pages/Test.jsx";
 
 const router = createBrowserRouter([
     {
         path: '/',
-        element: <Layout />,       
+        element: <WebLayout />,       
         children: [
             {
                 index: true,
@@ -71,11 +62,11 @@ const router = createBrowserRouter([
 
 export default router;
 ```
-### components/Layout.jsx
+### components/WebLayout.jsx
 ```
 import { Outlet, Link } from 'react-router-dom';
 
-const Layout = () => {
+const WebLayout = () => {
     return (
         <div className="min-h-screen flex flex-col">
             {/* 헤더 (네비게이션) */}
@@ -99,5 +90,5 @@ const Layout = () => {
     );
 };
 
-export default Layout;
+export default WebLayout;
 ```
