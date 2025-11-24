@@ -1,0 +1,103 @@
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from .database import Base
+
+class Product(Base):
+    __tablename__ = "products"
+
+    product_id = Column(BigInteger, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    type = Column(String(20), nullable=False)
+    price = Column(Integer, nullable=False)
+    value = Column(Integer, nullable=False)
+    is_exposured = Column(Boolean, default=True)
+
+    orders = relationship("Order", back_populates="product")
+
+class Seat(Base):
+    __tablename__ = "seats"
+
+    seat_id = Column(BigInteger, primary_key=True, index=True)
+    type = Column(String(10), nullable=False)
+    is_status = Column(Boolean, default=True)
+    fixed_members = relationship("Member", back_populates="fixed_seat")
+    seat_usages = relationship("SeatUsage", back_populates="seat")
+
+class Member(Base):
+    __tablename__ = "members"
+
+    member_id = Column(BigInteger, primary_key=True, index=True)
+    login_id = Column(String(50), unique=True, nullable=True)
+    password = Column(String(255), nullable=True)
+    phone = Column(String(20), unique=True, nullable=False)
+    email = Column(String(100), unique=True, nullable=False)
+    age = Column(Integer, nullable=True)
+    pin_code = Column(Integer, nullable=True)
+    social_type = Column(String(20), nullable=True)
+    total_mileage = Column(Integer, default=0)
+    saved_time_minute = Column(Integer, default=0)
+    period_start_date = Column(DateTime, nullable=True)
+    period_end_date = Column(DateTime, nullable=True)
+    fixed_seat_id = Column(BigInteger, ForeignKey("seats.seat_id"), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    is_deleted_at = Column(Boolean, default=False)
+
+    fixed_seat = relationship("Seat", back_populates="fixed_members")
+    tokens = relationship("Token", back_populates="member", cascade="all, delete")
+    orders = relationship("Order", back_populates="member")
+    seat_usages = relationship("SeatUsage", back_populates="member", cascade="all, delete")
+    mileage_history = relationship("MileageHistory", back_populates="member", cascade="all, delete")
+
+class Token(Base):
+    __tablename__ = "tokens"
+
+    token_id = Column(BigInteger, primary_key=True, index=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
+    token = Column(String(200))
+    expires_at = Column(DateTime, nullable=True)
+    is_revoked = Column(Boolean, default=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    member = relationship("Member", back_populates="tokens")
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    order_id = Column(BigInteger, primary_key=True, index=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="SET NULL"), nullable=True)
+    product_id = Column(BigInteger, ForeignKey("products.product_id", ondelete="SET NULL"), nullable=True)
+    buyer_phone = Column(String(20), nullable=True)
+    payment_amount = Column(Integer, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    member = relationship("Member", back_populates="orders")
+    product = relationship("Product", back_populates="orders")
+    seat_usage = relationship("SeatUsage", back_populates="order", uselist=False)
+
+class SeatUsage(Base):
+    __tablename__ = "seat_usage"
+
+    usage_id = Column(BigInteger, primary_key=True, index=True)
+    order_id = Column(BigInteger, ForeignKey("orders.order_id", ondelete="SET NULL"), nullable=True)
+    seat_id = Column(BigInteger, ForeignKey("seats.seat_id", ondelete="SET NULL"), nullable=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"), nullable=True)
+    check_in_time = Column(DateTime, server_default=func.now())
+    check_out_time = Column(DateTime, nullable=True)
+    ticket_expired_time = Column(DateTime, nullable=True)
+
+    order = relationship("Order", back_populates="seat_usage")
+    seat = relationship("Seat", back_populates="seat_usages")
+    member = relationship("Member", back_populates="seat_usages")
+
+class MileageHistory(Base):
+    __tablename__ = "mileage_history"
+
+    history_id = Column(BigInteger, primary_key=True, index=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
+    amount = Column(Integer, nullable=False)
+    type = Column(String(10), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    member = relationship("Member", back_populates="mileage_history")

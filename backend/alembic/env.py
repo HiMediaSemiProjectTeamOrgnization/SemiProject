@@ -8,8 +8,7 @@ from alembic import context
 import os
 from dotenv import load_dotenv
 from pathlib import Path
-from database import Base
-import models
+from app.database import Base
 
 ENV_PATH = Path(__file__).parent.parent / '.env'
 load_dotenv(ENV_PATH)
