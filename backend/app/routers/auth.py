@@ -9,6 +9,11 @@ router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
+
+ACCESS_TOKEN_EXPIRE_SECONDS = 60*30
+ACCESS_TOKEN_EXPIRE_MINUTES = 1
+REFRESH_TOKEN_EXPIRE_SECONDS = 60*60*24*7
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 KST = ZoneInfo("Asia/Seoul")
 
 # 사용자 데이터베이스
@@ -25,7 +30,7 @@ def create_access_token(name):
     payload = {
         "name": name,
         "type": "access",
-        "exp": datetime.now(KST) + timedelta(minutes=1)
+        "exp": datetime.now(KST) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -34,7 +39,7 @@ def create_refresh_token(name):
     payload = {
         "name": name,
         "type": "refresh",
-        "exp": datetime.now(KST) + timedelta(days=7)
+        "exp": datetime.now(KST) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -84,14 +89,14 @@ def login(response: Response, name: str = Form(...), password: str = Form(...)):
         key="access_token",
         value=access_token,
         httponly=True,
-        max_age=60  # 1분
+        max_age=ACCESS_TOKEN_EXPIRE_SECONDS
     )
 
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        max_age=60*60*24*7 # 7일
+        max_age=REFRESH_TOKEN_EXPIRE_SECONDS
     )
 
     return response
@@ -99,14 +104,15 @@ def login(response: Response, name: str = Form(...), password: str = Form(...)):
 """ 프로필 페이지 - Access Token 필요 """
 @router.get("/profile", response_class=HTMLResponse)
 def get_profile(access_token: str = Cookie(None), refresh_token: str = Cookie(None)):
-    # 1. Access Token이 없으면 Refresh 시도
+    # 1. Access Token이 없으면 Refresh Token으로 Access Token 발급 시도
+    # 만약 Refresh Token도 없으면 다시 로그인후 토큰 재발급
     if not access_token:
         if refresh_token:
             return RedirectResponse(url='/refresh', status_code=302)
         return RedirectResponse(url='/')
 
     # 2. Access Token 검증
-    username, error = verify_token(access_token, "access")
+    name, error = verify_token(access_token, "access")
 
     # 3. Access Token 만료 시 자동 갱신
     if error == "expired":
@@ -115,7 +121,7 @@ def get_profile(access_token: str = Cookie(None), refresh_token: str = Cookie(No
         return RedirectResponse(url='/')
 
     # 4. 유효하지 않은 토큰
-    if error == "invalid" or not username:
+    if error == "invalid" or not name:
         return RedirectResponse(url='/')
 
     # 5. 성공 - 프로필 페이지 반환
@@ -123,10 +129,10 @@ def get_profile(access_token: str = Cookie(None), refresh_token: str = Cookie(No
     <html>
         <body>
             <h1>👤 내 프로필</h1>
-            <h2>안녕하세요, {username}님!</h2>
+            <h2>안녕하세요, {name}님!</h2>
             <p><strong>Access Token:</strong> ✅ 유효 (1분)</p>
             <p><strong>Refresh Token:</strong> ✅ 유효 (7일)</p>
-            
+
             <div>
                 <form action="/logout" method="post" style="display: inline;">
                     <button type="submit">로그아웃</button>
@@ -137,14 +143,9 @@ def get_profile(access_token: str = Cookie(None), refresh_token: str = Cookie(No
     </html>
     """
 
-
-@app.get("/refresh")
-def refresh(
-        response: Response,
-        refresh_token: str = Cookie(None)
-):
-    """Refresh Token으로 새 Access Token 발급"""
-
+""" Refresh Token으로 새 Access Token 발급 """
+@router.get("/refresh")
+def refresh(response: Response, refresh_token: str = Cookie(None)):
     # 1. Refresh Token 확인
     if not refresh_token:
         return RedirectResponse(url='/')
@@ -154,7 +155,7 @@ def refresh(
         return RedirectResponse(url='/')
 
     # 3. Refresh Token 검증
-    username, error = verify_token(refresh_token, "refresh")
+    name, error = verify_token(refresh_token, "refresh")
 
     # 4. Refresh Token 만료됨
     if error == "expired":
@@ -164,11 +165,11 @@ def refresh(
         return RedirectResponse(url='/')
 
     # 5. 유효하지 않은 토큰
-    if error == "invalid" or not username:
+    if error == "invalid" or not name:
         return RedirectResponse(url='/')
 
     # 6. 새 Access Token 발급
-    new_access_token = create_access_token(username)
+    new_access_token = create_access_token(name)
 
     # 7. 프로필로 리다이렉트하면서 새 토큰 저장
     response = RedirectResponse(url='/profile', status_code=302)
@@ -176,16 +177,14 @@ def refresh(
         key="access_token",
         value=new_access_token,
         httponly=True,
-        max_age=60  # 1분
+        max_age=ACCESS_TOKEN_EXPIRE_SECONDS
     )
 
     return response
 
-
-@app.post("/logout")
+"""로그아웃 - 모든 토큰 삭제"""
+@router.post("/logout")
 def logout(response: Response, refresh_token: str = Cookie(None)):
-    """로그아웃 - 모든 토큰 삭제"""
-
     # 서버에서 Refresh Token 제거
     if refresh_token and refresh_token in refresh_tokens:
         del refresh_tokens[refresh_token]
@@ -197,8 +196,7 @@ def logout(response: Response, refresh_token: str = Cookie(None)):
 
     return response
 
-
-@app.get("/token_check")
+@router.get("/token_check")
 def token_check():
     return {
         "active_refresh_tokens": len(refresh_tokens),
