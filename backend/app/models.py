@@ -39,8 +39,8 @@ class Member(Base):
     member_id = Column(BigInteger, primary_key=True, autoincrement=True)
     login_id = Column(String(50), unique=True, nullable=True)
     password = Column(String(255), nullable=True)
-    phone = Column(String(20), unique=True, nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
+    phone = Column(String(20), unique=True)
+    email = Column(String(100), unique=True)
     age = Column(Integer, nullable=True)
     pin_code = Column(Integer, nullable=True)
     social_type = Column(String(20), nullable=True)
@@ -52,6 +52,7 @@ class Member(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     is_deleted_at = Column(Boolean, default=False)
+    name = Column(String(30), nullable=False)
 
     fixed_seat = relationship("Seat", back_populates="fixed_members")
     tokens = relationship("Token", back_populates="member", cascade="all, delete")
