@@ -1,0 +1,100 @@
+/* 전체 화면 */
+.kiosk-container {
+    background: #f9f9f9;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 50px;
+    font-family: 'Segoe UI', Roboto, sans-serif;
+}
+
+/* 제목 */
+.kiosk-title {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+    color: #111;
+}
+
+.kiosk-sub {
+    font-size: 1.6rem;
+    color: #555;
+}
+
+/* 상단 버튼 그룹 */
+.top-button-group {
+    display: flex;
+    gap: 40px;
+    margin-top: 60px;
+}
+
+/* 공통 버튼 스타일 */
+.kiosk-btn {
+    width: 260px;
+    height: 260px;
+    border: none;
+    border-radius: 40px;
+    color: #fff;
+    font-size: 1.6rem;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+/* 터치/클릭 효과 */
+.kiosk-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+/* 호버 효과 */
+.kiosk-btn:hover {
+    filter: brightness(1.1);
+}
+
+/* 아이콘 */
+.btn-icon {
+    font-size: 4.2rem;
+    margin-bottom: 20px;
+}
+
+/* 좌석 현황 버튼 */
+.seat-btn {
+    width: 600px;
+    height: 140px;
+    margin-top: 70px;
+    flex-direction: row;
+    gap: 20px;
+    font-size: 1.7rem;
+}
+
+.seat-btn .btn-icon {
+    font-size: 3.5rem;
+    margin-bottom: 0;
+}
+
+/* 그라데이션 컬러 */
+.color-gradient-blue {
+    background: linear-gradient(135deg, #3B82F6, #60A5FA);
+}
+
+.color-gradient-green {
+    background: linear-gradient(135deg, #10B981, #34D399);
+}
+
+.color-gradient-red {
+    background: linear-gradient(135deg, #EF4444, #F87171);
+}
+
+.color-gradient-purple {
+    background: linear-gradient(135deg, #8B5CF6, #A78BFA);
+}
