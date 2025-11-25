@@ -17,6 +17,7 @@ dependencies = [
     "psycopg2>=2.9.11",
     "psycopg2-binary>=2.9.11",
     "python-jose>=3.5.0",
+    "python-multipart>=0.0.20",
     "scikit-learn>=1.7.2",
     "sqlalchemy>=2.0.44",
     "torch==2.2.0",
