@@ -2,8 +2,8 @@ import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth
 from database import create_tables
+from routers import auth
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -12,7 +12,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# app.include_router(auth.router)
+app.include_router(auth.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,7 +23,7 @@ app.add_middleware(
 )
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app",
+    uvicorn.run("main:app",
                 host="localhost",
                 port=8080,
                 reload=True)
