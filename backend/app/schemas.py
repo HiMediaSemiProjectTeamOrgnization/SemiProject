@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional
 
@@ -40,18 +40,19 @@ class SeatResponse(SeatBase):
 # -------------------------------------------------------------------
 class MemberBase(BaseSchema):
     login_id: Optional[str] = None
-    phone: str
-    email: EmailStr
+    phone: Optional[str] = None
+    email: Optional[str] = None
     age: Optional[int] = None
     social_type: Optional[str] = None
     pin_code: Optional[int] = None
+    name: str
 
 class MemberCreate(MemberBase):
     password: Optional[str] = None
 
 class MemberUpdate(BaseSchema):
     phone: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     age: Optional[int] = None
     pin_code: Optional[int] = None
 
@@ -69,17 +70,16 @@ class MemberResponse(MemberBase):
 # -------------------------------------------------------------------
 # TOKENS
 # -------------------------------------------------------------------
-class TokenCreate(BaseSchema):
+class TokenBase(BaseSchema):
     member_id: int
     token: str
     expires_at: Optional[datetime] = None
 
-class TokenResponse(BaseSchema):
-    token_id: int
-    token: str
-    expires_at: Optional[datetime] = None
+class TokenCreate(TokenBase):
+    pass
+
+class TokenResponse(TokenBase):
     is_revoked: bool
-    created_at: datetime
 
 # -------------------------------------------------------------------
 # ORDERS

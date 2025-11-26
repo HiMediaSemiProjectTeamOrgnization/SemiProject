@@ -1,8 +1,14 @@
-from fastapi import APIRouter, HTTPException, Form, Response, Cookie
+from fastapi import APIRouter, HTTPException, Form, Response, Cookie, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.orm import Session
 from jose import jwt, JWTError, ExpiredSignatureError
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from passlib.context import CryptContext
+from starlette.responses import JSONResponse
+from app.database import get_db
+from app.models import Token, Member
+from app.schemas import TokenCreate
 import os
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -10,85 +16,162 @@ router = APIRouter(prefix="/api/auth", tags=["Auth"])
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
-ACCESS_TOKEN_EXPIRE_SECONDS = 60*30
-ACCESS_TOKEN_EXPIRE_MINUTES = 1
-REFRESH_TOKEN_EXPIRE_SECONDS = 60*60*24*7
+ACCESS_TOKEN_EXPIRE_SECONDS = 60 * 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_SECONDS = 60 * 60 * 24 * 7
 REFRESH_TOKEN_EXPIRE_DAYS = 7
+
 KST = ZoneInfo("Asia/Seoul")
 
-# 사용자 데이터베이스
-users = {
-    "admin": "1234",
-    "user": "1234"
-}
+BCRYPT = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Refresh Token 저장소 (서버에서 관리)
-refresh_tokens = {}
+""" 비밀번호 인코딩 """
+def password_encode(password: str):
+    return BCRYPT.hash(password)
 
-""" Access Token 생성 - 짧은 수명 (1분) """
-def create_access_token(name):
+""" 비밀번호 디코딩 """
+def password_decode(password: str, hashed_password: str):
+    return BCRYPT.verify(password, hashed_password)
+
+""" 액세스 토큰 생성 """
+def create_access_token(member_id, name):
+    exp = datetime.now(KST) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
+        "member_id": member_id,
         "name": name,
         "type": "access",
-        "exp": datetime.now(KST) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-
-""" Refresh Token 생성 - 긴 수명 (7일) """
-def create_refresh_token(name):
-    payload = {
-        "name": name,
-        "type": "refresh",
-        "exp": datetime.now(KST) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        "exp": exp
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-    refresh_tokens[token] = {
+    return token
+
+""" 리프레시 토큰 생성 """
+def create_refresh_token(member_id, name, db: Session):
+    exp = datetime.now(KST) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    payload = {
+        "member_id": member_id,
         "name": name,
-        "created_at": datetime.now(KST)
+        "type": "refresh",
+        "exp": exp
     }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    # 리프레시 토큰 DB 저장
+    refresh_token = Token(
+        member_id=member_id,
+        token=token,
+        expires_at=exp,
+    )
+    db.add(refresh_token)
+    db.commit()
 
     return token
 
 """ JWT 토큰 검증 """
-def verify_token(token: str, token_type: str = "access"):
+def verify_token(db: Session, token: str, token_type: str = "access"):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        member_id = payload.get("member_id")
         name = payload.get("name")
         type_check = payload.get("type")
 
-        # 토큰 타입 확인
+        # 사용할 member_id, name을 dict 자료형으로 보내기
+        mem_info = {
+            "member_id": member_id,
+            "name": name
+        }
+
+        # 토큰 타입 검증
         if type_check != token_type:
             return None, "invalid"
 
-        return name, None
+        return mem_info, None
 
     except ExpiredSignatureError:
         return None, "expired"
+
     except JWTError:
         return None, "invalid"
 
+""" JWT 토큰이 포함된 쿠키 정보 받기 """
+def get_cookies_info(response: Response, access_token: str, refresh_token: str, db: Session):
+    # 액세스 토큰이 없을때
+    if not access_token:
+        # 리프레시 토큰이 있을때
+        if refresh_token:
+            mem_info, error = verify_token(db, refresh_token, "refresh")
+
+            # 리프레시 토큰이 만료되었을때
+            if error == "expired":
+                raise HTTPException(status_code=404, detail="expired refresh token")
+
+            # 리프레시 토큰이 유효하지않을때
+            if error == "invalid":
+                raise HTTPException(status_code=404, detail="invalid refresh token")
+
+            # 액세스 토큰 재발급
+            response.set_cookie(
+                key="access_token",
+                value=create_access_token(mem_info["member_id"], mem_info["name"]),
+                httponly=True,
+                samesite="lax",
+                max_age=ACCESS_TOKEN_EXPIRE_SECONDS
+            )
+            return mem_info
+
+        # 리프레시 토큰이 없을때
+        raise HTTPException(status_code=404, detail="invalid tokens")
+
+    # 액세스 토큰이 있을때
+    mem_info, error = verify_token(db, refresh_token, "access")
+
+    # 액세스 토큰이 만료되었을때
+    if error == "expired":
+        raise HTTPException(status_code=404, detail="expired access token")
+
+    # 액세스 토큰이 유효하지않을때
+    if error == "invalid":
+        raise HTTPException(status_code=404, detail="expired access token")
+
+    return mem_info
+
 """ 로그인 - Access Token + Refresh Token 발급 """
 @router.post("/login")
-def login(response: Response, name: str = Form(...), password: str = Form(...)):
-    # 1. 사용자 확인
-    if name not in users or users[name] != password:
-        raise HTTPException(status_code=401, detail="잘못된 로그인 정보")
+def login(response: Response, login_id: str, email: str, password: str, db: Session = Depends(get_db)):
+    member = None
 
-    # 2. Access Token 생성 (1분)
-    access_token = create_access_token(name)
+    # 소셜 로그인 했을 때
+    if email:
+        member = db.query(Member).filter(Member.email == email).first()
+        if not member:
+            raise HTTPException(status_code=404, detail="email not found")
 
-    # 3. Refresh Token 생성 (7일)
-    refresh_token = create_refresh_token(name)
+    # 일반 로그인 했을 때
+    elif login_id:
+        member = db.query(Member).filter(Member.login_id == login_id).first()
+        if not member:
+            raise HTTPException(status_code=404, detail="id not found")
 
-    # 4. 프로필로 리다이렉트
-    response = RedirectResponse(url='/profile', status_code=302)
+        # 비밀번호 검증
+        if not password_decode(password, member.password):
+            raise HTTPException(status_code=401, detail="password not found")
 
-    # 5. 토큰들을 쿠키에 저장
+    else:
+        raise HTTPException(status_code=400, detail="invalid member info")
+
+    # 액세스 토큰 생성
+    access_token = create_access_token(member.member_id, member.name)
+
+    # 리프레시 토큰 생성
+    refresh_token = create_refresh_token(member.member_id, member.name, db)
+
+    # 토큰들을 쿠키에 저장
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
+        samesite="lax",
         max_age=ACCESS_TOKEN_EXPIRE_SECONDS
     )
 
@@ -96,40 +179,22 @@ def login(response: Response, name: str = Form(...), password: str = Form(...)):
         key="refresh_token",
         value=refresh_token,
         httponly=True,
+        samesite="lax",
         max_age=REFRESH_TOKEN_EXPIRE_SECONDS
     )
 
-    return response
+    return {"msg": "success"}
 
-""" 프로필 페이지 - Access Token 필요 """
-@router.get("/profile", response_class=HTMLResponse)
-def get_profile(access_token: str = Cookie(None), refresh_token: str = Cookie(None)):
-    # 1. Access Token이 없으면 Refresh Token으로 Access Token 발급 시도
-    # 만약 Refresh Token도 없으면 다시 로그인후 토큰 재발급
-    if not access_token:
-        if refresh_token:
-            return RedirectResponse(url='/refresh', status_code=302)
-        return RedirectResponse(url='/')
+""" 테스트용 페이지 """
+@router.get("/test", response_class=HTMLResponse)
+def get_profile(response: Response, access_token: str = Cookie(None), refresh_token: str = Cookie(None), db: Session = Depends(get_db)):
+    mem_info = get_cookies_info(response, access_token, refresh_token, db)
 
-    # 2. Access Token 검증
-    name, error = verify_token(access_token, "access")
-
-    # 3. Access Token 만료 시 자동 갱신
-    if error == "expired":
-        if refresh_token:
-            return RedirectResponse(url='/refresh', status_code=302)
-        return RedirectResponse(url='/')
-
-    # 4. 유효하지 않은 토큰
-    if error == "invalid" or not name:
-        return RedirectResponse(url='/')
-
-    # 5. 성공 - 프로필 페이지 반환
     return f"""
     <html>
         <body>
             <h1>👤 내 프로필</h1>
-            <h2>안녕하세요, {name}님!</h2>
+            <h2>안녕하세요, {mem_info["name"]}님!</h2>
             <p><strong>Access Token:</strong> ✅ 유효 (1분)</p>
             <p><strong>Refresh Token:</strong> ✅ 유효 (7일)</p>
 
@@ -143,68 +208,26 @@ def get_profile(access_token: str = Cookie(None), refresh_token: str = Cookie(No
     </html>
     """
 
-""" Refresh Token으로 새 Access Token 발급 """
-@router.get("/refresh")
-def refresh(response: Response, refresh_token: str = Cookie(None)):
-    # 1. Refresh Token 확인
-    if not refresh_token:
-        return RedirectResponse(url='/')
-
-    # 2. 서버에 저장된 토큰인지 확인
-    if refresh_token not in refresh_tokens:
-        return RedirectResponse(url='/')
-
-    # 3. Refresh Token 검증
-    name, error = verify_token(refresh_token, "refresh")
-
-    # 4. Refresh Token 만료됨
-    if error == "expired":
-        # 만료된 토큰 제거
-        if refresh_token in refresh_tokens:
-            del refresh_tokens[refresh_token]
-        return RedirectResponse(url='/')
-
-    # 5. 유효하지 않은 토큰
-    if error == "invalid" or not name:
-        return RedirectResponse(url='/')
-
-    # 6. 새 Access Token 발급
-    new_access_token = create_access_token(name)
-
-    # 7. 프로필로 리다이렉트하면서 새 토큰 저장
-    response = RedirectResponse(url='/profile', status_code=302)
-    response.set_cookie(
-        key="access_token",
-        value=new_access_token,
-        httponly=True,
-        max_age=ACCESS_TOKEN_EXPIRE_SECONDS
-    )
-
-    return response
-
 """로그아웃 - 모든 토큰 삭제"""
-@router.post("/logout")
-def logout(response: Response, refresh_token: str = Cookie(None)):
-    # 서버에서 Refresh Token 제거
-    if refresh_token and refresh_token in refresh_tokens:
-        del refresh_tokens[refresh_token]
+@router.delete("/logout")
+def logout(response: Response, refresh_token: str = Cookie(None), db: Session = Depends(get_db)):
+    # 서버에서 리프레시 토큰 제거
+    token = db.query(Token).filter(Token.token == refresh_token).first()
+    db.delete(token)
+    db.commit()
 
     # 쿠키 삭제
-    response = RedirectResponse(url='/', status_code=302)
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
 
-    return response
+    return {"msg": "success"}
 
-@router.get("/token_check")
-def token_check():
-    return {
-        "active_refresh_tokens": len(refresh_tokens),
-        "tokens": [
-            {
-                "username": data["username"],
-                "created_at": data["created_at"]
-            }
-            for data in refresh_tokens.values()
-        ]
-    }
+@router.get("/register")
+def create_member(name: str, db: Session = Depends(get_db)):
+    member = Member(
+        name=name
+    )
+    db.add(member)
+    db.commit()
+
+    return {"msg": "success"}
