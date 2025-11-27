@@ -1,27 +1,28 @@
-import { FaArrowLeft } from "react-icons/fa";
+import { FaArrowLeft, FaClock } from "react-icons/fa";
 
 function KioskHeader({ showBack = false, onBack }) {
+    const currentTime = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
     return (
-        <div style={{display: "flex"}}>
-            {/* 왼쪽 뒤로가기 */}
-            <div style={{ width: "50px" }}>
+        <header>
+            <div>
                 {showBack && (
-                    <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px" }}>
+                    <button onClick={onBack}>
                         <FaArrowLeft />
                     </button>
                 )}
             </div>
 
-            {/* 중앙 이름 */}
             <div>
-                하이 스터디카페
+                <h1>HIGH STUDY CAFE</h1>
+                <span>Premium Lounge</span>
             </div>
 
-            {/* 오른쪽 회원 이름 */}
             <div>
-                <span>나중에 회원 로그인 하면 이름 뜰거임</span>
+                <FaClock />
+                <span>{currentTime}</span>
             </div>
-        </div>
+        </header>
     );
 }
 

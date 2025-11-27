@@ -40,8 +40,18 @@ def guest_login(
 # ------------------------
 @router.get("/products")
 def list_products(db: Session = Depends(get_db)):
-    products = db.query(Product).filter(Product.is_exposured == True).all()
-    return [{"product_id": p.product_id, "name": p.name, "type": p.type, "price": p.price, "value": p.value} for p in products]
+    products = db.query(Product).filter(
+        Product.is_exposured == True,
+        Product.type == "시간제"  # 기간제 제외
+    ).all()
+    
+    return [{
+        "product_id": p.product_id,
+        "name": p.name,
+        "type": p.type,
+        "price": p.price,
+        "value": p.value
+    } for p in products]
 
 # ------------------------
 # 이용권 구매
@@ -57,6 +67,9 @@ def purchase_ticket(
     product = db.query(Product).filter(Product.product_id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="이용권이 존재하지 않습니다.")
+    
+    if not member:
+        raise HTTPException(status_code=404, detail="회원이 존재하지 않습니다.")
 
     order = Order(
         member_id=member_id,
