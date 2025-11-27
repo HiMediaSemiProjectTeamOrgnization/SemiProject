@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { FaArrowLeft, FaClock } from "react-icons/fa";
 
-function KioskHeader({ backButton=true }) {
+function KioskHeader({ backButton = true }) {
+    const navigate = useNavigate();
     const [currentTime, setCurrentTime] = useState(new Date());
 
     useEffect(() => {
@@ -17,22 +19,40 @@ function KioskHeader({ backButton=true }) {
         second: '2-digit',
         hour12: false,
     });
+
+    const handleBack = () => {
+        navigate(-1);
+    };
+
     return (
-        <header>
-            <div>
+        <header className="flex justify-between items-center h-20 px-6 bg-slate-900 text-white shadow-lg sticky top-0 z-50 select-none">
+            <div className="w-32 flex justify-start">
                 {backButton && (
-                    <button><FaArrowLeft /></button>
+                    <button 
+                        onClick={handleBack}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-slate-300 transition-transform duration-100 active:scale-95 active:text-white active:bg-slate-800"
+                    >
+                        <FaArrowLeft className="text-xl" />
+                    </button>
                 )}
             </div>
-            <div>
-                <h1>HIGH STUDY CAFE</h1>
+
+            <div className="flex-1 text-center">
+                <h1 className="text-3xl font-extrabold tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">
+                    HIGH STUDY
+                </h1>
             </div>
-            <div>
-                <FaClock />
-                <span>{formattedTime}</span>
+
+            <div className="w-32 flex justify-end">
+                <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full border border-slate-700 shadow-inner">
+                    <FaClock className="text-blue-400" />
+                    <span className="text-lg font-mono font-bold text-slate-100 tracking-wide">
+                        {formattedTime}
+                    </span>
+                </div>
             </div>
         </header>
-    )
+    );
 }
 
-export default KioskHeader
+export default KioskHeader;
