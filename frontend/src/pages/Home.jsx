@@ -14,7 +14,7 @@ const Home = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
 
                 {/* 카드 1: 키오스크 */}
-                <Link to='/test' className="group block p-10 bg-white rounded-2xl shadow-md border border-gray-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <Link to='/kiosk' className="group block p-10 bg-white rounded-2xl shadow-md border border-gray-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                     <h2 className="text-2xl font-bold text-blue-600 mb-2 group-hover:text-blue-700">🖥️ 키오스크 모드</h2>
                     <p className="text-gray-500">매장 입구에 설치되는 무인 결제 시스템입니다.</p>
                 </Link>
