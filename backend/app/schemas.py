@@ -1,6 +1,6 @@
-from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional
+from pydantic import BaseModel, ConfigDict
 
 # 공통 설정 (ORM 객체를 Pydantic 모델로 변환 허용)
 class BaseSchema(BaseModel):
@@ -39,33 +39,23 @@ class SeatResponse(SeatBase):
 # MEMBERS
 # -------------------------------------------------------------------
 class MemberBase(BaseSchema):
-    login_id: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    age: Optional[int] = None
-    social_type: Optional[str] = None
-    pin_code: Optional[int] = None
-    name: str
+    name: Optional[str] = None
 
 class MemberCreate(MemberBase):
+    login_id: str
+    password: str
+    phone: str
+
+class MemberResponse(MemberBase):
+    login_id: Optional[str] = None
     password: Optional[str] = None
+    email: Optional[str] = None
 
 class MemberUpdate(BaseSchema):
     phone: Optional[str] = None
     email: Optional[str] = None
     age: Optional[int] = None
     pin_code: Optional[int] = None
-
-class MemberResponse(MemberBase):
-    member_id: int
-    total_mileage: int
-    saved_time_minute: int
-    period_start_date: Optional[datetime] = None
-    period_end_date: Optional[datetime] = None
-    fixed_seat_id: Optional[int] = None
-    created_at: datetime
-    updated_at: datetime
-    is_deleted_at: bool
 
 # -------------------------------------------------------------------
 # TOKENS

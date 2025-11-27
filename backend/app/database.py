@@ -33,5 +33,4 @@ def get_db():
         db.close()
 
 def create_tables():
-    import models
     Base.metadata.create_all(bind=engine)

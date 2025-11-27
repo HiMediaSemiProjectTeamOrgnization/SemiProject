@@ -51,8 +51,9 @@ class Member(Base):
     fixed_seat_id = Column(BigInteger, ForeignKey("seats.seat_id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    is_deleted_at = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
     name = Column(String(30), nullable=False)
+    role = Column(String(20), nullable=False, default="user")
 
     fixed_seat = relationship("Seat", back_populates="fixed_members")
     tokens = relationship("Token", back_populates="member", cascade="all, delete")
@@ -68,7 +69,7 @@ class Token(Base):
 
     token_id = Column(BigInteger, primary_key=True, autoincrement=True)
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
-    token = Column(String(200))
+    token = Column(String(512))
     expires_at = Column(DateTime, nullable=True)
     is_revoked = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=func.now())
