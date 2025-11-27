@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from passlib.context import CryptContext
 from starlette.responses import JSONResponse
-from app.database import get_db
-from app.models import Token, Member
-from app.schemas import TokenCreate
+from database import get_db
+from models import Token, Member
+from schemas import TokenCreate
 import os
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
