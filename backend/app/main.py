@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import test, auth, kiosk
 from database import create_tables
+from routers.web import ticket
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -14,6 +15,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.include_router(auth.router)
 app.include_router(kiosk.router)
+app.include_router(ticket.router)
 
 app.add_middleware(
     CORSMiddleware,

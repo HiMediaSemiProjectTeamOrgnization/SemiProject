@@ -14,7 +14,7 @@ class Product(Base):
     type = Column(String(20), nullable=False)
     price = Column(Integer, nullable=False)
     value = Column(Integer, nullable=False)
-    is_exposured = Column(Boolean, default=True)
+    is_exposured = Column(Boolean, server_default="true")
 
     orders = relationship("Order", back_populates="product")
 
@@ -26,7 +26,7 @@ class Seat(Base):
 
     seat_id = Column(BigInteger, primary_key=True, autoincrement=True)
     type = Column(String(10), nullable=False)
-    is_status = Column(Boolean, default=True)
+    is_status = Column(Boolean, server_default="true")
     fixed_members = relationship("Member", back_populates="fixed_seat")
     seat_usages = relationship("SeatUsage", back_populates="seat")
 
@@ -44,16 +44,16 @@ class Member(Base):
     birthday = Column(String(10), nullable=True)
     pin_code = Column(Integer, nullable=True)
     social_type = Column(String(20), nullable=True)
-    total_mileage = Column(Integer, default=0)
-    saved_time_minute = Column(Integer, default=0)
+    total_mileage = Column(Integer, server_default="0")
+    saved_time_minute = Column(Integer, server_default="0")
     period_start_date = Column(DateTime, nullable=True)
     period_end_date = Column(DateTime, nullable=True)
     fixed_seat_id = Column(BigInteger, ForeignKey("seats.seat_id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    is_deleted = Column(Boolean, default=False)
+    is_deleted_at = Column(Boolean, server_default="false")
     name = Column(String(30), nullable=False)
-    role = Column(String(20), nullable=False, default="user")
+    role = Column(String(20), nullable=False, server_default="user")
 
     fixed_seat = relationship("Seat", back_populates="fixed_members")
     tokens = relationship("Token", back_populates="member", cascade="all, delete")
@@ -71,7 +71,7 @@ class Token(Base):
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
     token = Column(String(512))
     expires_at = Column(DateTime, nullable=True)
-    is_revoked = Column(Boolean, default=False)
+    is_revoked = Column(Boolean, server_default="false")
     created_at = Column(DateTime, server_default=func.now())
 
     member = relationship("Member", back_populates="tokens")
