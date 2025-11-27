@@ -24,6 +24,85 @@
 | [REFACTOR] | 코드 리팩토링, 결과물은 같지만 코드 로직이 수정됨      |
 | [DOCS]     | 문서가 수정됨                           |
 | 예시         | [FEAT] 로그인 API 엔드포인트 추가           |
+## 프로젝트 전체 구조도
+```
+SemiProject/
+├── alembic/                # DB 마이그레이션 관리
+│   ├── versions/
+│   └── env.py
+│
+├── app/                    # Backend (FastAPI)
+│   ├── __init__.py
+│   ├── database.py         # DB 연결 설정
+│   ├── main.py             # FastAPI 메인 앱 실행
+│   ├── models.py           # SQLAlchemy ORM 모델
+│   ├── schemas.py          # Pydantic 데이터 스키마
+│   ├── routers/            # API 엔드포인트 라우터
+│   │   ├── __init__.py
+│   │   ├── kiosk/
+│   │   │   ├── __init__.py
+│   │   │   └── kiosk.py
+│   │   ├── ml/             # 머신러닝 관련 (Torch 등 사용 추정)
+│   │   │   ├── __init__.py
+│   │   │   └── detect.py
+│   │   └── web/
+│   │       ├── __init__.py
+│   │       ├── auth.py
+│   │       └── ticket.py
+│   └── utils/              # 유틸리티 함수
+│       ├── __init__.py
+│       └── auth_utils.py
+│
+└── frontend/               # Frontend (React + Vite)
+    ├── index.html
+    ├── package.json
+    ├── vite.config.js
+    ├── public/
+    └── src/
+        ├── main.jsx        # React 진입점
+        ├── App.jsx         # 메인 컴포넌트
+        ├── App.css
+        ├── Home.jsx        
+        ├── index.css
+        ├── assets/
+        ├── utils/
+        │   └── useTestStore.js
+        │
+        ├── kiosk/          # 키오스크 모드 관련 소스
+        │   ├── KioskApp.jsx
+        │   ├── components/
+        │   │   ├── KioskAlertModal.jsx
+        │   │   ├── KioskHeader.jsx
+        │   │   ├── KioskPaymentModal.jsx
+        │   │   ├── StepPhoneInput.jsx
+        │   │   ├── StepPinInput.jsx
+        │   │   └── StepProductList.jsx
+        │   ├── pages/
+        │   │   ├── BuyTicket.jsx
+        │   │   ├── KioskHeader.jsx
+        │   │   ├── KioskHome.jsx
+        │   │   ├── Payment.jsx
+        │   │   └── SelectUserType.jsx
+        │   ├── screens/
+        │   │   ├── KioskLogin.jsx
+        │   │   ├── KioskPhoneInput.jsx
+        │   │   ├── KioskTicketList.jsx
+        │   │   └── KioskUserSelect.jsx
+        │   └── styles/
+        │       └── Kiosk.css
+        │
+        └── web/            # 웹 모드 관련 소스
+            ├── components/
+            │   ├── CommonButton.jsx
+            │   └── WebLayout.jsx
+            ├── pages/
+            │   ├── Payment.jsx
+            │   ├── TicketList.jsx
+            │   └── WebIndex.jsx
+            └── styles/
+                ├── Payment.css
+                └── TicketList.css
+```
 ## 프론트엔드
 ### 폴더 구조도
 ```
