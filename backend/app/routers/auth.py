@@ -1,27 +1,30 @@
+import os
+import httpx
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Response, Cookie, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Token, Member
-from schemas import TokenCreate, MemberCreate, MemberResponse
+from schemas import TokenCreate, MemberCreate, MemberLogin
 from utils import auth_utils
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
-""" 로그인 - 엑세스 토큰, 리프레시 토큰 발급 """
+load_dotenv()
+KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
+KAKAO_CLIENT_SECRET = os.getenv("KAKAO_CLIENT_SECRET")
+KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
+KAKAO_LOGOUT_REDIRECT_URI = os.getenv("KAKAO_LOGOUT_REDIRECT_URI")
+
+""" 일반 로그인 - 엑세스 토큰, 리프레시 토큰 발급 """
 @router.post("/login")
-def login(response: Response, member_data: MemberResponse, db: Session = Depends(get_db)):
+def login(response: Response, member_data: MemberLogin, db: Session = Depends(get_db)):
     member = None
 
-    # 소셜 로그인 했을 때
-    if member_data.email:
-        member = db.query(Member).filter(Member.email == member_data.email).first()
-        # 존재하지 않는 이메일일때
-        if not member:
-            raise HTTPException(status_code=404, detail="email not found")
-
     # 일반 로그인 했을 때
-    elif member_data.login_id:
+    if member_data.login_id:
         member = db.query(Member).filter(Member.login_id == member_data.login_id).first()
         # 비밀번호 검증
         if not member or not auth_utils.password_decode(member_data.password, member.password):
@@ -55,6 +58,88 @@ def login(response: Response, member_data: MemberResponse, db: Session = Depends
     )
 
     return {"msg": "success", "member_name": member.name}
+
+""" 카카오 로그인 페이지로 이동 """
+@router.get("/kakao/login")
+async def kakao_login():
+    kakao_auth_url = (
+        f"https://kauth.kakao.com/oauth/authorize"
+        f"?response_type=code"
+        f"&client_id={KAKAO_CLIENT_ID}"
+        f"&redirect_uri={KAKAO_REDIRECT_URI}"
+    )
+    return RedirectResponse(url=kakao_auth_url)
+
+""" 카카오 로그인 후 인증 코드 받기 """
+@router.get("/kakao/callback")
+async def kakao_callback(code: str, db: Session = Depends(get_db)):
+    # 토큰 요청 URL 및 data
+    token_url = "https://kauth.kakao.com/oauth/token"
+
+    token_data = {
+        "grant_type": "authorization_code",
+        "client_id": KAKAO_CLIENT_ID,
+        "redirect_uri": KAKAO_REDIRECT_URI,
+        "client_secret": KAKAO_CLIENT_SECRET,
+        "code": code
+    }
+
+    # 엑세스, 리프레시 토큰 요청
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(token_url, data=token_data)
+
+    token_json = token_response.json()
+    access_token = token_json.get("access_token")
+    refresh_token = token_json.get("refresh_token")
+    expires_in = token_json.get("expires_in", 60 * 60 * 6) # 6시간
+    token_expired_at = datetime.now() + timedelta(seconds=expires_in)
+
+    if not access_token:
+        raise HTTPException(status_code=41, detail="token create failed")
+
+    # 엑세스 토큰으로 사용자 정보 가져오기
+    user_info_url = "https://kapi.kakao.com/v2/user/me"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    async with httpx.AsyncClient() as client:
+        user_response = await client.get(user_info_url, headers=headers)
+
+    user_info = user_response.json()
+    kakao_id = user_info.get("id")
+    kakao_email = user_info.get("kakao_account", {}).get("email")
+    kakao_name = user_info.get("kakao_account", {}).get("name")
+    kakao_name = user_info.get("kakao_account", {}).get("profile", {}).get("nickname")
+    kakao_phone_number = user_info.get("kakao_account", {}).get("phone_number")
+    # kakao_age_range = user_info.get("kakao_account", {}).get("age_range") # 나중에 필요시 사용
+
+    # DB에서 카카오 계정 존재 확인
+    kakao_account = db.query(Member).filter((Member.social_type == "kakao") & (Member.login_id == kakao_id)).first()
+
+    # 카카오 계정이 DB에 존재한다면
+    if kakao_account:
+        try:
+            # 리프레시 토큰 DB에 추가
+            token = Token(
+                member_id=kakao_account.member_id,
+                token=refresh_token,
+                expires_at=expires_in
+            )
+
+            db.add(token)
+            db.commit()
+            db.refresh(token)
+
+            auth_utils.create_access_token()
+
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"login failed: {e}")
+    # 카카오 계정이 DB에 존재하지 않는다면
+    else:
+        try:
+            with db.begin():
+                #
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"transaction failed: {e}")
 
 """ 로그아웃 - 모든 토큰 삭제 """
 @router.post("/logout")
@@ -94,8 +179,8 @@ def create_member(member_data: MemberCreate, db: Session = Depends(get_db)):
 
     return {"msg": "success"}
 
-""" 테스트용 페이지 """
-@router.get("/test", response_class=HTMLResponse)
+""" JWT 토큰 테스트용 페이지 """
+@router.get("/token_test", response_class=HTMLResponse)
 def get_profile(member: dict = Depends(auth_utils.get_cookies_info)):
     return f"""
     <html>
@@ -104,5 +189,21 @@ def get_profile(member: dict = Depends(auth_utils.get_cookies_info)):
             <h2>안녕하세요, {member["name"]}님!</h2>
             <h2>당신의 member_id: {member["member_id"]}님!</h2>
         </body>
+    </html>
+    """
+
+""" 카카오 로그인 테스트 페이지 """
+@router.get('/kakao_test', response_class=HTMLResponse)
+def kakao_login():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <body>
+        <div class="container">
+        <h3>카카오 로그인</h3>
+        <a href="/api/auth/kakao/login">
+            <img src="/images/kakao_login.png" alt='카카오 로그인' style="width: 120px; cursor: pointer;">
+        </a>
+    </body>
     </html>
     """

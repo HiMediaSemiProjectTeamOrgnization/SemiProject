@@ -46,10 +46,9 @@ class MemberCreate(MemberBase):
     password: str
     phone: str
 
-class MemberResponse(MemberBase):
+class MemberLogin(MemberBase):
     login_id: Optional[str] = None
     password: Optional[str] = None
-    email: Optional[str] = None
 
 class MemberUpdate(BaseSchema):
     phone: Optional[str] = None

@@ -41,7 +41,7 @@ class Member(Base):
     password = Column(String(255), nullable=True)
     phone = Column(String(20), unique=True)
     email = Column(String(100), unique=True)
-    age = Column(Integer, nullable=True)
+    birthday = Column(DateTime, nullable=True)
     pin_code = Column(Integer, nullable=True)
     social_type = Column(String(20), nullable=True)
     total_mileage = Column(Integer, default=0)

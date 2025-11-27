@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from dotenv import load_dotenv
 from fastapi import HTTPException, Response, Cookie, Depends
 from jose import jwt, JWTError, ExpiredSignatureError
 from passlib.context import CryptContext
@@ -10,15 +11,18 @@ from models import Token, Member
 from schemas import TokenCreate, MemberCreate
 
 """
-# 쿠키 사용법
+# 쿠키 정보 가져오기
 1. 라우터 매개 변수에 추가
 member: dict = Depends(auth_utils.get_cookies_info)
 
 2. dict이므로 다음과 같이 member_id, name 꺼내기
 member["member_id"]
 member["name"]
+
+카카오 쿠키랑 일반 쿠키랑 구분해서 일반 은 jwt.decode로 해독하고 카카오 쿠키는 카카오 url로 보내서 해독
 """
 
+load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
