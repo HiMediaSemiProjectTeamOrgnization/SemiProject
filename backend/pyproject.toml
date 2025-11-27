@@ -11,6 +11,7 @@ dependencies = [
     "fastapi>=0.121.3",
     "httpx>=0.28.1",
     "numpy>=2.3.5",
+    "opencv-python>=4.11.0.86",
     "pandas>=2.3.3",
     "passlib[bcrypt]==1.7.4",
     "pathlib>=1.0.1",
@@ -21,5 +22,6 @@ dependencies = [
     "scikit-learn>=1.7.2",
     "sqlalchemy>=2.0.44",
     "torch==2.2.0",
+    "ultralytics>=8.3.232",
     "uvicorn>=0.38.0",
 ]
