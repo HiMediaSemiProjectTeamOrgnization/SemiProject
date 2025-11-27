@@ -18,8 +18,6 @@ member: dict = Depends(auth_utils.get_cookies_info)
 2. dict이므로 다음과 같이 member_id, name 꺼내기
 member["member_id"]
 member["name"]
-
-카카오 쿠키랑 일반 쿠키랑 구분해서 일반 은 jwt.decode로 해독하고 카카오 쿠키는 카카오 url로 보내서 해독
 """
 
 load_dotenv()
@@ -32,7 +30,6 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 REFRESH_TOKEN_EXPIRE_SECONDS = 60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS
 
 KST = ZoneInfo("Asia/Seoul")
-
 BCRYPT = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 """ 비밀번호 인코딩 """
@@ -43,7 +40,7 @@ def password_encode(password: str):
 def password_decode(password: str, hashed_password: str):
     return BCRYPT.verify(password, hashed_password)
 
-""" 액세스 토큰 생성 """
+""" 엑세스 토큰 생성 """
 def create_access_token(member_id, name):
     exp = datetime.now(KST) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
@@ -105,12 +102,7 @@ def verify_token(db: Session, token: str, token_type: str = "access"):
         return None, "invalid"
 
 """ JWT 토큰이 포함된 쿠키 정보 받기 """
-def get_cookies_info(
-    response: Response,
-    access_token: str = Cookie(None),
-    refresh_token: str = Cookie(None),
-    db: Session = Depends(get_db)
-):
+def get_cookies_info(response: Response, access_token: str, refresh_token: str, db: Session = Depends(get_db)):
     # 엑세스 토큰이 있을때
     if access_token:
         mem_info, error = verify_token(db, access_token, "access")
@@ -136,7 +128,7 @@ def get_cookies_info(
         if not db_token:
             raise HTTPException(status_code=401, detail="token not found in DB")
 
-        # 액세스 토큰 재발급
+        # 엑세스 토큰 재발급
         new_access_token = create_access_token(mem_info["member_id"], mem_info["name"])
         response.set_cookie(
             key="access_token",
@@ -149,3 +141,12 @@ def get_cookies_info(
 
     # 리프레시 토큰이 없을때
     raise HTTPException(status_code=401, detail="invalid tokens")
+
+""" 로그아웃하지 않고 재로그인 요청시 기존 리프레시 토큰 무효화 """
+def revoke_existing_token(db: Session, refresh_token: str = None):
+    if refresh_token:
+        token = db.query(Token).filter(Token.token == refresh_token).first()
+        if token:
+            token.is_revoked = True
+            db.commit()
+            db.refresh(token)
