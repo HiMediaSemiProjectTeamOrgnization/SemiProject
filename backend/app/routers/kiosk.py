@@ -4,7 +4,7 @@ from database import get_db
 from models import Member, Product, Order, Seat, SeatUsage
 from datetime import datetime
 
-router = APIRouter(prefix="/api/kiosk/guest")
+router = APIRouter(prefix="/api/kiosk")
 
 # ------------------------
 # 전화번호로 비회원 조회 또는 생성
@@ -37,7 +37,24 @@ def get_or_create_guest(db):
     db.refresh(new_guest)
     return new_guest
 
+# ------------------------
+# 회원 PIN 로그인
+# ------------------------
+@router.post("/auth")
+def pin_auth(
+        phone: str = Body(...),
+        pin_code: int = Body(...),
+        db: Session = Depends(get_db)
+):
+    member = db.query(Member).filter(
+        Member.phone == phone,
+        Member.pin_code == pin_code
+    ).first()
 
+    if not member:
+        raise HTTPException(status_code=401, detail="회원 인증 실패")
+
+    return {"is_member": True, "member_id": member.member_id}
 # ------------------------
 # 1) 비회원 로그인
 # ------------------------
@@ -77,17 +94,22 @@ def list_products(db: Session = Depends(get_db)):
 @router.post("/purchase")
 def purchase_ticket(
     phone: str = Body(...),
+    member_id: int = Body(...),
     product_id: int = Body(...),
     db: Session = Depends(get_db)
 ):
     guest = get_or_create_guest(db, phone)
 
+    member = db.query(Member).filter(Member.member_id == member_id).first()
     product = db.query(Product).filter(Product.product_id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="이용권이 존재하지 않습니다.")
 
+    if not member:
+        raise HTTPException(status_code=404, detail="회원이 존재하지 않습니다.")
+
     order = Order(
-        member_id=guest.member_id,
+        member_id=member_id,
         product_id=product_id,
         buyer_phone=phone,
         payment_amount=product.price,
@@ -126,6 +148,7 @@ def list_seats(db: Session = Depends(get_db)):
 @router.post("/check-in")
 def check_in(
     phone: str = Body(...),
+    member_id: int = Body(...),
     seat_id: int = Body(...),
     order_id: int = Body(...),
     db: Session = Depends(get_db)
@@ -138,7 +161,7 @@ def check_in(
         raise HTTPException(status_code=404, detail="좌석 또는 주문 정보 없음")
 
     usage = SeatUsage(
-        member_id=guest.member_id,
+        member_id=member_id,
         seat_id=seat_id,
         order_id=order_id,
         check_in_time=datetime.now()
@@ -164,6 +187,11 @@ def check_out(
     db: Session = Depends(get_db)
 ):
     guest = get_or_create_guest(db, phone)
+
+    # 회원인지 비회원인지 구분
+    member = db.query(Member).filter(Member.phone == phone).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="회원 정보가 존재하지 않습니다.")
 
     usage = db.query(SeatUsage).filter(
         SeatUsage.seat_id == seat_id,
