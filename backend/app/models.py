@@ -9,12 +9,12 @@ from database import Base
 class Product(Base):
     __tablename__ = "products"
 
-    product_id = Column(BigInteger, primary_key=True, index=True)
+    product_id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     type = Column(String(20), nullable=False)
     price = Column(Integer, nullable=False)
     value = Column(Integer, nullable=False)
-    is_exposured = Column(Boolean, default=True)
+    is_exposured = Column(Boolean, server_default="true")
 
     orders = relationship("Order", back_populates="product")
 
@@ -24,9 +24,9 @@ class Product(Base):
 class Seat(Base):
     __tablename__ = "seats"
 
-    seat_id = Column(BigInteger, primary_key=True, index=True)
+    seat_id = Column(BigInteger, primary_key=True, autoincrement=True)
     type = Column(String(10), nullable=False)
-    is_status = Column(Boolean, default=True)
+    is_status = Column(Boolean, server_default="true")
     fixed_members = relationship("Member", back_populates="fixed_seat")
     seat_usages = relationship("SeatUsage", back_populates="seat")
 
@@ -36,22 +36,24 @@ class Seat(Base):
 class Member(Base):
     __tablename__ = "members"
 
-    member_id = Column(BigInteger, primary_key=True, index=True)
+    member_id = Column(BigInteger, primary_key=True, autoincrement=True)
     login_id = Column(String(50), unique=True, nullable=True)
     password = Column(String(255), nullable=True)
-    phone = Column(String(20), unique=True, nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
+    phone = Column(String(20), unique=True)
+    email = Column(String(100), unique=True)
     age = Column(Integer, nullable=True)
     pin_code = Column(Integer, nullable=True)
     social_type = Column(String(20), nullable=True)
-    total_mileage = Column(Integer, default=0)
-    saved_time_minute = Column(Integer, default=0)
+    total_mileage = Column(Integer, server_default="0")
+    saved_time_minute = Column(Integer, server_default="0")
     period_start_date = Column(DateTime, nullable=True)
     period_end_date = Column(DateTime, nullable=True)
     fixed_seat_id = Column(BigInteger, ForeignKey("seats.seat_id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    is_deleted_at = Column(Boolean, default=False)
+    is_deleted_at = Column(Boolean, server_default="false")
+    name = Column(String(30), nullable=False)
+    role = Column(String(20), nullable=False, server_default='user')
 
     fixed_seat = relationship("Seat", back_populates="fixed_members")
     tokens = relationship("Token", back_populates="member", cascade="all, delete")
@@ -65,11 +67,11 @@ class Member(Base):
 class Token(Base):
     __tablename__ = "tokens"
 
-    token_id = Column(BigInteger, primary_key=True, index=True)
+    token_id = Column(BigInteger, primary_key=True, autoincrement=True)
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
     token = Column(String(200))
     expires_at = Column(DateTime, nullable=True)
-    is_revoked = Column(Boolean, default=False)
+    is_revoked = Column(Boolean, server_default="false")
     created_at = Column(DateTime, server_default=func.now())
 
     member = relationship("Member", back_populates="tokens")
@@ -80,7 +82,7 @@ class Token(Base):
 class Order(Base):
     __tablename__ = "orders"
 
-    order_id = Column(BigInteger, primary_key=True, index=True)
+    order_id = Column(BigInteger, primary_key=True, autoincrement=True)
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="SET NULL"), nullable=True)
     product_id = Column(BigInteger, ForeignKey("products.product_id", ondelete="SET NULL"), nullable=True)
     buyer_phone = Column(String(20), nullable=True)
@@ -97,7 +99,7 @@ class Order(Base):
 class SeatUsage(Base):
     __tablename__ = "seat_usage"
 
-    usage_id = Column(BigInteger, primary_key=True, index=True)
+    usage_id = Column(BigInteger, primary_key=True, autoincrement=True)
     order_id = Column(BigInteger, ForeignKey("orders.order_id", ondelete="SET NULL"), nullable=True)
     seat_id = Column(BigInteger, ForeignKey("seats.seat_id", ondelete="SET NULL"), nullable=True)
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"), nullable=True)
@@ -115,7 +117,7 @@ class SeatUsage(Base):
 class MileageHistory(Base):
     __tablename__ = "mileage_history"
 
-    history_id = Column(BigInteger, primary_key=True, index=True)
+    history_id = Column(BigInteger, primary_key=True, autoincrement=True)
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
     amount = Column(Integer, nullable=False)
     type = Column(String(10), nullable=False)

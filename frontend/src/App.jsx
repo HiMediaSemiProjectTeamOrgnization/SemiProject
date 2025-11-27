@@ -3,6 +3,9 @@ import './App.css';
 import WebLayout from './components/WebLayout.jsx';
 import Home from './pages/Home.jsx';
 import Test from './pages/Test.jsx';
+import TicketList from './web/pages/TicketList.jsx';
+import Payments from './web/pages/Payment.jsx';
+import WebIndex from './web/pages/WebIndex.jsx';
 
 /*
 ############# 라우터 추가 방법
@@ -35,6 +38,25 @@ const router = createBrowserRouter([
             },
         ],
     },
+    {
+        path: 'web',
+        element: <WebLayout />,
+        children: [
+            {
+                index: true,
+                element: <WebIndex />,
+            },
+            {
+                path: 'ticket',
+                element: <TicketList />
+            },
+            {
+                path: 'payment',
+                element: <Payments />
+            }
+        ],
+    },
+
 ]);
 
 export default router;

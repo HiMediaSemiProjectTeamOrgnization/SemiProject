@@ -26,7 +26,7 @@ const Home = () => {
                 </Link>
 
                 {/* 카드 3: 웹 페이지 */}
-                <Link to='/test' className="group block p-10 bg-white rounded-2xl shadow-md border border-gray-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <Link to='/web' className="group block p-10 bg-white rounded-2xl shadow-md border border-gray-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                     <h2 className="text-2xl font-bold text-purple-600 mb-2 group-hover:text-purple-700">🌐 사용자 웹</h2>
                     <p className="text-gray-500">고객이 집에서 예약할 때 쓰는 PC/모바일 웹입니다.</p>
                 </Link>

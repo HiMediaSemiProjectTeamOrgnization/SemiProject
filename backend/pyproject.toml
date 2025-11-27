@@ -19,6 +19,6 @@ dependencies = [
     "python-jose>=3.5.0",
     "scikit-learn>=1.7.2",
     "sqlalchemy>=2.0.44",
-    "torch>=2.9.1",
+    "torch==2.2.0",
     "uvicorn>=0.38.0",
 ]
