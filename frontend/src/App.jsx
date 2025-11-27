@@ -3,7 +3,7 @@ import './App.css';
 import WebLayout from './components/WebLayout.jsx';
 import Home from './pages/Home.jsx';
 import Test from './pages/Test.jsx';
-import KioskHome from './kiosk/pages/KioskHome.jsx'
+import KioskApp from './kiosk/KioskApp.jsx'
 
 /*
 ############# 라우터 추가 방법
@@ -24,7 +24,7 @@ const router = createBrowserRouter([
     },
     {
         path: '/kiosk',
-        element: <KioskHome />,
+        element: <KioskApp />,
     },
     {
         path: 'test',
