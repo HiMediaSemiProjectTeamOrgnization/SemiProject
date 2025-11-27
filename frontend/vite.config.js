@@ -1,11 +1,15 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+      react(),
+      tailwindcss(),
+  ],
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:8000', // FastAPI 서버 주소
+      '/api': 'http://127.0.0.1:8080', // FastAPI 서버 주소
     },
   },
 });
