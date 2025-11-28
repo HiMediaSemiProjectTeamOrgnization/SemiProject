@@ -11,11 +11,13 @@ function KioskApp() {
     const [currentPage, setCurrentPage] = useState("home");
     const [userType, setUserType] = useState(null);
     const [selectedTicket, setSelectedTicket] = useState(null);
+    const [memberInfo, setMemberInfo] = useState(null);
 
     const goToHome = () => {
         setCurrentPage("home");
         setUserType(null);
         setSelectedTicket(null);
+        setMemberInfo(null);
     };
 
     // 1. 이용권 구매 클릭 -> 유저 선택
@@ -32,9 +34,10 @@ function KioskApp() {
     };
 
     // 3. 회원 로그인 성공 처리
-    const handleLoginSuccess = () => {
-        // 로그인 정보 저장 로직 필요
-        setCurrentPage("ticket-list"); // 로그인 성공 후 티켓 목록으로
+    const handleLoginSuccess = (memberData) => {
+        console.log("로그인 정보 저장:", memberData);
+        setMemberInfo(memberData);     // 회원 정보 저장
+        setCurrentPage("ticket-list"); // 로그인 성공 후 티켓 목록으로 이동
     };
 
     // 4. 티켓 목록에서 "결제하기" 클릭 처리
@@ -86,6 +89,7 @@ function KioskApp() {
                 onBack={goToSelectUser} 
                 userType={userType}
                 onPaymentRequest={handlePaymentRequest}
+                memberInfo={memberInfo}
             />
         );
     }

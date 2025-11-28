@@ -1,7 +1,7 @@
 import { useState } from "react";
-import KioskHeader from "../components/KioskHeader";
-import KioskAlertModal from "../components/KioskAlertModal"; // 모달 컴포넌트 import
 import { FaDeleteLeft, FaCheck } from "react-icons/fa6";
+import KioskHeader from "../components/KioskHeader";
+import KioskAlertModal from "../components/KioskAlertModal";
 
 function KioskLogin({ onBack, onLoginSuccess }) {
     const [phoneNumber, setPhoneNumber] = useState("");
@@ -49,7 +49,7 @@ function KioskLogin({ onBack, onLoginSuccess }) {
         }
     };
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
         if (phoneNumber.length < 8 || pin.length < 4) {
             setModal({
                 isOpen: true,
@@ -59,9 +59,39 @@ function KioskLogin({ onBack, onLoginSuccess }) {
             });
             return;
         }
-        // 임시
-        console.log(`로그인 시도: 010-${phoneNumber.slice(0,4)}-${phoneNumber.slice(4,8)} / PIN: ${pin}`);
-        onLoginSuccess();
+
+        const formattedPhone = `010-${phoneNumber.slice(0, 4)}-${phoneNumber.slice(4)}`;
+
+        try {
+            const response = await fetch("http://localhost:8080/api/kiosk/auth/member-login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    phone: formattedPhone,
+                    pin: parseInt(pin, 10),
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || "로그인에 실패했습니다.");
+            }
+            
+            console.log("로그인 성공:", data);
+            onLoginSuccess(data);
+
+        } catch (error) {
+            console.error("Login Error:", error);
+            setModal({
+                isOpen: true,
+                title: "로그인 실패",
+                message: error.message, // 백엔드 에러 메시지 표시 (예: PIN 번호가 일치하지 않습니다.)
+                type: "error"
+            });
+        }
     };
 
     return (
