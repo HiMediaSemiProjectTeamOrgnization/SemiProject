@@ -2,10 +2,9 @@ import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import test, kiosk
-from app.routers.web import auth
 from database import create_tables
-from routers.web import ticket
+from routers.kiosk import kiosk
+from routers.web import auth, ticket
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

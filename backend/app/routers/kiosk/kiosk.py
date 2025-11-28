@@ -4,7 +4,7 @@ from database import get_db
 from models import Member, Product, Order, Seat, SeatUsage
 from datetime import datetime
 
-router = APIRouter(prefix="/api/kiosk")
+router = APIRouter(prefix="/api/kiosk", tags=["Kiosk"])
 
 # ------------------------
 # 전화번호로 비회원 조회 또는 생성
