@@ -14,7 +14,7 @@ function TicketList() {
 
     const getTicketList = async () => {
         // console.log("getTicketList 실행");
-        const response = await fetch(`http://localhost:8080/api/web/tickets`, {
+        const response = await fetch(`/api/web/tickets`, {
             method: "GET"
         });
 

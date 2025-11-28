@@ -22,7 +22,7 @@ function Payments() {
 
     // 로그인한 유저 정보 가져오기
     const getUserData = async () => {
-        const response = await fetch(`http://localhost:8080/api/web/me`, {
+        const response = await fetch(`/api/web/me`, {
             credentials: 'include'
         });
 
@@ -72,7 +72,7 @@ function Payments() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        const response = await fetch('http://localhost:8080/api/web/payments', {
+        const response = await fetch('/api/web/payments', {
             method: "POST",
             headers: {
                 'Content-Type': 'application/json'

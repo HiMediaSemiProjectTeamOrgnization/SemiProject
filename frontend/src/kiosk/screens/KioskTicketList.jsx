@@ -14,7 +14,7 @@ function KioskTicketList({ onBack, userType, onPaymentRequest }) {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch("http://localhost:8080/api/kiosk/products"); 
+            const response = await fetch("/api/kiosk/products");
             if (!response.ok) {
                 throw new Error(`서버 오류: ${response.status}`);
             }

@@ -19,7 +19,7 @@ app.include_router(ticket.router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://192.168.0.31:5173", "http://172.24.16.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -27,6 +27,6 @@ app.add_middleware(
 
 if __name__ == "__main__":
     uvicorn.run("main:app",
-                host="localhost",
+                host="0.0.0.0",
                 port=8080,
                 reload=True)
