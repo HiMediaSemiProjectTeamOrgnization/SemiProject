@@ -41,7 +41,7 @@ def get_or_create_guest(db: Session):
 # ------------------------
 @router.post("/auth/member-login")
 def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
-
+    
     # Member 모델에서 phone으로 조회
     member = db.query(Member).filter(
         Member.phone == data.phone,
@@ -50,9 +50,9 @@ def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
 
     if not member:
         raise HTTPException(status_code=404, detail="등록된 회원 정보가 없습니다.")
-
+    
     # PIN은 Integer로 저장되어 있으므로 변환
-
+    
     if member.pin_code != data.pin:
         raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
 
@@ -85,10 +85,10 @@ def list_products(db: Session = Depends(get_db)):
 
 @router.post("/purchase")
 def purchase_ticket(
-        product_id: int = Body(...),    # 프론트에서 선택한 이용권 ID
-        member_id: int = Body(...),     # 회원이면 실제 member_id, 비회원이면 1
-        phone: str = Body(None),        # 비회원이면 전화번호, 회원이면 None
-        db: Session = Depends(get_db)
+    product_id: int = Body(...),    # 프론트에서 선택한 이용권 ID
+    member_id: int = Body(...),     # 회원이면 실제 member_id, 비회원이면 1
+    phone: str = Body(None),        # 비회원이면 전화번호, 회원이면 None
+    db: Session = Depends(get_db)
 ):
     # 1. 상품 조회
     product = db.query(Product).filter(Product.product_id == product_id).first()
@@ -136,18 +136,18 @@ def list_seats(db: Session = Depends(get_db)):
 # ------------------------
 @router.post("/check-in")
 def check_in(
-        phone: str = Body(...),
-        seat_id: int = Body(...),
-        order_id: int = Body(...),
-        db: Session = Depends(get_db)
+    phone: str = Body(...),
+    seat_id: int = Body(...),
+    order_id: int = Body(...),
+    db: Session = Depends(get_db)
 ):
     clean_phone = phone.replace("-", "")
-
+    
     # 1. member_id 조회 (clean_phone으로 찾거나 default guest 사용)
     member = db.query(Member).filter(Member.phone == clean_phone).first()
     if not member:
         member = get_or_create_guest(db)
-
+        
     member_id_to_use = member.member_id
 
     seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
@@ -178,17 +178,17 @@ def check_in(
 # ------------------------
 @router.post("/check-out")
 def check_out(
-        phone: str = Body(...),
-        seat_id: int = Body(...),
-        db: Session = Depends(get_db)
+    phone: str = Body(...),
+    seat_id: int = Body(...),
+    db: Session = Depends(get_db)
 ):
     clean_phone = phone.replace("-", "")
-
+    
     # 1. member_id 조회 (clean_phone으로 찾거나 default guest 사용)
     member = db.query(Member).filter(Member.phone == clean_phone).first()
     if not member:
         member = get_or_create_guest(db)
-
+        
     member_id_to_use = member.member_id
 
     usage = db.query(SeatUsage).filter(
