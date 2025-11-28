@@ -63,7 +63,7 @@ function KioskLogin({ onBack, onLoginSuccess }) {
         const formattedPhone = `010-${phoneNumber.slice(0, 4)}-${phoneNumber.slice(4)}`;
 
         try {
-            const response = await fetch("http://localhost:8080/api/kiosk/auth/member-login", {
+            const response = await fetch("/api/kiosk/auth/member-login", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
