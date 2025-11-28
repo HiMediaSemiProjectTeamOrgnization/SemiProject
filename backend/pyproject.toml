@@ -16,6 +16,7 @@ dependencies = [
     "pathlib>=1.0.1",
     "psycopg2>=2.9.11",
     "psycopg2-binary>=2.9.11",
+    "pydantic[email]>=2.12.4",
     "python-jose>=3.5.0",
     "scikit-learn>=1.7.2",
     "sqlalchemy>=2.0.44",
