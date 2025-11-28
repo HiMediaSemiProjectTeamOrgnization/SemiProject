@@ -61,8 +61,7 @@ SemiProject/
     └── src/
         ├── main.jsx        # React 진입점
         ├── App.jsx         # 메인 컴포넌트
-        ├── App.css
-        ├── Home.jsx        
+        ├── App.css    
         ├── index.css
         ├── assets/
         ├── utils/
