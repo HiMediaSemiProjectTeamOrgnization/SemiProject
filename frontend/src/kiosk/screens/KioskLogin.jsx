@@ -1,6 +1,6 @@
 import { useState } from "react";
 import KioskHeader from "../components/KioskHeader";
-import KioskAlertModal from "../components/KioskAlertModal"; // 모달 컴포넌트 import
+import KioskAlertModal from "../components/KioskAlertModal";
 import { FaDeleteLeft, FaCheck } from "react-icons/fa6";
 
 function KioskLogin({ onBack, onLoginSuccess }) {
@@ -16,7 +16,6 @@ function KioskLogin({ onBack, onLoginSuccess }) {
         type: "warning"
     });
 
-    // 모달 닫기 함수
     const closeModal = () => {
         setModal(prev => ({ ...prev, isOpen: false }));
     };
@@ -27,9 +26,7 @@ function KioskLogin({ onBack, onLoginSuccess }) {
             if (phoneNumber.length < 8) {
                 const newPhone = phoneNumber + num;
                 setPhoneNumber(newPhone);
-                if (newPhone.length === 8) {
-                    setFocusTarget("pin");
-                }
+                if (newPhone.length === 8) setFocusTarget("pin");
             }
         } else {
             if (pin.length < 4) setPin(prev => prev + num);
@@ -49,7 +46,7 @@ function KioskLogin({ onBack, onLoginSuccess }) {
         }
     };
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
         if (phoneNumber.length < 8 || pin.length < 4) {
             setModal({
                 isOpen: true,
@@ -59,9 +56,34 @@ function KioskLogin({ onBack, onLoginSuccess }) {
             });
             return;
         }
-        // 임시
-        console.log(`로그인 시도: 010-${phoneNumber.slice(0,4)}-${phoneNumber.slice(4,8)} / PIN: ${pin}`);
-        onLoginSuccess();
+
+        const fullPhone = "010" + phoneNumber;
+        const pinInt = parseInt(pin, 10);
+
+        try {
+            const response = await fetch("http://localhost:8080/api/kiosk/auth/member-login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phone: fullPhone, pin: pinInt }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || "로그인에 실패했습니다.");
+            }
+
+            onLoginSuccess(data);
+
+        } catch (error) {
+            console.error("로그인 오류:", error);
+            setModal({
+                isOpen: true,
+                title: "로그인 실패",
+                message: error.message || "서버 통신 오류가 발생했습니다.",
+                type: "error"
+            });
+        }
     };
 
     return (
@@ -73,11 +95,11 @@ function KioskLogin({ onBack, onLoginSuccess }) {
                     <h2 className="text-4xl font-bold text-white">회원 로그인</h2>
                     <p className="text-slate-400">휴대폰 번호와 PIN 번호를 입력해 주세요.</p>
                 </div>
-                
+
                 {/* 입력 필드 영역 */}
                 <div className="flex flex-col gap-6 w-full max-w-lg">
                     {/* 전화번호 입력 */}
-                    <div 
+                    <div
                         onClick={() => setFocusTarget("phone")}
                         className={`
                             flex items-center justify-center bg-slate-800 h-20 rounded-2xl border-2 transition-all cursor-pointer shadow-inner
@@ -86,26 +108,24 @@ function KioskLogin({ onBack, onLoginSuccess }) {
                     >
                         <span className="text-3xl text-slate-400 font-medium">010</span>
                         <span className="text-2xl text-slate-600 mx-4 font-light">-</span>
-                        
-                        {/* 가운데 번호 4자리 */}
+
                         <div className="w-24 text-center">
                             <span className={`text-3xl font-bold tracking-widest ${phoneNumber.length > 0 ? "text-white" : "text-slate-700"}`}>
-                                {phoneNumber.slice(0, 4).padEnd(4, ' ')}
+                                {phoneNumber.slice(0, 4).padEnd(4, " ")}
                             </span>
                         </div>
 
                         <span className="text-2xl text-slate-600 mx-4 font-light">-</span>
-                        
-                        {/* 마지막 번호 4자리 */}
+
                         <div className="w-24 text-center">
                             <span className={`text-3xl font-bold tracking-widest ${phoneNumber.length > 4 ? "text-white" : "text-slate-700"}`}>
-                                {phoneNumber.slice(4, 8).padEnd(4, ' ')}
+                                {phoneNumber.slice(4, 8).padEnd(4, " ")}
                             </span>
                         </div>
                     </div>
 
                     {/* PIN 번호 입력 */}
-                    <div 
+                    <div
                         onClick={() => setFocusTarget("pin")}
                         className={`
                             flex items-center justify-between bg-slate-800 h-20 px-8 rounded-2xl border-2 transition-all cursor-pointer shadow-inner
@@ -121,7 +141,7 @@ function KioskLogin({ onBack, onLoginSuccess }) {
 
                 {/* 키패드 */}
                 <div className="grid grid-cols-3 gap-4 w-full max-w-md mt-2">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                    {[1,2,3,4,5,6,7,8,9].map((num) => (
                         <KeypadButton key={num} onClick={() => handleNumClick(num)}>{num}</KeypadButton>
                     ))}
                     <KeypadButton onClick={handleDelete} color="bg-rose-900/50 border-rose-800 text-rose-200 active:bg-rose-800">
@@ -134,7 +154,7 @@ function KioskLogin({ onBack, onLoginSuccess }) {
                 </div>
             </main>
 
-            {/* 모달 컴포넌트 렌더링 */}
+            {/* 모달 */}
             <KioskAlertModal 
                 isOpen={modal.isOpen}
                 onClose={closeModal}
@@ -146,9 +166,10 @@ function KioskLogin({ onBack, onLoginSuccess }) {
     );
 }
 
+// KeypadButton 컴포넌트
 function KeypadButton({ children, onClick, color = "bg-slate-800 border-slate-700 text-white active:bg-slate-700" }) {
     return (
-        <button 
+        <button
             onClick={onClick}
             className={`
                 h-20 text-3xl font-bold rounded-2xl border shadow-lg

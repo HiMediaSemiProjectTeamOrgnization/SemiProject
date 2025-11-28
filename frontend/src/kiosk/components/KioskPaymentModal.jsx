@@ -1,34 +1,53 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react"; // <--- useRef 추가
 import { FaCreditCard, FaSpinner, FaCheckCircle, FaHome } from "react-icons/fa";
 
 function KioskPaymentModal({ isOpen, onClose, ticket, onPaymentComplete }) {
     const [paymentState, setPaymentState] = useState("ready"); // ready -> processing -> done
     const [countdown, setCountdown] = useState(5); // 카운트다운 상태
+    const timerRef = useRef(null); // <--- 타이머 ID 관리를 위해 useRef 추가
 
-    // 모달이 열릴 때 상태 초기화
+       const completedRef = useRef(false);
+
     useEffect(() => {
         if (isOpen) {
             setPaymentState("ready");
             setCountdown(5);
+            completedRef.current = false;   // 🔥 모달이 열릴 때 플래그 초기화
+
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
         }
     }, [isOpen]);
 
-    // 결제 완료(done) 상태일 때 카운트다운 시작
     useEffect(() => {
-        let timer;
         if (paymentState === "done") {
-            timer = setInterval(() => {
-                setCountdown((prev) => {
+            timerRef.current = setInterval(() => {
+                setCountdown(prev => {
                     if (prev <= 1) {
-                        clearInterval(timer);
-                        onPaymentComplete(); // 0초가 되면 완료 처리 (메인 이동)
+                        clearInterval(timerRef.current);
+                        timerRef.current = null;
+
+                        // 🔥 중복 실행 방지
+                        if (!completedRef.current) {
+                            completedRef.current = true;
+                            onPaymentComplete();
+                        }
+
                         return 0;
                     }
                     return prev - 1;
                 });
             }, 1000);
         }
-        return () => clearInterval(timer);
+
+        return () => {
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+        };
     }, [paymentState, onPaymentComplete]);
 
     // 카드 투입 시뮬레이션
@@ -41,8 +60,16 @@ function KioskPaymentModal({ isOpen, onClose, ticket, onPaymentComplete }) {
         }, 2000);
     };
 
-    // '메인으로 이동' 버튼 클릭 시 즉시 실행
-    const handleGoMain = () => {
+      const handleGoMain = () => {
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+
+        // 🔥 이미 한 번 실행했으면 무시
+        if (completedRef.current) return;
+
+        completedRef.current = true;   // 실행 플래그 설정
         onPaymentComplete();
     };
 

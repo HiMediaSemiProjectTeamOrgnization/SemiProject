@@ -11,11 +11,13 @@ function KioskApp() {
     const [currentPage, setCurrentPage] = useState("home");
     const [userType, setUserType] = useState(null);
     const [selectedTicket, setSelectedTicket] = useState(null);
+    const [memberInfo, setMemberInfo] = useState(null); // [추가] 회원 정보 상태
 
     const goToHome = () => {
         setCurrentPage("home");
         setUserType(null);
         setSelectedTicket(null);
+        setMemberInfo(null); // 홈 이동 시 회원 정보 초기화
     };
 
     // 1. 이용권 구매 클릭 -> 유저 선택
@@ -31,35 +33,84 @@ function KioskApp() {
         }
     };
 
-    // 3. 회원 로그인 성공 처리
-    const handleLoginSuccess = () => {
-        // 로그인 정보 저장 로직 필요
-        setCurrentPage("ticket-list"); // 로그인 성공 후 티켓 목록으로
+    // 3. 회원 로그인 성공 처리 [수정]
+    const handleLoginSuccess = (memberData) => {
+        setMemberInfo(memberData); // 로그인 성공 시 회원 정보 저장
+        setCurrentPage("ticket-list");
     };
 
-    // 4. 티켓 목록에서 "결제하기" 클릭 처리
-    const handlePaymentRequest = (ticket) => {
+    // 4. 티켓 목록에서 "결제하기" 클릭 처리 (회원 결제 및 비회원 정보 입력 분기) [수정]
+    const handlePaymentRequest = async (ticket) => {
         setSelectedTicket(ticket);
 
         if (userType === "member") {
-            // 회원은 TicketList에서 결제까지 완료하고 여기로 옴
-            alert(`[회원] ${ticket.name} 결제 및 등록 완료!`);
-            goToHome();
+            // 회원은 TicketList에서 결제 모달을 통해 이 함수에 도달 (실제 결제 완료)
+            
+            // [API 연동] 회원 이용권 구매 API 호출 (member_id 사용)
+            try {
+                const response = await fetch("http://localhost:8080/api/kiosk/purchase", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        product_id: ticket.product_id,
+                        member_id: memberInfo.member_id, // 저장된 회원 ID 사용
+                        phone: null, // 회원일 경우 phone은 None
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || "결제 및 등록에 실패했습니다.");
+                }
+
+                const data = await response.json(); // { order_id, product_name, price }
+
+                alert(`[회원] ${data.product_name} 결제 및 등록 완료!\n주문번호: ${data.order_id}`);
+                goToHome();
+                
+            } catch (error) {
+                alert(`[회원 결제 오류] ${error.message}`);
+                setCurrentPage("ticket-list"); 
+            }
+            
         } else {
-            // 비회원은 아직 결제 안 함 -> 전화번호 입력 화면으로 이동
+            // 비회원은 아직 결제 전 -> 전화번호 입력 화면으로 이동
             setCurrentPage("phone-input");
         }
     };
 
-    // 5. 비회원 전화번호 입력 및 결제 완료 처리
-    const handleNonMemberInfoComplete = (phoneNumber) => {
-        // 비회원은 PhoneInput에서 결제까지 완료하고 여기로 옴
-        console.log("비회원 정보:", phoneNumber, "선택 티켓:", selectedTicket);
-        // 최종 데이터베이스 저장 로직 (API 호출)
-        alert(`[비회원] ${selectedTicket.name}\n번호: ${phoneNumber}\n이용권 발급이 완료되었습니다.`);
-        goToHome();
-    };
+    // 5. 비회원 전화번호 입력 및 결제 완료 처리 [수정]
+    const handleNonMemberInfoComplete = async (phoneNumber) => {
+        // 비회원은 PhoneInput에서 결제 모달을 통해 이 함수에 도달 (실제 결제 완료)
+        
+        // [API 연동] 비회원 이용권 구매 API 호출 (member_id=1, phone 사용)
+        // 백엔드에서 member_id=1인 비회원 계정을 생성/조회합니다.
+        try {
+            const response = await fetch("http://localhost:8080/api/kiosk/purchase", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    product_id: selectedTicket.product_id,
+                    member_id: 1, // 비회원 고정 ID
+                    phone: phoneNumber, // 비회원 전화번호
+                }),
+            });
 
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || "결제 및 이용권 발급에 실패했습니다.");
+            }
+
+            const data = await response.json(); // { order_id, product_name, price }
+
+            alert(`[비회원] ${data.product_name}\n번호: ${phoneNumber}\n이용권 발급이 완료되었습니다.\n주문번호: ${data.order_id}`);
+            goToHome();
+
+        } catch (error) {
+             alert(`[비회원 결제 오류] ${error.message}`);
+             setCurrentPage("ticket-list");
+        }
+    };
     // --- 화면 렌더링 분기 ---
     if (currentPage === "select-user") {
         return (
