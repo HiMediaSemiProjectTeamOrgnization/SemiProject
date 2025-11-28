@@ -31,8 +31,6 @@ function Payments() {
         const phone2 = data.phone.split("-")[1];
         const phone3 = data.phone.split("-")[2];
 
-        console.log(data.email)
-
         setUser(prev => ({
             ...prev,
             name: data.name,
@@ -66,7 +64,8 @@ function Payments() {
     }
 
     const handlePoint = (e) => {
-
+        // console.log(user.mileage);
+        const pointInput = document.querySelector(".point-input");
     }
 
     const handleSubmit = async (e) => {
@@ -110,12 +109,12 @@ function Payments() {
                 <p>사용가능 포인트 : {user.mileage}</p>
 
                 <button onClick={handlePoint}>전액사용</button>
-                <input type="number" value={ticket.discount_amount} /><span>원</span>
+                <input type="number" className="point-input" value={ticket.discount_amount}/><span>원</span>
             </div>
 
 
             <p>상품 금액: {Number(ticket.price).toLocaleString()}원</p>
-            <p>할인 금액: </p>
+            <p>할인 금액: {Number(ticket.discount_amount).toLocaleString()}</p>
             <p>총 금액 : {Number(ticket.total_amount).toLocaleString()}원</p>
 
             <button onClick={handleSubmit}>결제테스트</button>

@@ -1,19 +1,28 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, Cookie
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Product, Member, Order
+from utils.auth_utils import get_cookies_info
 
 router = APIRouter(prefix="/api/web", tags=["웹사이트 관리"])
 
-# ===== 로그인 관련 =====
+# ===== 로그인 사용자 정보 가져오기 =====
 @router.get("/me")
-def getMemberInfo(db: Session = Depends(get_db)):
-    """로그인 상태확인 로직"""
+def getMemberInfo(res: Response, access_token: str = Cookie(None), refresh_token: str = Cookie(None), db: Session = Depends(get_db)):
+    """로그인한 사용자 정보 가져오는 로직"""
 
-    # 테스트를 위해 1번 계정 가져오는 코드로 구현 -> 통합 이후 JWT 토큰 검증으로 변경될 예정
-    id = 1
-    user = db.query(Member).filter(Member.member_id == id).filter(Member.is_deleted_at == False).first()
+    # 추후 성현님 코드 수정본보고 수정 필요
+    token = get_cookies_info(res, access_token, refresh_token)
+    id = token["member_id"]
+    result = db.query(Member).filter(Member.member_id == id).filter(Member.is_deleted_at == False).first()
+
+    user = {
+        "email" : result.email,
+        "phone" : result.phone,
+        "name" : result.name,
+        "total_mileage" : result.total_mileage
+    }
 
     return user
 

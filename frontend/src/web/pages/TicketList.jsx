@@ -93,8 +93,10 @@ function TicketList() {
             }
         }
         // console.log(choiceTicket);
+    }
 
-
+    const handleCancel = (e) => {
+        navigate("/web");
     }
 
     useEffect(() => {
@@ -141,7 +143,7 @@ function TicketList() {
                 <p>총 금액  {choiceTicket?.price ? Number(choiceTicket.price).toLocaleString() + "원" : null}</p>
 
                 <div className="btn-box">
-                    <button className="cancel-btn btn">취소하기</button>
+                    <button className="cancel-btn btn" onClick={handleCancel}>취소하기</button>
                     <button className="submit-btn btn" onClick={handleSubmit}>구매하기</button>
                 </div>
             </div>
