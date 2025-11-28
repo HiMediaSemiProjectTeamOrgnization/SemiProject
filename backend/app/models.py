@@ -46,8 +46,6 @@ class Member(Base):
     social_type = Column(String(20), nullable=True)
     total_mileage = Column(Integer, server_default="0")
     saved_time_minute = Column(Integer, server_default="0")
-    period_start_date = Column(DateTime, nullable=True)
-    period_end_date = Column(DateTime, nullable=True)
     fixed_seat_id = Column(BigInteger, ForeignKey("seats.seat_id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -88,6 +86,8 @@ class Order(Base):
     buyer_phone = Column(String(20), nullable=True)
     payment_amount = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
+    period_start_date = Column(DateTime, nullable=True)
+    period_end_date = Column(DateTime, nullable=True)
 
     member = relationship("Member", back_populates="orders")
     product = relationship("Product", back_populates="orders")
