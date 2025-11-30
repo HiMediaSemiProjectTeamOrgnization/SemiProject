@@ -30,6 +30,8 @@ class Seat(Base):
     fixed_members = relationship("Member", back_populates="fixed_seat")
     seat_usages = relationship("SeatUsage", back_populates="seat")
 
+    orders = relationship("Order", back_populates="seat")
+
 # -------------------------------------------------------------------
 # MEMBERS
 # -------------------------------------------------------------------
@@ -46,8 +48,6 @@ class Member(Base):
     social_type = Column(String(20), nullable=True)
     total_mileage = Column(Integer, server_default="0")
     saved_time_minute = Column(Integer, server_default="0")
-    period_start_date = Column(DateTime, nullable=True)
-    period_end_date = Column(DateTime, nullable=True)
     fixed_seat_id = Column(BigInteger, ForeignKey("seats.seat_id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -84,14 +84,19 @@ class Order(Base):
 
     order_id = Column(BigInteger, primary_key=True, autoincrement=True)
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="SET NULL"), nullable=True)
+    seat_id = Column(BigInteger, ForeignKey("seats.seat_id"), nullable=True)
     product_id = Column(BigInteger, ForeignKey("products.product_id", ondelete="SET NULL"), nullable=True)
     buyer_phone = Column(String(20), nullable=True)
+    total_price = Column(Integer, nullable=False)
     payment_amount = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
+    period_start_date = Column(DateTime, nullable=True)
+    period_end_date = Column(DateTime, nullable=True)
 
     member = relationship("Member", back_populates="orders")
     product = relationship("Product", back_populates="orders")
     seat_usage = relationship("SeatUsage", back_populates="order", uselist=False)
+    seat = relationship("Seat", back_populates="orders")
 
 # -------------------------------------------------------------------
 # SEAT_USAGE

@@ -5,6 +5,7 @@ import KioskApp from './kiosk/KioskApp.jsx'
 import TicketList from './web/pages/TicketList.jsx';
 import Payments from './web/pages/Payment.jsx';
 import WebIndex from './web/pages/WebIndex.jsx';
+import SeatStatus from './web/components/SeatStatus.jsx';
 
 const router = createBrowserRouter([
     {
@@ -30,6 +31,10 @@ const router = createBrowserRouter([
             {
                 path: 'payment',
                 element: <Payments />
+            },
+            {
+                path: 'seat',
+                element: <SeatStatus />
             }
         ],
     },

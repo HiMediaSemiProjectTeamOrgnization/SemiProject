@@ -7,7 +7,7 @@ const WebLayout = () => {
             <header className="bg-blue-600 text-white p-4 shadow-md">
                 <nav className="flex gap-4 container mx-auto">
                     <Link to="/" className="font-bold hover:text-blue-200">Home</Link>
-                    <Link to="/test" className="font-bold hover:text-blue-200">Test</Link>
+                    <Link to="/web/ticket" className="font-bold hover:text-blue-200" >이용권 구매</Link >
                 </nav>
             </header>
 

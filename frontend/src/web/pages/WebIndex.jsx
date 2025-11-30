@@ -1,11 +1,12 @@
-import { Link } from "react-router-dom";
+import { Link, Router } from "react-router-dom";
+import SeatStatus from "../components/SeatStatus"
 
 function WebIndex() {
     return (
         <div>
-            <h1>웹 인덱스페이지입니다.</h1>
-            <p>사용자가 웹페이지로 접속했을 때 보여질 페이지로 가정하고 제작했습니다.</p>
-            <Link to="/web/ticket">이용권 목록</Link >
+            <h1>좌석 현황</h1>
+            <SeatStatus />
+            {/* <Link to="/web/ticket" className="mt-6 px-4 py-2 bg-blue-500 text-white rounded" >이용권 목록</Link > */}
         </div>
 
     )

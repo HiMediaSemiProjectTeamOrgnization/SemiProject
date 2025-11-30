@@ -1,156 +1,135 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { FaClock, FaCheckCircle } from 'react-icons/fa';
 import { useNavigate } from "react-router-dom";
-import '../styles/TicketList.css'
+import '../styles/TicketList.css';
+import SeatSelector from "../components/SeatSelector";
 
 function TicketList() {
-    const [timeTickets, setTimeTickets] = useState([]);
-    const [dayTickets, setDayTickets] = useState([]);
-    const [choiceTicket, setChoiceTicket] = useState([]);
-
-    const hasFetched = useRef(false);
-
     const navigate = useNavigate();
 
+    const [tickets, setTickets] = useState([]); // 이용권 목록 저장
+    const [choiceTicket, setChoiceTicket] = useState({}); // 선택된 이용권 저장
+    const [activeType, setActiveType] = useState('time'); // 현재 활성화된 타입
+    const [selectedId, setSelectedId] = useState(null); // 현재 선택된 티켓의 product_id
+    const [seats, setSeats] = useState([]); // 좌석 목록 저장
+    const [showSeatSelector, setShowSeatSelector] = useState(false); // 좌석선택 페이지 보여줄지 여부
 
+    useEffect(() => {
+        getTicketList();
+        getSeats();
+    }, []);
+
+    // 이용권 목록 조회
     const getTicketList = async () => {
-        // console.log("getTicketList 실행");
-        const response = await fetch(`http://localhost:8080/api/web/tickets`, {
-            method: "GET"
-        });
-
-        const ticketData = await response.json();
-        const timeTicketData = [];
-        const dayTicketData = [];
-
-        ticketData.forEach(ticket => {
-            if (ticket.type === "시간제") {
-                timeTicketData.push(ticket);
-            } else if (ticket.type === "기간제") {
-                dayTicketData.push(ticket);
-            }
-        });
-
-        // 받아온 티켓 데이터 갱신
-        setTimeTickets(timeTicketData);
-        setDayTickets(dayTicketData);
+        const res = await fetch(`/api/web/tickets`);
+        const ticketData = await res.json();
+        setTickets(ticketData);
     }
+
+    // 좌석 현황 조회
+    const getSeats = async () => {
+        const res = await fetch(`/api/web/seat`);
+        const seatData = await res.json();
+        setSeats(seatData);
+    };
+
+    const timeTickets = tickets.filter(t => t.type === "시간제");
+    const dayTickets = tickets.filter(t => t.type === "기간제");
 
     // 필터링 (기간제/시간제)
     const handleTicketType = (e) => {
         const value = e.currentTarget.dataset.value;
-        // console.log(value);
-
-        document.querySelectorAll(".select-btn").forEach((ticket) => {
-            ticket.classList.remove("active");
-        })
-
-        if (value == 'time') {
-            // console.log("시간제");
-            document.querySelector(".select-btn-time").classList.add("active");
-        } else {
-            document.querySelector(".select-btn-day").classList.add("active");
-        }
+        setActiveType(value);
+        // setSelectedId(null);
+        // setChoiceTicket({});
     }
 
     // 이용권 선택
     const handleClickTicket = (e) => {
-        // 현재 보여주고 있는 필터링 정보 가져오기 (기간제/시간제)
-        const showingType = document.querySelector(".select-btn.active")
-        // console.log(showingType);
+        const id = e.currentTarget.dataset.id;
+        setSelectedId(id);
 
-        // 선택한 이용권 표시
-        document.querySelectorAll(".ticket-li").forEach((li) => {
-            li.classList.remove("active");
-        })
-
-        e.currentTarget.classList.add("active");
-
-        // 현재 시간제 이용권을 보고있다면 
-        if (showingType.className.includes("time")) {
-            // console.log("시간제 보여주는중");
-
-            // 시간제 이용권 정보에서 가져오기
-            const clickedTicket = timeTickets.find(ticket => ticket.product_id == e.currentTarget.dataset.id);
-            setChoiceTicket(clickedTicket);
-        } else {
-            // 기간제 이용권 정보에서 가져오기
-            const clickedTicket = dayTickets.find(ticket => ticket.product_id == e.currentTarget.dataset.id);
-            setChoiceTicket(clickedTicket);
-        }
+        const clickedTicket = tickets.find(ticket => String(ticket.product_id) === id);
+        setChoiceTicket(clickedTicket);
     }
 
     // 구매하기 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (choiceTicket.length == 0) {
+        if (!choiceTicket || Object.keys(choiceTicket).length === 0) {
             alert("구매하실 이용권을 선택하세요");
-        } else {
-            if (confirm("선택하신 이용권은 " + choiceTicket.name + "입니다.\n구매하시겠습니까?")) {
-                // console.log("구매페이지로 이동");
-                // 구매페이지로 이동
-                navigate("/web/payment", { state: choiceTicket });
-            }
+            return;
         }
-        // console.log(choiceTicket);
+
+        if (!window.confirm("선택하신 이용권은 " + choiceTicket.name + "입니다.\n구매하시겠습니까?")) return;
+
+        if (choiceTicket.type === "기간제") setShowSeatSelector(true);
+        else navigate("/web/payment", { state: choiceTicket });
     }
 
-    const handleCancel = (e) => {
-        navigate("/web");
-    }
+    // 취소 버튼 
+    const handleCancel = () => navigate("/web");
 
-    useEffect(() => {
-        if (!hasFetched.current) {
-            getTicketList();
-            hasFetched.current = true;
-        }
-    }, []);
+
+    // 기간권 선택일 경우 좌석 선택페이지로 이동
+    if (showSeatSelector) return <SeatSelector choiceTicket={choiceTicket} seats={seats} />
 
 
     return (
-        <div>
-            <div className="filter-box">
-                <button data-value="time" className="filter-btn btn" onClick={handleTicketType}>시간권</button>
-                <button data-value="day" className="filter-btn btn" onClick={handleTicketType}>기간권</button>
+        <div className="max-w-6xl mx-auto p-6">
+            <h2 className="text-4xl font-extrabold text-white mb-6">이용권 선택</h2>
+
+            <div className="flex gap-4 mb-8">
+                <button data-value="time" className={`px-6 py-3 rounded-2xl font-semibold transition ${activeType === 'time' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`} onClick={handleTicketType} > 시간권 </button>
+                <button data-value="day" className={`px-6 py-3 rounded-2xl font-semibold transition ${activeType === 'day' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`} onClick={handleTicketType}  > 기간권 </button>
             </div>
 
-            <div className="select-btn select-btn-time active">
-                <h1>시간권</h1>
-                <ul>
-                    {timeTickets.map((ticket, idx) => (
-                        <li key={idx} data-id={ticket.product_id} className="ticket-li" onClick={handleClickTicket}>
-                            <p>{ticket.name}</p>
-                            <p>{Number(ticket.price).toLocaleString()}원</p>
+            <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {(activeType === "time" ? timeTickets : dayTickets).map((ticket) => {
+                    const isSelected = selectedId === String(ticket.product_id);
+                    return (
+                        <li key={ticket.product_id}>
+                            <button data-id={ticket.product_id} onClick={handleClickTicket} className={`  w-full h-full group relative flex flex-col justify-between p-8 rounded-3xl shadow-xl transition-all duration-200 text-left border cursor-pointer  active:scale-95 ${isSelected ? "bg-slate-800 border-blue-500 ring-2 ring-blue-500 shadow-blue-900/30" : "bg-slate-800 border-slate-700 active:border-blue-500/30"} `}  >
+                                <div className={`absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent transition-opacity rounded-3xl ${isSelected ? "opacity-100" : "opacity-0"}`}></div>
+
+                                <div className="relative z-10 flex flex-col justify-between h-full">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <span className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl transition-colors duration-200 ${isSelected ? "bg-blue-500 text-white" : "bg-slate-700/50 text-blue-300"}`}>
+                                            <FaClock className="text-xl" />
+                                        </span>
+                                        <FaCheckCircle className={`text-2xl transition-colors duration-200 ${isSelected ? "text-blue-500" : "text-slate-700"}`} />
+                                    </div>
+
+                                    <h3 className={`text-2xl font-bold mb-2 transition-colors duration-200 ${isSelected ? "text-white" : "text-slate-100"}`}>
+                                        {ticket.name}
+                                    </h3>
+
+                                    <div className="flex items-baseline gap-1 mt-4">
+                                        <span className={`text-3xl font-extrabold transition-colors duration-200 ${isSelected ? "text-blue-200" : "text-blue-300"}`}>
+                                            {ticket.price.toLocaleString()}
+                                        </span>
+                                        <span className="text-lg text-slate-400 font-medium">원</span>
+                                    </div>
+                                </div>
+                            </button>
                         </li>
-                    ))}
-                </ul>
-            </div>
+                    );
+                })}
+            </ul>
 
-            <div className="select-btn select-btn-day">
-                <h1>기간권</h1>
-                <ul>
-                    {dayTickets.map((ticket, idx) => (
-                        <li key={idx} data-id={ticket.product_id} className="ticket-li" onClick={handleClickTicket}>
-                            <p>{ticket.name}</p>
-                            <p>{Number(ticket.price).toLocaleString()}원</p>
-                        </li>
-                    ))}
-                </ul>
-            </div>
-
-            <div className="result-box">
-                <p>이용 기간 {choiceTicket.name}</p>
-                <p>총 금액  {choiceTicket?.price ? Number(choiceTicket.price).toLocaleString() + "원" : null}</p>
-
-                <div className="btn-box">
-                    <button className="cancel-btn btn" onClick={handleCancel}>취소하기</button>
-                    <button className="submit-btn btn" onClick={handleSubmit}>구매하기</button>
+            <div className="mt-8 flex justify-between items-center bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-inner">
+                <div>
+                    <p className="text-lg text-slate-300">이용 기간: <span className="text-white font-semibold">{choiceTicket.name || '미선택'}</span></p>
+                    <p className="text-lg text-slate-300">총 금액: <span className="text-white font-semibold">{choiceTicket.price ? Number(choiceTicket.price).toLocaleString() + "원" : '0원'}</span></p>
+                </div>
+                <div className="flex gap-4">
+                    <button className="px-6 py-3 rounded-2xl bg-red-600 text-white font-semibold cursor-pointer" onClick={handleCancel}>취소하기</button>
+                    <button className="px-6 py-3 rounded-2xl bg-blue-600 text-white font-semibold cursor-pointer" onClick={handleSubmit}>구매하기</button>
                 </div>
             </div>
-
         </div>
     )
-
 
 }
 

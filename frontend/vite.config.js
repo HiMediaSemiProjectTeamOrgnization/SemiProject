@@ -9,7 +9,7 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:8080', // FastAPI 서버 주소
+      '/api': 'http://localhost:8000', // FastAPI 서버 주소
     },
   },
 });

@@ -123,3 +123,10 @@ class MileageHistoryResponse(MileageHistoryBase):
     history_id: int
     member_id: int
     created_at: datetime
+
+# -------------------------------------------------------------------
+# 키오스크 AUTH (추가)
+# -------------------------------------------------------------------
+class PinAuthRequest(BaseSchema):
+    phone: str
+    pin: int

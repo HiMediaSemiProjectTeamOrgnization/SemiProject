@@ -1,7 +1,7 @@
 import { useState } from "react";
 import KioskHeader from "../components/KioskHeader";
 import KioskAlertModal from "../components/KioskAlertModal";
-import KioskPaymentModal from "../components/KioskPaymentModal"; // [추가] 결제 모달
+import KioskPaymentModal from "../components/KioskPaymentModal";
 import { FaDeleteLeft } from "react-icons/fa6";
 
 // ticket 정보를 props로 받음 (가격 표시용)
@@ -33,7 +33,7 @@ function KioskPhoneInput({ onBack, onComplete, ticket }) {
             });
             return;
         }
-        // [수정됨] 전화번호 입력 완료 -> 결제 모달 오픈
+        // 전화번호 입력 완료 -> 결제 모달 오픈
         setIsPaymentModalOpen(true);
     };
 
@@ -54,18 +54,18 @@ function KioskPhoneInput({ onBack, onComplete, ticket }) {
                 </div>
 
                 <div className="w-full max-w-lg">
-                    {/* 전화번호 표시창 (디자인 동일) */}
+                    {/* 전화번호 표시창 */}
                     <div className="flex items-center justify-center bg-slate-800 h-24 rounded-2xl border-2 border-blue-500 ring-2 ring-blue-500/20 shadow-inner transition-all">
                         <span className="text-3xl text-slate-400 font-medium">010</span>
                         <span className="text-2xl text-slate-600 mx-4 font-light">-</span>
                         <div className="w-24 text-center">
-                            <span className={`text-4xl font-bold tracking-widest ${phoneNumber.length > 0 ? "text-white" : "text-slate-700"}`}>
+                            <span className={`text-3xl font-bold tracking-widest ${phoneNumber.length > 0 ? "text-white" : "text-slate-700"}`}>
                                 {phoneNumber.slice(0, 4).padEnd(4, ' ')}
                             </span>
                         </div>
                         <span className="text-2xl text-slate-600 mx-4 font-light">-</span>
                         <div className="w-24 text-center">
-                            <span className={`text-4xl font-bold tracking-widest ${phoneNumber.length > 4 ? "text-white" : "text-slate-700"}`}>
+                            <span className={`text-3xl font-bold tracking-widest ${phoneNumber.length > 4 ? "text-white" : "text-slate-700"}`}>
                                 {phoneNumber.slice(4, 8).padEnd(4, ' ')}
                             </span>
                         </div>
