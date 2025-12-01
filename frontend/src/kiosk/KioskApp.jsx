@@ -12,8 +12,11 @@ function KioskApp() {
     const [currentPage, setCurrentPage] = useState("home");
     const [userType, setUserType] = useState(null);
     const [selectedTicket, setSelectedTicket] = useState(null);
-    const [selectedSeat, setSelectedSeat] = useState(null); // 선택된 좌석 상태
+    const [selectedSeat, setSelectedSeat] = useState(null);
     const [memberInfo, setMemberInfo] = useState(null);
+    
+    // [추가] 회원이 결제 후 좌석 선택 단계로 넘어갈 때 주문 정보를 저장할 상태
+    const [paymentResult, setPaymentResult] = useState(null);
 
     // 홈으로 이동 및 상태 초기화
     const goToHome = () => {
@@ -22,6 +25,7 @@ function KioskApp() {
         setSelectedTicket(null);
         setSelectedSeat(null);
         setMemberInfo(null);
+        setPaymentResult(null); // 초기화 추가
     };
 
     // 구매 프로세스 시작 -> 유저 선택 화면으로
@@ -30,6 +34,7 @@ function KioskApp() {
         setMemberInfo(null);
         setSelectedTicket(null);
         setSelectedSeat(null);
+        setPaymentResult(null); // 초기화 추가
         setCurrentPage("select-user");
     };
 
@@ -42,7 +47,7 @@ function KioskApp() {
         if (type === "member") {
             setCurrentPage("member-login"); // 회원은 로그인 화면으로
         } else {
-            setCurrentPage("seat-status");  // 비회원은 바로 좌석 선택으로
+            setCurrentPage("seat-status");  // 비회원은 좌석 선택 화면으로 (선 좌석, 후 결제)
         }
     };
 
@@ -54,10 +59,18 @@ function KioskApp() {
     };
 
     // 3. 좌석 선택 처리
-    const handleSeatSelect = (seat) => {
+    const handleSeatSelect = async (seat) => {
         setSelectedSeat(seat);
         console.log("선택된 좌석:", seat);
-        setCurrentPage("ticket-list");
+
+        if (userType === "member" && paymentResult) {
+            // [회원] 이미 결제를 마치고 좌석을 선택한 경우 -> 바로 입실 처리
+            // 주의: setState(setSelectedSeat)는 비동기이므로, 인자로 받은 seat를 바로 사용
+            await handleCheckIn(paymentResult.order_id, memberInfo.phone, seat);
+        } else {
+            // [비회원] 좌석 선택 후 이용권 목록으로 이동
+            setCurrentPage("ticket-list");
+        }
     };
 
     // 4. 티켓 목록에서 "결제하기/다음" 클릭 처리
@@ -65,24 +78,24 @@ function KioskApp() {
         setSelectedTicket(ticket);
 
         if (userType === "member") {
-            // [회원] 이미 TicketList 모달에서 결제가 완료된 상태 (resultData 있음) -> 바로 입실 처리
-            if (selectedSeat && resultData) {
-                await handleCheckIn(resultData.order_id, memberInfo.phone);
+            // [회원 수정] 결제 완료 후 -> 좌석 선택 화면으로 이동
+            if (resultData) {
+                setPaymentResult(resultData); // 주문 정보 저장
+                setCurrentPage("seat-status"); // 좌석 선택으로 이동
             } else {
-                alert("오류: 좌석 정보 또는 결제 정보가 없습니다.");
-                goToHome();
+                alert("결제 정보가 올바르지 않습니다.");
             }
         } else {
-            // [비회원] 아직 결제 안 함 -> 전화번호 입력 화면으로 이동
+            // [비회원] 아직 결제 안 함 -> 전화번호 입력 및 결제 화면으로 이동
             setCurrentPage("phone-input");
         }
     };
 
     // 5. 비회원 전화번호 입력 및 결제 완료 처리
     const handleNonMemberInfoComplete = async (resultData, phoneNumber) => {
-        // [비회원] PhoneInput 모달에서 결제 완료 후 호출됨 -> 입실 처리
+        // [비회원] 결제 완료 -> 입실 처리
         if (selectedSeat && resultData) {
-            await handleCheckIn(resultData.order_id, phoneNumber);
+            await handleCheckIn(resultData.order_id, phoneNumber, selectedSeat);
         } else {
             alert("오류: 좌석 정보가 없습니다.");
             goToHome();
@@ -90,14 +103,22 @@ function KioskApp() {
     };
     
     // [공통] 입실(Check-in) API 호출 함수
-    const handleCheckIn = async (orderId, phoneNumber) => {
+    // targetSeat 인자 추가: 상태 업데이트 비동기 문제 해결을 위해 직접 받아서 처리
+    const handleCheckIn = async (orderId, phoneNumber, targetSeat = null) => {
+        const seatId = targetSeat ? targetSeat.seat_id : selectedSeat?.seat_id;
+
+        if (!seatId) {
+            alert("입실할 좌석 정보가 없습니다.");
+            return;
+        }
+
         try {
             const res = await fetch("/api/kiosk/check-in", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     phone: phoneNumber,
-                    seat_id: selectedSeat.seat_id,
+                    seat_id: seatId,
                     order_id: orderId
                 })
             });
@@ -147,9 +168,20 @@ function KioskApp() {
     if (currentPage === "seat-status") {
         return (
             <KioskSeatStatus 
-                onBack={goToSelectUser} 
+                onBack={() => {
+                    // 회원이 결제 후 좌석 선택 단계에서 뒤로가기 시 처리 (홈으로 혹은 알림)
+                    if (userType === 'member' && paymentResult) {
+                        if(confirm("결제가 완료되었습니다. 입실하시겠습니까? 취소하면 홈으로 이동합니다.")) {
+                            // 유지
+                        } else {
+                            goToHome();
+                        }
+                    } else {
+                        goToSelectUser();
+                    }
+                }} 
                 onSeatSelect={handleSeatSelect} 
-                excludePeriodType={true} // [중요] 구매 시에는 기간제 좌석 숨김
+                excludePeriodType={true}
             />
         );
     }
@@ -183,12 +215,12 @@ function KioskApp() {
         );
     }
 
-    // (단순 조회용) 좌석 현황 확인 - 홈 화면 버튼 클릭 시
+    // (단순 조회용) 좌석 현황 확인
      if (currentPage === "seat-status-view") {
         return (
             <KioskSeatStatus 
                 onBack={goToHome} 
-                excludePeriodType={false} // 현황 확인 시에는 모든 좌석 표시
+                excludePeriodType={false} 
             />
         );
     }
@@ -211,7 +243,7 @@ function KioskApp() {
 
                     <button 
                         className="group relative w-80 h-24 rounded-2xl overflow-hidden shadow-xl transition-all duration-200 active:scale-95 border border-white/10 bg-slate-800/50 backdrop-blur-md"
-                        onClick={goToSeatStatusView} // 단순 조회 모드 이동
+                        onClick={goToSeatStatusView} 
                     >
                         <div className="absolute inset-0 bg-gradient-to-r from-violet-600/10 to-transparent group-active:from-violet-600/30 transition-all"></div>
                         <div className="relative h-full flex items-center justify-between px-6 z-10">
@@ -245,9 +277,6 @@ function KioskApp() {
                         icon={<FaSignInAlt />} 
                         gradient="from-emerald-600 to-emerald-800"
                         accentColor="bg-emerald-500"
-                        // 입실 기능은 현재 별도 구현이 안되어 있어 좌석현황으로 연결하거나, 
-                        // QR/전화번호 입실 화면으로 연결할 수 있습니다. 
-                        // 여기서는 일단 좌석현황(조회)으로 연결해둡니다.
                         onClick={goToSeatStatusView}
                     />
                     <MainActionButton 
