@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { FaClock, FaCheckCircle, FaExclamationTriangle, FaRedo } from "react-icons/fa";
+import { FaUser } from "react-icons/fa6"; 
 import KioskHeader from "../components/KioskHeader";
 import KioskPaymentModal from "../components/KioskPaymentModal";
 
-function KioskTicketList({ onBack, userType, onPaymentRequest }) {
+function KioskTicketList({ onBack, userType, onPaymentRequest, memberInfo }) {
     const [tickets, setTickets] = useState([]);
     const [selectedTicket, setSelectedTicket] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -14,7 +15,7 @@ function KioskTicketList({ onBack, userType, onPaymentRequest }) {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch("http://localhost:8080/api/kiosk/products"); 
+            const response = await fetch("/api/kiosk/products");
             if (!response.ok) {
                 throw new Error(`서버 오류: ${response.status}`);
             }
@@ -40,7 +41,7 @@ function KioskTicketList({ onBack, userType, onPaymentRequest }) {
         }
     };
 
-    // [수정됨] 결제 버튼 클릭 핸들러
+    // 결제 버튼 클릭 핸들러
     const handlePaymentClick = () => {
         if (!selectedTicket) return;
 
@@ -66,12 +67,43 @@ function KioskTicketList({ onBack, userType, onPaymentRequest }) {
 
             <main className="flex-1 w-full overflow-y-auto">
                 <div className="min-h-full flex flex-col justify-center p-8 pb-48 container mx-auto max-w-6xl">
+                    
+                    {/* 상단 타이틀 및 정보 영역 */}
                     <div className="mb-10 pl-4 border-l-4 border-blue-500">
-                        <h2 className="text-3xl font-bold text-white">이용권 선택</h2>
-                        <p className="text-slate-400 mt-1">
-                            {userType === "member" ? "회원님, " : "비회원님, "} 
-                            원하시는 시간을 선택해 주세요.
-                        </p>
+                        <h2 className="text-3xl font-bold text-white mb-4">이용권 선택</h2>
+                        
+                        {userType === "member" && memberInfo ? (
+                            <div className="mt-4 bg-slate-800 p-6 rounded-2xl border border-blue-500/30 shadow-lg flex items-center gap-6 max-w-2xl backdrop-blur-sm relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+
+                                <div className="relative w-16 h-16 rounded-full bg-slate-700/50 flex items-center justify-center border border-slate-600 group-hover:border-blue-500/50 transition-colors">
+                                    <FaUser className="text-3xl text-blue-400" />
+                                </div>
+
+                                <div className="flex-1">
+                                    <p className="text-blue-200 text-sm font-medium mb-1 tracking-wide">Welcome Back</p>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-2xl font-extrabold text-white">{memberInfo.name}</span>
+                                        <span className="text-lg text-slate-400 font-medium">회원님</span>
+                                    </div>
+                                </div>
+
+                                <div className="text-right pl-6 border-l border-slate-700">
+                                    <p className="text-slate-400 text-sm font-medium mb-1">현재 잔여 시간</p>
+                                    <div className="flex items-center justify-end gap-2">
+                                        <FaClock className="text-blue-500 text-lg" />
+                                        <span className="text-3xl font-extrabold text-white tracking-tight">
+                                            {memberInfo.saved_time_minute}
+                                        </span>
+                                        <span className="text-lg text-slate-400 font-medium">분</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-slate-400 text-lg">
+                                비회원님, 원하시는 시간을 선택해 주세요.
+                            </p>
+                        )}
                     </div>
 
                     {loading ? (

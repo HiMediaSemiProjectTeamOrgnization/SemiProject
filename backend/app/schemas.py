@@ -1,6 +1,6 @@
+from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
 
 # 공통 설정 (ORM 객체를 Pydantic 모델로 변환 허용)
 class BaseSchema(BaseModel):
@@ -46,6 +46,10 @@ class MemberCreate(MemberBase):
     password: str
     phone: str
 
+class MemberLogin(MemberBase):
+    login_id: Optional[str] = None
+    password: Optional[str] = None
+
 class MemberResponse(MemberBase):
     login_id: Optional[str] = None
     password: Optional[str] = None
@@ -70,6 +74,7 @@ class TokenCreate(TokenBase):
 
 class TokenResponse(TokenBase):
     is_revoked: bool
+    created_at: datetime
 
 # -------------------------------------------------------------------
 # ORDERS

@@ -1,7 +1,7 @@
 ## 초기 프로젝트 설정법
 ### 설치 명령어
 1. uv init
-2. uv add dotenv fastapi httpx pandas passlib pathlib psycopg2 psycopg2-binary uvicorn sqlalchemy pandas numpy scikit-learn torch alembic python-jose
+2. uv add dotenv fastapi httpx pandas passlib pathlib psycopg2 psycopg2-binary uvicorn sqlalchemy pandas numpy scikit-learn torch alembic python-jose python-multipart
 ### app/main.py
 ```
 import uvicorn

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Member, Product, Order, Seat, SeatUsage
-from schemas import PinAuthRequest # 추가
+from schemas import PinAuthRequest
 from datetime import datetime
 
 router = APIRouter(prefix="/api/kiosk")
@@ -11,17 +11,21 @@ router = APIRouter(prefix="/api/kiosk")
 # 전화번호 없이 비회원 조회 또는 생성 (member_id 1 고정)
 # ------------------------
 def get_or_create_guest(db: Session):
+    # 🚨 Primary Key 중복 오류(UniqueViolation) 방지를 위해,
+    # member_id=1인 비회원 계정이 존재하는지 먼저 확인하는 과정은 필수입니다.
     guest = db.query(Member).filter(
         Member.member_id == 1,
         Member.social_type == "guest"
     ).first()
+
     if guest:
+        # 이미 존재하면 기존 객체 반환
         return guest
 
-    # 없으면 생성
+    # 존재하지 않으면 member_id=1로 새로 생성
     new_guest = Member(
-        member_id=1,
-        phone="",
+        member_id=1,          # ★ 고정 (비회원 전용)
+        phone="",             # ★ 빈 문자열
         social_type="guest",
         role="guest",
         name="비회원",
@@ -56,6 +60,7 @@ def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
         "member_id": member.member_id,
         "name": member.name,
         "phone": member.phone,
+        "saved_time_minute": member.saved_time_minute
     }
 
 # ------------------------
@@ -80,9 +85,9 @@ def list_products(db: Session = Depends(get_db)):
 
 @router.post("/purchase")
 def purchase_ticket(
-    product_id: int = Body(...),
-    member_id: int = Body(...),
-    phone: str = Body(None),
+    product_id: int = Body(...),    # 프론트에서 선택한 이용권 ID
+    member_id: int = Body(...),     # 회원이면 실제 member_id, 비회원이면 1
+    phone: str = Body(None),        # 비회원이면 전화번호, 회원이면 None
     db: Session = Depends(get_db)
 ):
     # 1. 상품 조회
@@ -94,36 +99,22 @@ def purchase_ticket(
     order = Order(
         member_id=member_id,
         product_id=product_id,
-        buyer_phone=phone,
+        buyer_phone=phone,          # 회원이면 None, 비회원이면 전화번호
         payment_amount=product.price,
         created_at=datetime.now()
     )
     db.add(order)
+    db.commit()
+    db.refresh(order)
 
-    member_obj = db.query(Member).filter(Member.member_id == member_id).first()
-
-    if member_obj:
-        # 이용권 시간을 시간 -> 분으로 변환 후 누적
-        saved_minutes = product.value * 60  # product.value가 시간 단위라고 가정
-        member_obj.saved_time_minute += saved_minutes
-
-        # 마일리지 적립 (결제 금액의 10%)
-        mileage_amount = int(product.price * 0.1)
-        member_obj.total_mileage += mileage_amount
-
-        db.commit()
-        db.refresh(member_obj)
-    else:
-        mileage_amount = 0
-
-    # 응답
+    # 3. 결제 완료 응답
     return {
         "order_id": order.order_id,
         "product_name": product.name,
-        "price": product.price,
-        "saved_time_minute": member_obj.saved_time_minute if member_obj else 0,
-        "earned_mileage": mileage_amount
+        "price": product.price
     }
+
+
 
 # ------------------------
 # 4) 좌석 목록 조회 (변경 없음)
