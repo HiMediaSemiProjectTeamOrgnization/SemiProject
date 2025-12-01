@@ -4,7 +4,6 @@ import KioskAlertModal from "../components/KioskAlertModal";
 import KioskPaymentModal from "../components/KioskPaymentModal";
 import { FaDeleteLeft } from "react-icons/fa6";
 
-// ticket 정보를 props로 받음 (가격 표시용)
 function KioskPhoneInput({ onBack, onComplete, ticket }) {
     const [phoneNumber, setPhoneNumber] = useState("");
     
@@ -37,10 +36,11 @@ function KioskPhoneInput({ onBack, onComplete, ticket }) {
         setIsPaymentModalOpen(true);
     };
 
-    const handlePaymentComplete = () => {
+    // 모달에서 결제 완료 시 호출 (결제 결과 데이터를 받아서 상위로 전달)
+    const handlePaymentComplete = (resultData) => {
         setIsPaymentModalOpen(false);
-        // 결제까지 완료되면 상위 컴포넌트로 전화번호 전달
-        onComplete(`010${phoneNumber}`);
+        // [수정] 결제 정보와 함께 입력한 전화번호도 전달 (입실 처리를 위해 필요)
+        onComplete(resultData, "010" + phoneNumber);
     };
 
     return (
@@ -72,6 +72,7 @@ function KioskPhoneInput({ onBack, onComplete, ticket }) {
                     </div>
                 </div>
 
+                {/* 키패드 */}
                 <div className="grid grid-cols-3 gap-4 w-full max-w-md mt-4">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                         <KeypadButton key={num} onClick={() => handleNumClick(num)}>{num}</KeypadButton>
@@ -109,7 +110,8 @@ function KioskPhoneInput({ onBack, onComplete, ticket }) {
             <KioskPaymentModal 
                 isOpen={isPaymentModalOpen}
                 onClose={() => setIsPaymentModalOpen(false)}
-                ticket={ticket} // 가격 표시를 위해 전달
+                ticket={ticket} 
+                phoneNumber={`010${phoneNumber}`} 
                 onPaymentComplete={handlePaymentComplete}
             />
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { FaClock, FaCheckCircle, FaExclamationTriangle, FaRedo } from "react-icons/fa";
+import { FaClock, FaCheckCircle, FaExclamationTriangle, FaRedo, FaCoins } from "react-icons/fa"; // FaCoins 아이콘 추가
 import { FaUser } from "react-icons/fa6"; 
 import KioskHeader from "../components/KioskHeader";
 import KioskPaymentModal from "../components/KioskPaymentModal";
@@ -55,10 +55,10 @@ function KioskTicketList({ onBack, userType, onPaymentRequest, memberInfo }) {
     };
 
     // [회원 전용] 모달에서 결제 완료 시 호출
-    const handleMemberPaymentComplete = () => {
+    const handleMemberPaymentComplete = (resultData) => {
         setIsPaymentModalOpen(false);
         // 결제 완료되었다는 신호와 함께 티켓 정보 전달
-        onPaymentRequest(selectedTicket); 
+        onPaymentRequest(selectedTicket, resultData); 
     };
 
     return (
@@ -73,7 +73,8 @@ function KioskTicketList({ onBack, userType, onPaymentRequest, memberInfo }) {
                         <h2 className="text-3xl font-bold text-white mb-4">이용권 선택</h2>
                         
                         {userType === "member" && memberInfo ? (
-                            <div className="mt-4 bg-slate-800 p-6 rounded-2xl border border-blue-500/30 shadow-lg flex items-center gap-6 max-w-2xl backdrop-blur-sm relative overflow-hidden group">
+                            // [수정] 회원 정보 카드 너비 확장 (max-w-4xl) 및 내부 레이아웃 조정
+                            <div className="mt-4 bg-slate-800 p-6 rounded-2xl border border-blue-500/30 shadow-lg flex items-center gap-6 max-w-4xl backdrop-blur-sm relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
 
                                 <div className="relative w-16 h-16 rounded-full bg-slate-700/50 flex items-center justify-center border border-slate-600 group-hover:border-blue-500/50 transition-colors">
@@ -88,14 +89,30 @@ function KioskTicketList({ onBack, userType, onPaymentRequest, memberInfo }) {
                                     </div>
                                 </div>
 
-                                <div className="text-right pl-6 border-l border-slate-700">
-                                    <p className="text-slate-400 text-sm font-medium mb-1">현재 잔여 시간</p>
-                                    <div className="flex items-center justify-end gap-2">
-                                        <FaClock className="text-blue-500 text-lg" />
-                                        <span className="text-3xl font-extrabold text-white tracking-tight">
-                                            {memberInfo.saved_time_minute}
-                                        </span>
-                                        <span className="text-lg text-slate-400 font-medium">분</span>
+                                {/* 정보 표시 영역 (시간 + 마일리지) */}
+                                <div className="flex gap-8">
+                                    {/* 1. 잔여 시간 */}
+                                    <div className="text-right pl-6 border-l border-slate-700">
+                                        <p className="text-slate-400 text-sm font-medium mb-1">현재 잔여 시간</p>
+                                        <div className="flex items-center justify-end gap-2">
+                                            <FaClock className="text-blue-500 text-lg" />
+                                            <span className="text-3xl font-extrabold text-white tracking-tight">
+                                                {memberInfo.saved_time_minute}
+                                            </span>
+                                            <span className="text-lg text-slate-400 font-medium">분</span>
+                                        </div>
+                                    </div>
+
+                                    {/* 2. [추가] 보유 마일리지 */}
+                                    <div className="text-right pl-6 border-l border-slate-700">
+                                        <p className="text-slate-400 text-sm font-medium mb-1">보유 마일리지</p>
+                                        <div className="flex items-center justify-end gap-2">
+                                            <FaCoins className="text-yellow-500 text-lg" />
+                                            <span className="text-3xl font-extrabold text-white tracking-tight">
+                                                {memberInfo.total_mileage ? memberInfo.total_mileage.toLocaleString() : 0}
+                                            </span>
+                                            <span className="text-lg text-slate-400 font-medium">P</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -229,6 +246,7 @@ function KioskTicketList({ onBack, userType, onPaymentRequest, memberInfo }) {
                 isOpen={isPaymentModalOpen}
                 onClose={() => setIsPaymentModalOpen(false)}
                 ticket={selectedTicket}
+                memberInfo={memberInfo} // 회원 정보 전달
                 onPaymentComplete={handleMemberPaymentComplete}
             />
         </div>

@@ -6,64 +6,123 @@ import KioskSelectUser from "./screens/KioskUserSelect";
 import KioskLogin from "./screens/KioskLogin";
 import KioskTicketList from "./screens/KioskTicketList";
 import KioskPhoneInput from "./screens/KioskPhoneInput";
+import KioskSeatStatus from "./screens/KioskSeatStatus";
 
 function KioskApp() {
     const [currentPage, setCurrentPage] = useState("home");
     const [userType, setUserType] = useState(null);
     const [selectedTicket, setSelectedTicket] = useState(null);
+    const [selectedSeat, setSelectedSeat] = useState(null); // 선택된 좌석 상태
     const [memberInfo, setMemberInfo] = useState(null);
 
+    // 홈으로 이동 및 상태 초기화
     const goToHome = () => {
         setCurrentPage("home");
         setUserType(null);
         setSelectedTicket(null);
+        setSelectedSeat(null);
         setMemberInfo(null);
     };
 
-    // 1. 이용권 구매 클릭 -> 유저 선택
-    const goToSelectUser = () => setCurrentPage("select-user");
+    // 구매 프로세스 시작 -> 유저 선택 화면으로
+    const goToSelectUser = () => {
+        setUserType(null);
+        setMemberInfo(null);
+        setSelectedTicket(null);
+        setSelectedSeat(null);
+        setCurrentPage("select-user");
+    };
 
-    // 2. 유저 유형 선택 처리
+    // 단순 좌석 현황 확인 (구매 X)
+    const goToSeatStatusView = () => setCurrentPage("seat-status-view");
+
+    // 1. 유저 유형 선택 처리
     const handleUserSelect = (type) => {
         setUserType(type);
         if (type === "member") {
             setCurrentPage("member-login"); // 회원은 로그인 화면으로
         } else {
-            setCurrentPage("ticket-list");  // 비회원은 바로 티켓 목록으로
+            setCurrentPage("seat-status");  // 비회원은 바로 좌석 선택으로
         }
     };
 
-    // 3. 회원 로그인 성공 처리
+    // 2. 회원 로그인 성공 처리
     const handleLoginSuccess = (memberData) => {
         console.log("로그인 정보 저장:", memberData);
-        setMemberInfo(memberData);     // 회원 정보 저장
-        setCurrentPage("ticket-list"); // 로그인 성공 후 티켓 목록으로 이동
+        setMemberInfo(memberData);     
+        setCurrentPage("seat-status"); // 로그인 성공 후 좌석 선택으로 이동
     };
 
-    // 4. 티켓 목록에서 "결제하기" 클릭 처리
-    const handlePaymentRequest = (ticket) => {
+    // 3. 좌석 선택 처리
+    const handleSeatSelect = (seat) => {
+        setSelectedSeat(seat);
+        console.log("선택된 좌석:", seat);
+        setCurrentPage("ticket-list"); // 좌석 선택 후 이용권 목록으로 이동
+    };
+
+    // 4. 티켓 목록에서 "결제하기/다음" 클릭 처리
+    const handlePaymentRequest = async (ticket, resultData) => {
         setSelectedTicket(ticket);
 
         if (userType === "member") {
-            // 회원은 TicketList에서 결제까지 완료하고 여기로 옴
-            alert(`[회원] ${ticket.name} 결제 및 등록 완료!`);
-            goToHome();
+            // [회원] 이미 TicketList 모달에서 결제가 완료된 상태 (resultData 있음) -> 바로 입실 처리
+            if (selectedSeat && resultData) {
+                await handleCheckIn(resultData.order_id, memberInfo.phone);
+            } else {
+                alert("오류: 좌석 정보 또는 결제 정보가 없습니다.");
+                goToHome();
+            }
         } else {
-            // 비회원은 아직 결제 안 함 -> 전화번호 입력 화면으로 이동
+            // [비회원] 아직 결제 안 함 -> 전화번호 입력 화면으로 이동
             setCurrentPage("phone-input");
         }
     };
 
     // 5. 비회원 전화번호 입력 및 결제 완료 처리
-    const handleNonMemberInfoComplete = (phoneNumber) => {
-        // 비회원은 PhoneInput에서 결제까지 완료하고 여기로 옴
-        console.log("비회원 정보:", phoneNumber, "선택 티켓:", selectedTicket);
-        // 최종 데이터베이스 저장 로직 (API 호출)
-        alert(`[비회원] ${selectedTicket.name}\n번호: ${phoneNumber}\n이용권 발급이 완료되었습니다.`);
-        goToHome();
+    const handleNonMemberInfoComplete = async (resultData, phoneNumber) => {
+        // [비회원] PhoneInput 모달에서 결제 완료 후 호출됨 -> 입실 처리
+        if (selectedSeat && resultData) {
+            await handleCheckIn(resultData.order_id, phoneNumber);
+        } else {
+            alert("오류: 좌석 정보가 없습니다.");
+            goToHome();
+        }
+    };
+    
+    // [공통] 입실(Check-in) API 호출 함수
+    const handleCheckIn = async (orderId, phoneNumber) => {
+        try {
+            const res = await fetch("/api/kiosk/check-in", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    phone: phoneNumber,
+                    seat_id: selectedSeat.seat_id,
+                    order_id: orderId
+                })
+            });
+
+            if (!res.ok) {
+                 const errData = await res.json();
+                 throw new Error(errData.detail || "입실 처리에 실패했습니다.");
+            }
+            
+            // 성공 시 결과 데이터 받기
+            const data = await res.json();
+            alert(`[${userType === 'member' ? '회원' : '비회원'}] 결제 및 입실 완료!\n좌석번호: ${data.seat_id}번`);
+            goToHome();
+
+        } catch (e) {
+            console.error(e);
+            alert("결제는 완료되었으나 입실 처리에 실패했습니다.\n관리자에게 문의해주세요.\n사유: " + e.message);
+            goToHome();
+        }
     };
 
+
     // --- 화면 렌더링 분기 ---
+
+    // 1. 유저 유형 선택
     if (currentPage === "select-user") {
         return (
             <KioskSelectUser 
@@ -74,6 +133,7 @@ function KioskApp() {
         );
     }
 
+    // 2. 회원 로그인
     if (currentPage === "member-login") {
         return (
             <KioskLogin 
@@ -83,10 +143,22 @@ function KioskApp() {
         );
     }
 
+    // 3. 좌석 선택 (구매 프로세스 중)
+    if (currentPage === "seat-status") {
+        return (
+            <KioskSeatStatus 
+                onBack={goToSelectUser} 
+                onSeatSelect={handleSeatSelect} 
+                excludePeriodType={true} // [중요] 구매 시에는 기간제 좌석 숨김
+            />
+        );
+    }
+
+    // 4. 이용권 선택
     if (currentPage === "ticket-list") {
         return (
             <KioskTicketList 
-                onBack={goToSelectUser} 
+                onBack={() => setCurrentPage("seat-status")} 
                 userType={userType}
                 onPaymentRequest={handlePaymentRequest}
                 memberInfo={memberInfo}
@@ -94,6 +166,7 @@ function KioskApp() {
         );
     }
 
+    // 5. (비회원) 전화번호 입력 및 결제
     if (currentPage === "phone-input") {
         return (
             <KioskPhoneInput 
@@ -104,6 +177,17 @@ function KioskApp() {
         );
     }
 
+    // (단순 조회용) 좌석 현황 확인 - 홈 화면 버튼 클릭 시
+     if (currentPage === "seat-status-view") {
+        return (
+            <KioskSeatStatus 
+                onBack={goToHome} 
+                excludePeriodType={false} // 현황 확인 시에는 모든 좌석 표시
+            />
+        );
+    }
+
+    // 홈 화면
     return (
         <div className="min-h-screen bg-slate-900 flex flex-col select-none overflow-hidden font-sans text-white">
             <KioskHeader backButton={false} />
@@ -119,7 +203,10 @@ function KioskApp() {
                         </p>
                     </div>
 
-                    <button className="group relative w-80 h-24 rounded-2xl overflow-hidden shadow-xl transition-all duration-200 active:scale-95 border border-white/10 bg-slate-800/50 backdrop-blur-md">
+                    <button 
+                        className="group relative w-80 h-24 rounded-2xl overflow-hidden shadow-xl transition-all duration-200 active:scale-95 border border-white/10 bg-slate-800/50 backdrop-blur-md"
+                        onClick={goToSeatStatusView} // 단순 조회 모드 이동
+                    >
                         <div className="absolute inset-0 bg-gradient-to-r from-violet-600/10 to-transparent group-active:from-violet-600/30 transition-all"></div>
                         <div className="relative h-full flex items-center justify-between px-6 z-10">
                             <div className="flex flex-col items-start gap-1">
@@ -152,6 +239,10 @@ function KioskApp() {
                         icon={<FaSignInAlt />} 
                         gradient="from-emerald-600 to-emerald-800"
                         accentColor="bg-emerald-500"
+                        // 입실 기능은 현재 별도 구현이 안되어 있어 좌석현황으로 연결하거나, 
+                        // QR/전화번호 입실 화면으로 연결할 수 있습니다. 
+                        // 여기서는 일단 좌석현황(조회)으로 연결해둡니다.
+                        onClick={goToSeatStatusView}
                     />
                     <MainActionButton 
                         title="퇴실" 
