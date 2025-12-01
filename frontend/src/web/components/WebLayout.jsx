@@ -1,13 +1,32 @@
 import { Outlet, Link } from 'react-router-dom';
+import { useMemberStore } from '../../utils/useMemberStore.js';
+import { useEffect } from 'react';
 
 const WebLayout = () => {
+    const { member, fetchMember, isLoading } = useMemberStore();
+
+    useEffect(() => {
+        fetchMember();
+    }, [fetchMember]);
+
     return (
         <div className="min-h-screen flex flex-col">
             {/* 헤더 (네비게이션) */}
             <header className="bg-blue-600 text-white p-4 shadow-md">
                 <nav className="flex gap-4 container mx-auto">
-                    <Link to="/" className="font-bold hover:text-blue-200">Home</Link>
-                    <Link to="/web/ticket" className="font-bold hover:text-blue-200" >이용권 구매</Link >
+                    <Link to="/web" className="font-bold hover:text-blue-200">홈</Link>
+                    <Link to="/web/ticket" className="font-bold hover:text-blue-200">이용권 구매</Link >
+                    {isLoading ? (
+                        <div className="text-sm opacity-70">확인 중...</div>
+                    ) : member ? (
+                        <div className="font-bold">
+                            {member.name}님
+                        </div>
+                    ) : (
+                        <Link to="/web/login" className="font-bold hover:text-blue-200">
+                            로그인
+                        </Link >
+                    )}
                 </nav>
             </header>
 

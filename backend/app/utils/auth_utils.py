@@ -147,7 +147,7 @@ def get_cookies_info(
     # 리프레시 토큰이 없을때
     raise HTTPException(status_code=401, detail="invalid tokens")
 
-""" 기존 리프레시 토큰 무효화 """
+""" 기존 리프레시 토큰 무효화 (쿠키 기반) """
 def revoke_existing_token(db: Session, refresh_token: str = None):
     if refresh_token:
         token = db.query(Token).filter(Token.token == refresh_token).first()
@@ -155,6 +155,14 @@ def revoke_existing_token(db: Session, refresh_token: str = None):
             token.is_revoked = True
             db.commit()
             db.refresh(token)
+
+""" 기존 리프레시 토큰 무효화 (id 기반) """
+def revoke_existing_token_by_id(db: Session, member_id: int):
+    prev_refresh = db.query(Token).filter(Token.member_id == member_id).all()
+    if prev_refresh:
+        for refresh in prev_refresh:
+            refresh.is_revoked = True
+        db.commit()
 
 """ 토큰 및 쿠키 생성 함수 """
 def set_token_cookies(member_id: int, name: str, db: Session, response: Response):
@@ -182,3 +190,28 @@ def set_token_cookies(member_id: int, name: str, db: Session, response: Response
     )
 
     return response
+
+""" 회원가입용 임시 토큰 생성 """
+def encode_temp_signup_token(data: dict):
+    exp = datetime.now(KST) + timedelta(minutes=5)
+
+    payload = {
+        **data,
+        "type": "temp_signup",
+        "exp": exp
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    return token
+
+""" 회원가입용 임시 토큰 해독 """
+def decode_temp_signup_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if payload.get("type") != "temp_signup":
+            raise HTTPException(status_code=401, detail="invalid token")
+
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=401, detail="invalid token")

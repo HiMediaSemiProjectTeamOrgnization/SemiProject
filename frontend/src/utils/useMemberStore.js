@@ -39,21 +39,17 @@ const usePostStore = create((set) => ({
 }));
 */
 
-export const useTestStore = create((set) => ({
-    posts: [],
+export const useMemberStore = create((set) => ({
+    member: null,
     isLoading: false,
-    isError: null,
-    fetchPosts: async (id) => {
+    error: null,
+    fetchMember: async () => {
         set({ isLoading: true });
         try {
-            const url = id
-            ? `https://jsonplaceholder.typicode.com/posts/${id}`
-            : `https://jsonplaceholder.typicode.com/posts/`
-            const res = await axios.get(url);
-            const data = Array.isArray(res.data) ? res.data : [res.data];
-            set({ posts: data });
-        } catch (e) {
-            set({ isError: e });
+            const response = await axios.get('/api/auth/cookies');
+            set({ members: response.data });
+        } catch (error) {
+            set({ error: error });
         } finally {
             set({ isLoading: false });
         }

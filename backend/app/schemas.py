@@ -44,7 +44,7 @@ class MemberBase(BaseSchema):
 class MemberCreate(MemberBase):
     login_id: str
     password: str
-    phone: str
+    phone: Optional[str] = None
 
 class MemberLogin(MemberBase):
     login_id: Optional[str] = None
