@@ -50,14 +50,14 @@ function KioskApp() {
     const handleLoginSuccess = (memberData) => {
         console.log("로그인 정보 저장:", memberData);
         setMemberInfo(memberData);     
-        setCurrentPage("seat-status"); // 로그인 성공 후 좌석 선택으로 이동
+        setCurrentPage("ticket-list");
     };
 
     // 3. 좌석 선택 처리
     const handleSeatSelect = (seat) => {
         setSelectedSeat(seat);
         console.log("선택된 좌석:", seat);
-        setCurrentPage("ticket-list"); // 좌석 선택 후 이용권 목록으로 이동
+        setCurrentPage("ticket-list");
     };
 
     // 4. 티켓 목록에서 "결제하기/다음" 클릭 처리
@@ -158,7 +158,13 @@ function KioskApp() {
     if (currentPage === "ticket-list") {
         return (
             <KioskTicketList 
-                onBack={() => setCurrentPage("seat-status")} 
+                onBack={() => {
+                    if (userType === "member") {
+                        setCurrentPage("member-login");
+                    } else {
+                        setCurrentPage("seat-status");
+                    }
+                }}
                 userType={userType}
                 onPaymentRequest={handlePaymentRequest}
                 memberInfo={memberInfo}

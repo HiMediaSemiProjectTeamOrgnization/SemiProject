@@ -39,7 +39,7 @@ function KioskPaymentModal({ isOpen, onClose, ticket, memberInfo, phoneNumber, o
         return () => clearInterval(timer);
     }, [paymentState]);
 
-    // [핵심] 결제 진행 (카드 투입 시 호출)
+    // 결제 진행 (카드 투입 시 호출)
     const handleInsertCard = async () => {
         setPaymentState("processing");
 
@@ -53,9 +53,7 @@ function KioskPaymentModal({ isOpen, onClose, ticket, memberInfo, phoneNumber, o
 
             console.log("결제 요청 데이터:", payload); // 디버깅용 로그
 
-            // 2. API 호출
-            // [수정] http://localhost:8000 을 명시하여 백엔드로 요청을 보냅니다.
-            const response = await fetch("http://localhost:8000/api/kiosk/purchase", {
+            const response = await fetch("/api/kiosk/purchase", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -69,7 +67,6 @@ function KioskPaymentModal({ isOpen, onClose, ticket, memberInfo, phoneNumber, o
             }
 
             // 3. 성공 처리
-            // 너무 빨리 끝나면 어색하므로 최소 1초 대기 (UX)
             setTimeout(() => {
                 setResultData(data); // 결과 데이터 저장
                 setPaymentState("done");

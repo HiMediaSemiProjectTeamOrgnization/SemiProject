@@ -15,8 +15,8 @@ def get_or_create_guest(db: Session):
     # 🚨 Primary Key 중복 오류(UniqueViolation) 방지를 위해,
     # member_id=1인 비회원 계정이 존재하는지 먼저 확인하는 과정은 필수입니다.
     guest = db.query(Member).filter(
-        Member.member_id == 1,
-        Member.social_type == "guest"
+        Member.member_id == 2,
+        Member.role == "guest"
     ).first()
 
     if guest:
@@ -25,9 +25,9 @@ def get_or_create_guest(db: Session):
 
     # 존재하지 않으면 member_id=1로 새로 생성
     new_guest = Member(
-        member_id=1,          # ★ 고정 (비회원 전용)
+        member_id=2,          # ★ 고정 (비회원 전용)
         phone="",             # ★ 빈 문자열
-        social_type="guest",
+        social_type="",
         role="guest",
         name="비회원",
         total_mileage=0,
@@ -102,7 +102,7 @@ def purchase_ticket(
     # 2. 회원 조회 (시간 적립을 위함)
     member = db.query(Member).filter(Member.member_id == member_id).first()
     if not member:
-        if member_id != 1:
+        if member_id != 2:
              raise HTTPException(status_code=404, detail="회원 정보가 없습니다.")
         member = get_or_create_guest(db)
 
@@ -166,18 +166,49 @@ def purchase_ticket(
 
 
 # ------------------------
-# 4) 좌석 목록 조회 (변경 없음)
+# 4) 좌석 목록 조회 (수정: 사용자 이름, 남은 시간 포함)
 # ------------------------
 @router.get("/seats")
 def list_seats(db: Session = Depends(get_db)):
-    seats = db.query(Seat).all()
-    return [
-        {
+    seats = db.query(Seat).order_by(Seat.seat_id).all() # 기왕이면 DB단에서 정렬
+    
+    results = []
+    now = datetime.now()
+
+    for s in seats:
+        seat_data = {
             "seat_id": s.seat_id,
             "type": s.type,
-            "is_status": s.is_status
-        } for s in seats
-    ]
+            "is_status": s.is_status,
+            "user_name": None,
+            "remaining_time": None
+        }
+
+        # 좌석이 사용 중(is_status == False)이라면, 현재 입실 정보 조회
+        if not s.is_status:
+            # 퇴실하지 않은(check_out_time IS NULL) 기록 찾기
+            # (relationship을 사용할 수도 있지만, 정확성을 위해 쿼리로 조회)
+            active_usage = db.query(SeatUsage).filter(
+                SeatUsage.seat_id == s.seat_id,
+                SeatUsage.check_out_time == None
+            ).first()
+
+            if active_usage:
+                # 1. 사용자 이름 조회
+                member = db.query(Member).filter(Member.member_id == active_usage.member_id).first()
+                if member:
+                    seat_data["user_name"] = member.name
+                
+                # 2. 남은 시간 계산 (분 단위)
+                if active_usage.ticket_expired_time:
+                    remain_delta = active_usage.ticket_expired_time - now
+                    # 남은 초를 분으로 환산 (음수면 0으로 처리)
+                    minutes = int(remain_delta.total_seconds() / 60)
+                    seat_data["remaining_time"] = max(minutes, 0)
+        
+        results.append(seat_data)
+
+    return results
 
 
 
