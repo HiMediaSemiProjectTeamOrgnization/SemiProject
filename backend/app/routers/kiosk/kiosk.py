@@ -5,6 +5,7 @@ from database import get_db
 from models import Member, Product, Order, Seat, SeatUsage, MileageHistory # MileageHistory 추가
 from schemas import PinAuthRequest # 추가
 from datetime import datetime, timedelta # timedelta 추가
+from typing import Optional
 
 router = APIRouter(prefix="/api/kiosk")
 
@@ -41,12 +42,11 @@ def get_or_create_guest(db: Session):
     return new_guest
 
 # ------------------------
-# [NEW] 1-2) 회원 로그인 (전화번호 + PIN)
+# [NEW] 1-2) 회원 로그인 (수정: 기간제 보유 여부 반환)
 # ------------------------
 @router.post("/auth/member-login")
 def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
-    
-    # Member 모델에서 phone으로 조회
+    # 1. 회원 조회
     member = db.query(Member).filter(
         Member.phone == data.phone,
         Member.role != "guest"
@@ -55,16 +55,25 @@ def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
     if not member:
         raise HTTPException(status_code=404, detail="등록된 회원 정보가 없습니다.")
     
-    # PIN은 Integer로 저장되어 있으므로 변환
+    # 2. PIN 확인
     if member.pin_code != data.pin:
         raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
+
+    # 3. [추가] 유효한 기간제 이용권 보유 여부 확인
+    now = datetime.now()
+    active_period = db.query(Order).join(Product).filter(
+        Order.member_id == member.member_id,
+        Order.period_end_date > now, # 만료되지 않은
+        Product.type == '기간제'
+    ).first()
 
     return {
         "member_id": member.member_id,
         "name": member.name,
         "phone": member.phone,
-        "saved_time_minute": member.saved_time_minute, # 잔여 시간 포함
-        "total_mileage": member.total_mileage # 마일리지 포함
+        "saved_time_minute": member.saved_time_minute, 
+        "total_mileage": member.total_mileage,
+        "has_period_pass": True if active_period else False # [추가] 기간제 보유 여부
     }
 
 # ------------------------
@@ -202,7 +211,7 @@ def purchase_ticket(
     return response_data
 
 # ------------------------
-# 4) 좌석 목록 조회 (수정: DB의 fix/free 타입을 프론트엔드용 한글로 매핑)
+# 4) 좌석 목록 조회 (수정: role 정보 추가)
 # ------------------------
 @router.get("/seats")
 def list_seats(db: Session = Depends(get_db)):
@@ -212,9 +221,6 @@ def list_seats(db: Session = Depends(get_db)):
     now = datetime.now()
 
     for s in seats:
-        # [DB Data] type: 'fix' | 'free'
-        # [Frontend] type: '기간제' | '자유석'(그 외)
-        # 매핑 로직 추가
         seat_type_str = "기간제" if s.type == "fix" else "자유석"
 
         seat_data = {
@@ -222,10 +228,10 @@ def list_seats(db: Session = Depends(get_db)):
             "type": seat_type_str, 
             "is_status": s.is_status,
             "user_name": None,
-            "remaining_time": None
+            "remaining_time": None,
+            "role": None # [추가] 사용자 역할 (member/guest)
         }
 
-        # 좌석이 사용 중이라면 상세 정보 조회
         if not s.is_status:
             active_usage = db.query(SeatUsage).filter(
                 SeatUsage.seat_id == s.seat_id,
@@ -236,6 +242,7 @@ def list_seats(db: Session = Depends(get_db)):
                 member = db.query(Member).filter(Member.member_id == active_usage.member_id).first()
                 if member:
                     seat_data["user_name"] = member.name
+                    seat_data["role"] = member.role # [추가] role 저장
                 
                 if active_usage.ticket_expired_time:
                     remain_delta = active_usage.ticket_expired_time - now
@@ -247,56 +254,81 @@ def list_seats(db: Session = Depends(get_db)):
     return results
 
 # ------------------------
-# 5) 입실 (시간 차감/만료 시간 설정)
+# 5) 입실 (수정됨: 회원은 주문 조회 없이 시간 차감)
 # ------------------------
 @router.post("/check-in")
 def check_in(
     phone: str = Body(...),
     seat_id: int = Body(...),
-    order_id: int = Body(...), 
+    order_id: Optional[int] = Body(None), 
     db: Session = Depends(get_db)
 ):
-    clean_phone = phone.replace("-", "")
-    now = datetime.now()
-    
-    # 1. member_id 조회
-    # 전화번호로 먼저 찾고, 없으면 Guest(2번) 조회
-    member = db.query(Member).filter(Member.phone == clean_phone).first()
+    # 1. 회원 조회
+    member = db.query(Member).filter(Member.phone == phone).first()
+    if not member:
+        clean_phone = phone.replace("-", "")
+        if clean_phone != phone:
+            member = db.query(Member).filter(Member.phone == clean_phone).first()
+
     if not member:
         member = get_or_create_guest(db)
         
     member_id_to_use = member.member_id
 
-    # 2. 좌석, 주문 조회
+    # 1-1. 중복 입실 방지 (회원만)
+    if member.role != "guest":
+        active_usage = db.query(SeatUsage).filter(
+            SeatUsage.member_id == member_id_to_use,
+            SeatUsage.check_out_time == None
+        ).first()
+
+        if active_usage:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"이미 좌석({active_usage.seat_id}번)을 사용 중입니다.\n퇴실 후 다시 시도해주세요."
+            )
+
+    # 2. 좌석 조회
     seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
-    order = db.query(Order).filter(Order.order_id == order_id).first()
-
-    if not seat or not order:
-        raise HTTPException(status_code=404, detail="좌석 또는 주문 정보 없음")
+    if not seat:
+        raise HTTPException(status_code=404, detail="좌석 정보가 없습니다.")
     
-    product = db.query(Product).filter(Product.product_id == order.product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="상품 정보 없음")
-
-    # 3. 좌석 상태 확인
     if not seat.is_status:
         raise HTTPException(status_code=400, detail="이미 사용 중인 좌석입니다.")
-    
-    # 4. 시간 계산
-    ticket_duration_minutes = product.value
-    expired_time = None
 
+    # 3. 시간 계산 및 유효성 검사
+    expired_time = None
+    now = datetime.now()
+    
+    # [CASE 1] 회원
     if member.role != "guest":
         if member.saved_time_minute <= 0:
             raise HTTPException(status_code=400, detail="잔여 이용권 시간이 없습니다.")
+        
         expired_time = now + timedelta(minutes=member.saved_time_minute)
+
+    # [CASE 2] 비회원
     else:
+        if not order_id:
+             raise HTTPException(status_code=400, detail="비회원은 주문 정보가 필요합니다.")
+
+        order = db.query(Order).filter(Order.order_id == order_id).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="주문 정보가 없습니다.")
+            
+        product = db.query(Product).filter(Product.product_id == order.product_id).first()
+        if not product:
+            raise HTTPException(status_code=404, detail="상품 정보 없음")
+
+        # [수정] product.value는 '시간' 단위이므로 60을 곱해 '분'으로 변환해야 함
+        ticket_duration_minutes = product.value * 60
         expired_time = now + timedelta(minutes=ticket_duration_minutes)
+        
         order.period_start_date = now
         order.period_end_date = expired_time
         db.add(order)
         
-    # 5. SeatUsage 생성
+    # 4. SeatUsage 생성
     usage = SeatUsage(
         member_id=member_id_to_use,
         seat_id=seat_id,
@@ -306,7 +338,7 @@ def check_in(
     )
     db.add(usage)
     
-    # 6. 좌석 상태 변경
+    # 5. 좌석 상태 변경
     seat.is_status = False
     db.add(seat)
 
@@ -321,46 +353,68 @@ def check_in(
     }
 
 # ------------------------
-# 6) 퇴실 (사용 시간 정산 및 좌석 상태 변경)
+# 6) 퇴실 (수정: 회원 PIN / 비회원 Phone 인증 분기)
 # ------------------------
 @router.post("/check-out")
 def check_out(
-    phone: str = Body(...),
     seat_id: int = Body(...),
+    phone: Optional[str] = Body(None), # 비회원용
+    pin: Optional[int] = Body(None),   # 회원용
     db: Session = Depends(get_db)
 ):
-    clean_phone = phone.replace("-", "")
     now = datetime.now()
-    
-    member = db.query(Member).filter(Member.phone == clean_phone).first()
-    if not member:
-        member = get_or_create_guest(db)
-        
-    member_id_to_use = member.member_id
 
+    # 1. 좌석의 현재 입실 정보 조회
     usage = db.query(SeatUsage).filter(
         SeatUsage.seat_id == seat_id,
-        SeatUsage.member_id == member_id_to_use,
         SeatUsage.check_out_time == None
     ).first()
 
     if not usage:
-        raise HTTPException(status_code=404, detail="입실 기록 없음")
+        raise HTTPException(status_code=404, detail="해당 좌석의 입실 기록을 찾을 수 없습니다.")
+
+    # 2. 입실자 정보 조회
+    member = db.query(Member).filter(Member.member_id == usage.member_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="입실자 정보를 찾을 수 없습니다.")
+
+    # 3. 본인 확인 (인증)
+    if member.role == "guest":
+        # [비회원] 전화번호 검증
+        if not phone:
+            raise HTTPException(status_code=400, detail="비회원은 전화번호 입력이 필요합니다.")
         
+        if not usage.order:
+             raise HTTPException(status_code=400, detail="비회원 주문 정보를 찾을 수 없습니다.")
+        
+        input_phone = phone.replace("-", "")
+        db_phone = usage.order.buyer_phone.replace("-", "") if usage.order.buyer_phone else ""
+        
+        if input_phone != db_phone:
+            raise HTTPException(status_code=401, detail="전화번호가 일치하지 않습니다.")
+            
+    else:
+        # [회원] PIN 번호 검증
+        if pin is None:
+            raise HTTPException(status_code=400, detail="회원은 PIN 번호 입력이 필요합니다.")
+            
+        if member.pin_code != pin:
+            raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
+
+    # 4. 사용 시간 계산
     time_used = now - usage.check_in_time
     time_used_minutes = int(time_used.total_seconds() / 60)
     
+    # [수정] 5. 회원 정산 (사용한 시간만큼 차감)
     if member.role != "guest":
-        if usage.ticket_expired_time and usage.check_in_time:
-            total_time_at_checkin = int((usage.ticket_expired_time - usage.check_in_time).total_seconds() / 60)
-            remaining_time_minutes = total_time_at_checkin - time_used_minutes
+        # 기존 로직(+= remaining)은 시간을 더해버리는 문제가 있었음 -> (-= time_used)로 수정
+        member.saved_time_minute -= time_used_minutes
 
-            if remaining_time_minutes > 0:
-                member.saved_time_minute += remaining_time_minutes
-                db.add(member)
-            elif member.saved_time_minute < 0:
-                 member.saved_time_minute = 0 
+        # 잔여 시간이 0보다 작아지면 0으로 보정 (초과 사용 시)
+        if member.saved_time_minute < 0:
+            member.saved_time_minute = 0 
     
+    # 6. 퇴실 처리 및 좌석 반납
     usage.check_out_time = now
     db.add(usage)
 
