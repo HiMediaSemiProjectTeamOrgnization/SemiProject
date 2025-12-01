@@ -55,11 +55,9 @@ class MemberResponse(MemberBase):
     password: Optional[str] = None
     email: Optional[str] = None
 
-class MemberUpdate(BaseSchema):
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    age: Optional[int] = None
-    pin_code: Optional[int] = None
+class MemberGoogleSetup(BaseSchema):
+    phone: str
+    birthday: str
 
 # -------------------------------------------------------------------
 # TOKENS

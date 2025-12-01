@@ -102,7 +102,12 @@ def verify_token(db: Session, token: str, token_type: str = "access"):
         return None, "invalid"
 
 """ JWT 토큰이 포함된 쿠키 정보 받기 """
-def get_cookies_info(response: Response, access_token: str = Cookie(None), refresh_token: str = Cookie(None), db: Session = Depends(get_db)):
+def get_cookies_info(
+    response: Response,
+    access_token: str = Cookie(None),
+    refresh_token: str = Cookie(None),
+    db: Session = Depends(get_db)
+):
     # 엑세스 토큰이 있을때
     if access_token:
         mem_info, error = verify_token(db, access_token, "access")
@@ -142,7 +147,7 @@ def get_cookies_info(response: Response, access_token: str = Cookie(None), refre
     # 리프레시 토큰이 없을때
     raise HTTPException(status_code=401, detail="invalid tokens")
 
-""" 로그아웃하지 않고 재로그인 요청시 기존 리프레시 토큰 무효화 """
+""" 기존 리프레시 토큰 무효화 """
 def revoke_existing_token(db: Session, refresh_token: str = None):
     if refresh_token:
         token = db.query(Token).filter(Token.token == refresh_token).first()

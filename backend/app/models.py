@@ -27,10 +27,8 @@ class Seat(Base):
     seat_id = Column(BigInteger, primary_key=True, autoincrement=True)
     type = Column(String(10), nullable=False)
     is_status = Column(Boolean, server_default="true")
-    fixed_members = relationship("Member", back_populates="fixed_seat")
-    seat_usages = relationship("SeatUsage", back_populates="seat")
 
-    orders = relationship("Order", back_populates="seat")
+    seat_usages = relationship("SeatUsage", back_populates="seat")
 
 # -------------------------------------------------------------------
 # MEMBERS
@@ -42,20 +40,21 @@ class Member(Base):
     login_id = Column(String(50), unique=True, nullable=True)
     password = Column(String(255), nullable=True)
     phone = Column(String(20), unique=True)
-    email = Column(String(100), unique=True)
-    birthday = Column(String(10), nullable=True)
+    email = Column(String(100))
+    birthday = Column(String(20), nullable=True)
     pin_code = Column(Integer, nullable=True)
     social_type = Column(String(20), nullable=True)
     total_mileage = Column(Integer, server_default="0")
     saved_time_minute = Column(Integer, server_default="0")
-    fixed_seat_id = Column(BigInteger, ForeignKey("seats.seat_id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     is_deleted_at = Column(Boolean, server_default="false")
     name = Column(String(30), nullable=False)
     role = Column(String(20), nullable=False, server_default="user")
+    kakao_id = Column(String(255), unique=True)
+    naver_id = Column(String(255), unique=True)
+    google_id = Column(String(255), unique=True)
 
-    fixed_seat = relationship("Seat", back_populates="fixed_members")
     tokens = relationship("Token", back_populates="member", cascade="all, delete")
     orders = relationship("Order", back_populates="member")
     seat_usages = relationship("SeatUsage", back_populates="member", cascade="all, delete")
@@ -84,7 +83,6 @@ class Order(Base):
 
     order_id = Column(BigInteger, primary_key=True, autoincrement=True)
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="SET NULL"), nullable=True)
-    seat_id = Column(BigInteger, ForeignKey("seats.seat_id"), nullable=True)
     product_id = Column(BigInteger, ForeignKey("products.product_id", ondelete="SET NULL"), nullable=True)
     buyer_phone = Column(String(20), nullable=True)
     total_price = Column(Integer, nullable=False)
@@ -92,11 +90,11 @@ class Order(Base):
     created_at = Column(DateTime, server_default=func.now())
     period_start_date = Column(DateTime, nullable=True)
     period_end_date = Column(DateTime, nullable=True)
+    fixed_seat_id = Column(BigInteger, nullable=True)
 
     member = relationship("Member", back_populates="orders")
     product = relationship("Product", back_populates="orders")
     seat_usage = relationship("SeatUsage", back_populates="order", uselist=False)
-    seat = relationship("Seat", back_populates="orders")
 
 # -------------------------------------------------------------------
 # SEAT_USAGE
