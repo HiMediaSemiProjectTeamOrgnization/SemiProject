@@ -24,7 +24,7 @@ load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
 ACCESS_TOKEN_EXPIRE_SECONDS = 60 * ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 REFRESH_TOKEN_EXPIRE_SECONDS = 60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS
@@ -150,3 +150,30 @@ def revoke_existing_token(db: Session, refresh_token: str = None):
             token.is_revoked = True
             db.commit()
             db.refresh(token)
+
+""" 토큰 및 쿠키 생성 함수 """
+def set_token_cookies(member_id: int, name: str, db: Session, response: Response):
+    # 엑세스 토큰 생성
+    access_token = create_access_token(member_id, name)
+
+    # 리프레시 토큰 생성
+    refresh_token = create_refresh_token(member_id, name, db)
+
+    # 토큰들을 쿠키에 저장
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_EXPIRE_SECONDS
+    )
+
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_EXPIRE_SECONDS
+    )
+
+    return response

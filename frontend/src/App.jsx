@@ -41,6 +41,7 @@ const router = createBrowserRouter([
 
 ]);
 
+// eslint-disable-next-line react-refresh/only-export-components
 function Home() {
     return (
         // 1. 전체 배경 컨테이너 (화면 중앙 정렬)

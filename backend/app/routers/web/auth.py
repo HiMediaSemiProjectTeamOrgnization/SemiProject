@@ -7,11 +7,12 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Token, Member
 from schemas import TokenCreate, MemberCreate, MemberLogin
-from utils import auth_utils
+from utils.auth_utils import password_encode, password_decode, revoke_existing_token, set_token_cookies, get_cookies_info
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 load_dotenv()
+
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
 KAKAO_CLIENT_SECRET = os.getenv("KAKAO_CLIENT_SECRET")
 KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
@@ -21,23 +22,28 @@ KAKAO_LOGOUT_REDIRECT_URI = os.getenv("KAKAO_LOGOUT_REDIRECT_URI")
 ########################################################################################################################
 """ 일반 회원 가입 """
 @router.post("/signup")
-def create_member(member_data: MemberCreate, db: Session = Depends(get_db)):
+def create_member(
+    member_data: MemberCreate,
+    db: Session = Depends(get_db)
+):
     # 중복 유저 방지 로직
     existing_user = db.query(Member).filter(Member.login_id == member_data.login_id).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="exists user")
 
-    hashed_pw = auth_utils.password_encode(member_data.password)
+    # 비밀번호 해싱
+    hashed_pw = password_encode(member_data.password)
     member = Member(
         login_id=member_data.login_id,
         name=member_data.name,
-        password=hashed_pw
+        password=hashed_pw,
+        phnoe=member_data.phone
     )
 
     db.add(member)
     db.commit()
 
-    return {"msg": "success"}
+    return {"message": "signup successful"}
 
 """ 일반 로그인 """
 @router.post("/login")
@@ -47,54 +53,34 @@ def login(
     db: Session = Depends(get_db),
     refresh_token: str = Cookie(None)
 ):
-    member = None
-
     # 기존 DB에 저장된 토큰이 있으면 무효화
-    auth_utils.revoke_existing_token(db, refresh_token)
+    revoke_existing_token(db, refresh_token)
 
-    # 일반 로그인 했을 때
     if member_data.login_id:
         member = db.query(Member).filter(Member.login_id == member_data.login_id).first()
         # 비밀번호 검증
-        if not member or not auth_utils.password_decode(member_data.password, member.password):
+        if not member or not password_decode(member_data.password, member.password):
             raise HTTPException(status_code=401, detail="incorrect id or password")
 
     # 그외 문제 예외처리
     else:
         raise HTTPException(status_code=400, detail="missing credentials")
 
-    # 엑세스 토큰 생성
-    access_token = auth_utils.create_access_token(member.member_id, member.name)
+    # 토큰 및 쿠키 생성 함수
+    set_token_cookies(member.member_id, member.name, db, response)
 
-    # 리프레시 토큰 생성
-    refresh_token = auth_utils.create_refresh_token(member.member_id, member.name, db)
-
-    # 토큰들을 쿠키에 저장
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        samesite="lax",
-        max_age=auth_utils.ACCESS_TOKEN_EXPIRE_SECONDS
-    )
-
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        samesite="lax",
-        max_age=auth_utils.REFRESH_TOKEN_EXPIRE_SECONDS
-    )
-
-    return {"msg": "success", "member_name": member.name}
+    return {"message": "login successful"}
 ########################################################################################################################
 # 카카오 로그인 관련 로직
 ########################################################################################################################
 """ 카카오 로그인 """
 @router.get("/kakao/login")
-async def kakao_login(db: Session = Depends(get_db), refresh_token: str = Cookie(None)):
+async def kakao_login(
+    db: Session = Depends(get_db),
+    refresh_token: str = Cookie(None)
+):
     # 기존 DB에 저장된 토큰이 있으면 무효화
-    auth_utils.revoke_existing_token(db, refresh_token)
+    revoke_existing_token(db, refresh_token)
 
     kakao_auth_url = (
         f"https://kauth.kakao.com/oauth/authorize"
@@ -103,11 +89,16 @@ async def kakao_login(db: Session = Depends(get_db), refresh_token: str = Cookie
         f"&redirect_uri={KAKAO_REDIRECT_URI}"
         f"&prompt=login"
     )
+
     return RedirectResponse(url=kakao_auth_url)
 
 """ 카카오 로그인 후 인증 코드 받기 및 카카오로 회원가입 """
 @router.get("/kakao/callback")
-async def kakao_callback(code: str, db: Session = Depends(get_db)):
+async def kakao_callback(
+    code: str,
+    db: Session = Depends(get_db)
+):
+    # 리다이렉트 할 URL 주소
     response = RedirectResponse(url="/")
 
     # 토큰 요청 URL 및 data
@@ -148,11 +139,9 @@ async def kakao_callback(code: str, db: Session = Depends(get_db)):
     kakao_name = user_info.get("kakao_account", {}).get("name")
 
     # Member DB에서 카카오 계정 존재 확인
-    kakao_account = db.query(Member).filter((Member.social_type == "kakao") & (Member.login_id == kakao_id)).first()
-
-    # 토큰에 저장할 payload 변수들
-    payload_member_id = None
-    payload_member_name = None
+    kakao_account = db.query(Member).filter(
+        (Member.social_type == "kakao") & (Member.login_id == kakao_id)
+    ).first()
 
     # 카카오 계정이 DB에 존재하지 않는다면
     if not kakao_account:
@@ -181,30 +170,10 @@ async def kakao_callback(code: str, db: Session = Depends(get_db)):
         payload_member_name = kakao_account.name
 
     # 공통 로직
-    # 엑세스 토큰 생성
-    access_token = auth_utils.create_access_token(payload_member_id, payload_member_name)
+    # 토큰 및 쿠키 생성 함수
+    set_token_cookies(payload_member_id, payload_member_name, db, response)
 
-    # 리프레시 토큰 생성
-    refresh_token = auth_utils.create_refresh_token(payload_member_id, payload_member_name, db)
-
-    # 토큰들을 쿠키에 저장
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        samesite="lax",
-        max_age=auth_utils.ACCESS_TOKEN_EXPIRE_SECONDS
-    )
-
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        samesite="lax",
-        max_age=auth_utils.REFRESH_TOKEN_EXPIRE_SECONDS
-    )
-
-    return response
+    return {"message": "login successful"}
 ########################################################################################################################
 # 공통 로직
 ########################################################################################################################
@@ -224,13 +193,13 @@ def logout(response: Response, refresh_token: str = Cookie(None), db: Session = 
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
 
-    return {"msg": "success"}
+    return {"message": "logout successful"}
 ########################################################################################################################
 # 테스트 관련 로직
 ########################################################################################################################
 """ JWT 토큰 테스트용 페이지 """
 @router.get("/token_test", response_class=HTMLResponse)
-def get_profile(member: dict = Depends(auth_utils.get_cookies_info)):
+def get_profile(member: dict = Depends(get_cookies_info)):
     return f"""
     <html>
         <body>
