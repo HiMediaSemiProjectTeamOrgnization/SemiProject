@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, Body
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from datetime import datetime, timedelta
-from models import Product, Member, Order, Seat
+from models import Product, Member, Order, Seat, MileageHistory
 from utils.auth_utils import get_cookies_info
+from typing import Optional
 
 router = APIRouter(prefix="/api/web", tags=["웹사이트 관리"])
 
@@ -59,48 +60,58 @@ def getTicketList(db: Session = Depends(get_db)):
 
 # ===== 결제 관련 =====
 @router.post("/payments")
-def getPaymentPage(ticketData: dict, user: dict, db: Session = Depends(get_db)):
-    """사용자가 이용권 선택 후 결제한 내역을 받아오는 로직"""
+def getPaymentPage(ticketData: dict = Body(...), user: dict = Body(...), SelectSeat: Optional[dict] = Body(None), db: Session = Depends(get_db)):
+    """사용자가 이용권 선택 후 결제내역 받아오는 로직"""
 
     ticket = ticketData
     phone = f"{user['phone1']}-{user['phone2']}-{user['phone3']}"
-    
-    chkMember = db.query(Member).filter(Member.name == user["name"]).filter(Member.phone == phone).first()
-    guest = db.query(Member.member_id).filter(Member.name == "비회원").scalar()
-
-    # now = datetime.now()
-
-    # if ticket["type"] == "시간제":
-    #     end_time = now + timedelta(hours=int(ticket["value"]))
-    #     print(end_time)
-    # else:
-    #     end_time = now + timedelta(days=int(ticket["value"]))
-    #     print(end_time)
-
-    # formatted_start_time = now.strftime("%Y-%m-%d %H:%M")
-    # formatted_end_time = end_time.strftime("%Y-%m-%d %H:%M")
-
-
-    if chkMember:
-        member_id = chkMember.member_id
-        buyer_phone = chkMember.phone
-    else:
-        member_id = guest
-        buyer_phone = phone
-
+    useMileage = ticket["price"] - ticket["total_amount"]
+    member = db.query(Member).filter(Member.name == user["name"]).filter(Member.phone == phone).first()
 
     order = Order(
-            member_id = member_id,
+            member_id = member.member_id,
             product_id = ticket["product_id"],
             buyer_phone = phone,
-            total_price = ticket["total_amount"],
-            payment_amount = ticket["total_amount"] - ticket["discount_amount"],
-            # period_start_date = formatted_start_time,
-            # period_end_date = formatted_end_time
+            payment_amount = ticket["total_amount"]
         )
     
-    # db.add(order)
-    # db.commit()
-    # db.refresh(order)
+    # 기간제 이용권일 때만 좌석 + 날짜 정보 추가
+    if SelectSeat is not None:
+        now = datetime.now()
+        order.period_start_date = now
+        order.period_end_date = now + timedelta(days=ticket["value"])
+        order.fixed_seat_id = SelectSeat["seat_id"]
 
-    # if order.member_id != guest:
+        # 좌석 사용불가 처리
+        seat = db.query(Seat).filter(Seat.seat_id == order.fixed_seat_id).first()
+        seat.is_status = False
+        db.add(seat)
+    
+    db.add(order)
+    db.flush()
+
+    # 마일리지 사용했을 경우
+    if useMileage > 0:
+        db.add(MileageHistory(
+            member_id = order.member_id,
+            amount = useMileage,
+            type = "use"
+        ))
+        # 사용자의 총 마일리지에서 사용한 만큼 차감
+        member.total_mileage -= useMileage
+
+    # 마일리지 적립 (적립률 1%)
+    if order.payment_amount > 0:
+        earnPoint = int(order.payment_amount * 0.01)
+        db.add(MileageHistory(
+                member_id = order.member_id,
+                amount = earnPoint,
+                type = "earn"
+            ))
+        # 사용자의 총 마일리지에서 적립된 마일리지 추가
+        member.total_mileage += earnPoint
+
+    db.commit()
+    db.refresh(order)
+
+    return {"status" : 200, "order" : order}

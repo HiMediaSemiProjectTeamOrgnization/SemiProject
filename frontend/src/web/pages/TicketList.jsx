@@ -65,12 +65,15 @@ function TicketList() {
         if (!window.confirm("선택하신 이용권은 " + choiceTicket.name + "입니다.\n구매하시겠습니까?")) return;
 
         if (choiceTicket.type === "기간제") setShowSeatSelector(true);
-        else navigate("/web/payment", { state: choiceTicket });
+        else navigate("/web/payment", {
+            state: {
+                Ticket: choiceTicket
+            }
+        });
     }
 
     // 취소 버튼 
     const handleCancel = () => navigate("/web");
-
 
     // 기간권 선택일 경우 좌석 선택페이지로 이동
     if (showSeatSelector) return <SeatSelector choiceTicket={choiceTicket} seats={seats} />
@@ -82,7 +85,7 @@ function TicketList() {
 
             <div className="flex gap-4 mb-8">
                 <button data-value="time" className={`px-6 py-3 rounded-2xl font-semibold transition ${activeType === 'time' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`} onClick={handleTicketType} > 시간권 </button>
-                <button data-value="day" className={`px-6 py-3 rounded-2xl font-semibold transition ${activeType === 'day' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`} onClick={handleTicketType}  > 기간권 </button>
+                <button data-value="day" className={`px-6 py-3 rounded-2xl font-semibold transition ${activeType === 'day' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`} onClick={handleTicketType} > 기간권 </button>
             </div>
 
             <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

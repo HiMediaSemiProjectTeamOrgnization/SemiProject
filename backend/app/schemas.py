@@ -128,3 +128,11 @@ class MileageHistoryResponse(MileageHistoryBase):
 class PinAuthRequest(BaseSchema):
     phone: str
     pin: int
+
+# -------------------------------------------------------------------
+# 웹 스키마
+# -------------------------------------------------------------------
+class PaymentRequest(BaseSchema):
+    ticketData: dict
+    user: dict
+    SelectSeat: Optional[dict] = None
