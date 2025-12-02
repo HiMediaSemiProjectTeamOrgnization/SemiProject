@@ -1,9 +1,9 @@
 import { Outlet, Link } from 'react-router-dom';
-import { useMemberStore } from '../../utils/useMemberStore.js';
+import { useAuthCookieStore } from '../../utils/useAuthStores.js';
 import { useEffect } from 'react';
 
 const WebLayout = () => {
-    const { member, fetchMember, isLoading } = useMemberStore();
+    const { member, fetchMember, isLoading } = useAuthCookieStore();
 
     useEffect(() => {
         fetchMember();

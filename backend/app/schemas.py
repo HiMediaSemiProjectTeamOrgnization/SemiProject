@@ -47,8 +47,8 @@ class MemberCreate(MemberBase):
     phone: Optional[str] = None
 
 class MemberLogin(MemberBase):
-    login_id: Optional[str] = None
-    password: Optional[str] = None
+    login_id: str
+    password: str
 
 class MemberResponse(MemberBase):
     login_id: Optional[str] = None

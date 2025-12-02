@@ -65,7 +65,7 @@ SemiProject/
         ├── index.css
         ├── assets/
         ├── utils/
-        │   └── useMemberStore.js
+        │   └── useAuthStores.js
         │
         ├── kiosk/          # 키오스크 모드 관련 소스
         │   ├── KioskApp.jsx
@@ -116,7 +116,7 @@ SemiProject/
 │   │    ├── Test.jsx           * 테스트 페이지 
 │   │    └── Home.jsx           * 메인 페이지 
 │   └── 📂 stores/               # Zustand 스토어 및 유틸 함수 모음 폴더
-│        └── useMemberStore.js    * 임시 Zustand 스토어  
+│        └── useAuthStores.js    * 임시 Zustand 스토어  
 ├── App.css                     * 메인 어플리케이션 스타일 
 ├── App.jsx                     * 메인 어플리케이션
 ├── index.css                   * TailwindCSS 불러오는 스타일 파일

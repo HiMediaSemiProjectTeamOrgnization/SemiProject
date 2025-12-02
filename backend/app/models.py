@@ -27,6 +27,12 @@ class Seat(Base):
     seat_id = Column(BigInteger, primary_key=True, autoincrement=True)
     type = Column(String(10), nullable=False)
     is_status = Column(Boolean, server_default="true")
+    near_window = Column(Boolean)
+    corner_seat = Column(Boolean)
+    aisle_seat = Column(Boolean)
+    isolated = Column(Boolean)
+    near_beverage_table = Column(Boolean)
+    is_center = Column(Boolean)
 
     seat_usages = relationship("SeatUsage", back_populates="seat")
 

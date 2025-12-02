@@ -1,5 +1,6 @@
-import { AuthSocialButton } from "../components/AuthButton.jsx";
+import { AuthSocialButton } from '../components/AuthButton.jsx';
 import { useState } from 'react';
+import { authFetchLogin } from '../../utils/authFetchUtils.js';
 
 const Login = () => {
     const [userId, setUserId] = useState('');
@@ -7,6 +8,8 @@ const Login = () => {
 
     const handleLoginSubmit = (e) => {
         e.preventDefault();
+
+        const result = authFetchLogin({userId, password});
     };
 
     return (

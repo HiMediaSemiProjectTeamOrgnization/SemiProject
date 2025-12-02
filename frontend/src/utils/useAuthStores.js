@@ -39,7 +39,7 @@ const usePostStore = create((set) => ({
 }));
 */
 
-export const useMemberStore = create((set) => ({
+export const useAuthCookieStore = create((set) => ({
     member: null,
     isLoading: false,
     error: null,
