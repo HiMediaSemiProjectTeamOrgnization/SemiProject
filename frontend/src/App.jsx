@@ -6,6 +6,7 @@ import TicketList from './web/pages/TicketList.jsx';
 import Payments from './web/pages/Payment.jsx';
 import WebIndex from './web/pages/WebIndex.jsx';
 import SeatStatus from './web/components/SeatStatus.jsx';
+import PaymentSuccess from './web/pages/PaymentSuccess.jsx';
 
 const router = createBrowserRouter([
     {
@@ -33,9 +34,14 @@ const router = createBrowserRouter([
                 element: <Payments />
             },
             {
+                path: 'payment/success',
+                element: <PaymentSuccess />
+            },
+            {
                 path: 'seat',
                 element: <SeatStatus />
-            }
+            },
+
         ],
     },
 

@@ -48,7 +48,6 @@ function SeatStatus() {
                     <SeatBox key={seat.seat_id} seat={seat} onClick={handleClick} />
                 ))}
             </div>
-
             {modalOpen && selectedSeat && (
                 <SeatModal seat={selectedSeat.seat_id} endTime={selectedSeat.end_time} onClose={() => setModalOpen(false)} />
             )}
