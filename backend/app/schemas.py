@@ -44,22 +44,20 @@ class MemberBase(BaseSchema):
 class MemberCreate(MemberBase):
     login_id: str
     password: str
-    phone: str
+    phone: Optional[str] = None
 
 class MemberLogin(MemberBase):
-    login_id: Optional[str] = None
-    password: Optional[str] = None
+    login_id: str
+    password: str
 
 class MemberResponse(MemberBase):
     login_id: Optional[str] = None
     password: Optional[str] = None
     email: Optional[str] = None
 
-class MemberUpdate(BaseSchema):
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    age: Optional[int] = None
-    pin_code: Optional[int] = None
+class MemberGoogleSetup(BaseSchema):
+    phone: str
+    birthday: str
 
 # -------------------------------------------------------------------
 # TOKENS

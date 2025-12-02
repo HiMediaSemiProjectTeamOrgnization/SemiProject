@@ -24,7 +24,7 @@ load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
 ACCESS_TOKEN_EXPIRE_SECONDS = 60 * ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 REFRESH_TOKEN_EXPIRE_SECONDS = 60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS
@@ -102,7 +102,12 @@ def verify_token(db: Session, token: str, token_type: str = "access"):
         return None, "invalid"
 
 """ JWT 토큰이 포함된 쿠키 정보 받기 """
-def get_cookies_info(response: Response, access_token: str = Cookie(None), refresh_token: str = Cookie(None), db: Session = Depends(get_db)):
+def get_cookies_info(
+    response: Response,
+    access_token: str = Cookie(None),
+    refresh_token: str = Cookie(None),
+    db: Session = Depends(get_db)
+):
     # 엑세스 토큰이 있을때
     if access_token:
         mem_info, error = verify_token(db, access_token, "access")
@@ -142,7 +147,7 @@ def get_cookies_info(response: Response, access_token: str = Cookie(None), refre
     # 리프레시 토큰이 없을때
     raise HTTPException(status_code=401, detail="invalid tokens")
 
-""" 로그아웃하지 않고 재로그인 요청시 기존 리프레시 토큰 무효화 """
+""" 기존 리프레시 토큰 무효화 (쿠키 기반) """
 def revoke_existing_token(db: Session, refresh_token: str = None):
     if refresh_token:
         token = db.query(Token).filter(Token.token == refresh_token).first()
@@ -150,3 +155,63 @@ def revoke_existing_token(db: Session, refresh_token: str = None):
             token.is_revoked = True
             db.commit()
             db.refresh(token)
+
+""" 기존 리프레시 토큰 무효화 (id 기반) """
+def revoke_existing_token_by_id(db: Session, member_id: int):
+    prev_refresh = db.query(Token).filter(Token.member_id == member_id).all()
+    if prev_refresh:
+        for refresh in prev_refresh:
+            refresh.is_revoked = True
+        db.commit()
+
+""" 토큰 및 쿠키 생성 함수 """
+def set_token_cookies(member_id: int, name: str, db: Session, response: Response):
+    # 엑세스 토큰 생성
+    access_token = create_access_token(member_id, name)
+
+    # 리프레시 토큰 생성
+    refresh_token = create_refresh_token(member_id, name, db)
+
+    # 토큰들을 쿠키에 저장
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_EXPIRE_SECONDS
+    )
+
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_EXPIRE_SECONDS
+    )
+
+    return response
+
+""" 회원가입용 임시 토큰 생성 """
+def encode_temp_signup_token(data: dict):
+    exp = datetime.now(KST) + timedelta(minutes=5)
+
+    payload = {
+        **data,
+        "type": "temp_signup",
+        "exp": exp
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    return token
+
+""" 회원가입용 임시 토큰 해독 """
+def decode_temp_signup_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if payload.get("type") != "temp_signup":
+            raise HTTPException(status_code=401, detail="invalid token")
+
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=401, detail="invalid token")
