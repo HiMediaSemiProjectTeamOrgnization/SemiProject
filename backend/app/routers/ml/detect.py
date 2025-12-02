@@ -1,11 +1,17 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
+from fastapi.params import Body
+from sqlalchemy.sql import func
+import random
+from database import get_db
+from models import Member, Product, Order, Seat, SeatUsage
 import cv2
 import os
 from datetime import datetime
 from ultralytics import YOLO
 
-router = APIRouter(prefix="/test", tags=["test"])
+router = APIRouter(prefix="/ai", tags=["Detect services"])
 # coco-dataset으로 학습된 yolo 모델
 model = YOLO(model="yolo11n.pt")
 
