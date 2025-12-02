@@ -4,13 +4,11 @@ import KioskAlertModal from "../components/KioskAlertModal";
 import KioskPaymentModal from "../components/KioskPaymentModal";
 import { FaDeleteLeft } from "react-icons/fa6";
 
-// ticket 정보를 props로 받음 (가격 표시용)
-function KioskPhoneInput({ onBack, onComplete, ticket }) {
+// [수정] mode prop 추가 ('purchase' | 'checkout')
+function KioskPhoneInput({ onBack, onComplete, ticket, mode = 'purchase' }) {
     const [phoneNumber, setPhoneNumber] = useState("");
     
-    // 알림 모달 상태
     const [alertModal, setAlertModal] = useState({ isOpen: false, title: "", message: "", type: "warning" });
-    // 결제 모달 상태
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
     const closeAlertModal = () => setAlertModal(prev => ({ ...prev, isOpen: false }));
@@ -33,15 +31,27 @@ function KioskPhoneInput({ onBack, onComplete, ticket }) {
             });
             return;
         }
-        // 전화번호 입력 완료 -> 결제 모달 오픈
-        setIsPaymentModalOpen(true);
+
+        // [수정] 퇴실 모드일 경우 결제 모달 없이 바로 완료 처리
+        if (mode === 'checkout') {
+            onComplete(null, "010" + phoneNumber);
+        } else {
+            // 구매 모드일 경우 결제 모달 오픈
+            setIsPaymentModalOpen(true);
+        }
     };
 
-    const handlePaymentComplete = () => {
+    const handlePaymentComplete = (resultData) => {
         setIsPaymentModalOpen(false);
-        // 결제까지 완료되면 상위 컴포넌트로 전화번호 전달
-        onComplete(`010${phoneNumber}`);
+        onComplete(resultData, "010" + phoneNumber);
     };
+
+    // 모드에 따른 텍스트 설정
+    const titleText = mode === 'checkout' ? "퇴실 확인" : "비회원 정보 입력";
+    const subText = mode === 'checkout' 
+        ? "퇴실 처리를 위해 전화번호를 입력해 주세요." 
+        : "분실물 발생 시 연락을 드릴 수 있도록 전화번호를 입력해 주시기 바랍니다.";
+    const buttonText = mode === 'checkout' ? "퇴실하기" : "결제하기";
 
     return (
         <div className="min-h-screen bg-slate-900 flex flex-col font-sans text-white select-none">
@@ -49,12 +59,11 @@ function KioskPhoneInput({ onBack, onComplete, ticket }) {
 
             <main className="flex-1 flex flex-col items-center justify-center p-8 gap-10">
                 <div className="text-center space-y-2">
-                    <h2 className="text-4xl font-bold text-white">비회원 정보 입력</h2>
-                    <p className="text-slate-400">분실물 발생 시 연락을 드릴 수 있도록 전화번호를 입력해 주시기 바랍니다.</p>
+                    <h2 className="text-4xl font-bold text-white">{titleText}</h2>
+                    <p className="text-slate-400">{subText}</p>
                 </div>
 
                 <div className="w-full max-w-lg">
-                    {/* 전화번호 표시창 */}
                     <div className="flex items-center justify-center bg-slate-800 h-24 rounded-2xl border-2 border-blue-500 ring-2 ring-blue-500/20 shadow-inner transition-all">
                         <span className="text-3xl text-slate-400 font-medium">010</span>
                         <span className="text-2xl text-slate-600 mx-4 font-light">-</span>
@@ -82,7 +91,6 @@ function KioskPhoneInput({ onBack, onComplete, ticket }) {
                     <KeypadButton onClick={() => handleNumClick(0)}>0</KeypadButton>
                 </div>
 
-                {/* 입력 완료 버튼 (결제하기로 이어짐) */}
                 <button 
                     onClick={handleConfirm}
                     disabled={phoneNumber.length < 8}
@@ -93,7 +101,7 @@ function KioskPhoneInput({ onBack, onComplete, ticket }) {
                             : "bg-slate-800 text-slate-500 cursor-not-allowed"}
                     `}
                 >
-                    결제하기
+                    {buttonText}
                 </button>
             </main>
 
@@ -105,13 +113,16 @@ function KioskPhoneInput({ onBack, onComplete, ticket }) {
                 type={alertModal.type}
             />
 
-            {/* 비회원 결제 모달 */}
-            <KioskPaymentModal 
-                isOpen={isPaymentModalOpen}
-                onClose={() => setIsPaymentModalOpen(false)}
-                ticket={ticket} // 가격 표시를 위해 전달
-                onPaymentComplete={handlePaymentComplete}
-            />
+            {/* 결제 모달은 구매 모드일 때만 렌더링 */}
+            {mode === 'purchase' && (
+                <KioskPaymentModal 
+                    isOpen={isPaymentModalOpen}
+                    onClose={() => setIsPaymentModalOpen(false)}
+                    ticket={ticket} 
+                    phoneNumber={`010${phoneNumber}`} 
+                    onPaymentComplete={handlePaymentComplete}
+                />
+            )}
         </div>
     );
 }
