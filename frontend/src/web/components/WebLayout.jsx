@@ -6,8 +6,8 @@ const WebLayout = () => {
     const { member, fetchMember, isLoading } = useAuthCookieStore();
 
     useEffect(() => {
-        fetchMember();
-    }, [fetchMember]);
+        void fetchMember();
+    }, []);
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -15,13 +15,17 @@ const WebLayout = () => {
             <header className="bg-blue-600 text-white p-4 shadow-md">
                 <nav className="flex gap-4 container mx-auto">
                     <Link to="/web" className="font-bold hover:text-blue-200">홈</Link>
-                    <Link to="/web/ticket" className="font-bold hover:text-blue-200">이용권 구매</Link >
                     {isLoading ? (
                         <div className="text-sm opacity-70">확인 중...</div>
                     ) : member ? (
-                        <div className="font-bold">
-                            {member.name}님
-                        </div>
+                        <>
+                            <div className="font-bold">
+                                {member.name}님
+                            </div>
+                            <Link to="/web/ticket" className="font-bold hover:text-blue-200">
+                                이용권 구매
+                            </Link >
+                        </>
                     ) : (
                         <Link to="/web/login" className="font-bold hover:text-blue-200">
                             로그인

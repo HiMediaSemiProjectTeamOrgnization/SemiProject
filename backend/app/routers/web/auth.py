@@ -8,11 +8,12 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Token, Member
 from schemas import TokenCreate, MemberCreate, MemberLogin, MemberGoogleSetup
-from utils.auth_utils import password_encode, password_decode, revoke_existing_token, revoke_existing_token_by_id, set_token_cookies, get_cookies_info, encode_temp_signup_token, decode_temp_signup_token, verify_token, create_access_token, create_refresh_token
+from utils.auth_utils import password_encode, password_decode, revoke_existing_token, revoke_existing_token_by_id, set_token_cookies, get_cookies_info, encode_temp_signup_token, decode_temp_signup_token, verify_token, create_access_token, create_refresh_token, encode_google_temp_token, decode_google_temp_token
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 load_dotenv()
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
 KAKAO_CLIENT_SECRET = os.getenv("KAKAO_CLIENT_SECRET")
 KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
@@ -76,7 +77,7 @@ def create_member(
 
     response.status_code = 201
 
-    return response
+    return {"status": "ok"}
 
 """ 일반 로그인 """
 @router.post("/login")
@@ -107,7 +108,7 @@ def login(
     # 토큰 및 쿠키 생성 함수
     set_token_cookies(member.member_id, member.name, db, response)
 
-    return response
+    return {"status": "ok"}
 ########################################################################################################################
 # 카카오 로그인 관련 로직
 ########################################################################################################################
@@ -137,7 +138,7 @@ async def kakao_callback(
     db: Session = Depends(get_db)
 ):
     # 리다이렉트 할 URL 주소
-    response = RedirectResponse(url="/")
+    response = RedirectResponse(url=f"{FRONTEND_URL}/web")
 
     # 토큰 요청 URL 및 data
     token_url = "https://kauth.kakao.com/oauth/token"
@@ -286,7 +287,7 @@ async def naver_callback(
         raise HTTPException(status_code=404, detail="oauth state not found")
 
     # 리다이렉트 할 URL 주소
-    response = RedirectResponse(url="/")
+    response = RedirectResponse(url=f"{FRONTEND_URL}/web")
 
     # 토큰 요청 URL 및 data
     token_url = "https://nid.naver.com/oauth2.0/token"
@@ -420,7 +421,7 @@ async def google_callback(
     db: Session = Depends(get_db)
 ):
     # 리다이렉트 할 URL 주소
-    response = RedirectResponse(url="/")
+    response = RedirectResponse(url=f"{FRONTEND_URL}/web")
 
     # 토큰 요청 URL 및 data
     token_url = "https://oauth2.googleapis.com/token"
@@ -495,7 +496,7 @@ async def google_callback(
         existing_member = db.query(Member).filter(Member.member_id == current_member_id).first()
 
         # 휴대폰 번호가 존재 할때, 연동가입 (마이페이지 O)
-        if existing_member.phone:
+        if existing_member:
             # 이메일이 존재하지 않을 때만 업데이트
             if not existing_member.email:
                 existing_member.email = google_email
@@ -514,7 +515,7 @@ async def google_callback(
         else:
             # phone_number, birthday, birthyear 추가 정보 입력을 위한 페이지 이동
             # 리다이렉트 url 설정
-            response = RedirectResponse(url="/api/auth/google/setup")
+            response = RedirectResponse(url=f"{FRONTEND_URL}/web/google/setup")
 
             # 쿠키로 저장하기 위해 정보 담기 및 JWT 변환
             payload = {
@@ -533,13 +534,23 @@ async def google_callback(
                 max_age=60 * 5
             )
 
+            # 임시 페이지 인증용 쿠키 발급
+            temp_google_check = encode_google_temp_token()
+            response.set_cookie(
+                key="temp_google_check",
+                value=temp_google_check,
+                httponly=True,
+                samesite="lax",
+                max_age=60 * 5
+            )
+
     return response
 
 """ 구글 로그인 추가 정보 입력 """
 @router.post("/google/setup")
-async def google_setup(
+def google_setup(
     response: Response,
-    request: Request,
+    member: MemberGoogleSetup,
     temp_member: str = Cookie(None),
     db: Session = Depends(get_db)
 ):
@@ -551,15 +562,12 @@ async def google_setup(
     # 쿠키 내용 언패킹 및 해독
     mem_info = decode_temp_signup_token(temp_member)
 
-    # 추가 정보를 담은 쿠키 제거
+    # 추가 정보를 담은 쿠키 및 임시 체크 쿠키 제거
     response.delete_cookie("temp_member")
-
-    # 폼 데이터 가져오기
-    form_data = await request.form()
-    member_data = MemberGoogleSetup(**form_data)
+    response.delete_cookie("temp_google_check")
 
     # 휴대폰 번호 조회
-    existing_member = db.query(Member).filter(Member.phone == member_data.phone).first()
+    existing_member = db.query(Member).filter(Member.phone == member.phone).first()
 
     # 휴대폰 번호가 존재 할때, 연동가입 (마이페이지 X)
     if existing_member:
@@ -586,8 +594,8 @@ async def google_setup(
                 email=mem_info["google_email"],
                 social_type="google",
                 name=mem_info["google_name"],
-                phone=member_data.phone,
-                birthday=member_data.birthday
+                phone=member.phone,
+                birthday=member.birthday
             )
             db.add(member)
             db.commit()
@@ -601,7 +609,24 @@ async def google_setup(
         except Exception as e:
             raise HTTPException(status_code=401, detail=f"transaction failed: {e}")
 
-    return response
+    return {"status": "ok"}
+
+""" 구글 추가정보 검증 토큰 가져오기 """
+@router.post("/google/temp")
+def get_google_temp_token(
+    temp_google_check: str = Cookie(None)
+):
+    if not temp_google_check:
+        raise HTTPException(status_code=401, detail="cookie not exists")
+    try:
+        temp_info = decode_google_temp_token(temp_google_check)
+
+        if temp_info and temp_info["check"] == "check":
+            return {"status": "ok"}
+
+        raise HTTPException(status_code=401, detail="invalid check")
+    except Exception:
+        raise HTTPException(status_code=401, detail="token error")
 ########################################################################################################################
 # 공통 로직
 ########################################################################################################################
@@ -639,71 +664,5 @@ def token_test(member: dict = Depends(get_cookies_info)):
             <h2>안녕하세요, {member["name"]}님!</h2>
             <h2>당신의 member_id: {member["member_id"]}님!</h2>
         </body>
-    </html>
-    """
-
-""" 카카오 로그인 테스트 페이지 """
-@router.get("/kakao_test", response_class=HTMLResponse)
-def kakao_test():
-    return """
-    <!DOCTYPE html>
-    <html>
-    <body>
-        <div class="container">
-        <h3>카카오 로그인</h3>
-        <a href="/api/auth/kakao/login">
-            <img src="/images/kakao_login.png" alt='카카오 로그인' style="width: 120px; cursor: pointer;">
-        </a>
-    </body>
-    </html>
-    """
-
-""" 네이버 로그인 테스트 페이지 """
-@router.get("/naver_test", response_class=HTMLResponse)
-def naver_test():
-    return """
-    <!DOCTYPE html>
-    <html>
-    <body>
-        <div class="container">
-        <h3>네이버 로그인</h3>
-        <a href="/api/auth/naver/login">
-            <img src="/images/kakao_login.png" alt='네이버 로그인' style="width: 120px; cursor: pointer;">
-        </a>
-    </body>
-    </html>
-    """
-
-""" 구글 로그인 테스트 페이지 """
-@router.get("/google_test", response_class=HTMLResponse)
-def google_test():
-    return """
-    <!DOCTYPE html>
-    <html>
-    <body>
-        <div class="container">
-        <h3>구글 로그인</h3>
-        <a href="/api/auth/google/login">
-            <img src="/images/kakao_login.png" alt='구글 로그인' style="width: 120px; cursor: pointer;">
-        </a>
-    </body>
-    </html>
-    """
-
-""" 구글 로그인 추가정보 입력 테스트 페이지 """
-@router.get("/google/setup", response_class=HTMLResponse)
-def google_setup():
-    return """
-    <!DOCTYPE html>
-    <html>
-    <body>
-        <div class="container">
-        <h3>구글 로그인</h3>
-        <form method="post" action="/api/auth/google/setup">
-            <input type="text" name="phone">휴대폰번호<br>
-            <input type="text" name="birthday">생일<br>
-            <button type="submit">제출</button>
-        </form>
-    </body>
     </html>
     """

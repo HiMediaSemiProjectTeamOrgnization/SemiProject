@@ -8,6 +8,7 @@ import WebIndex from './web/pages/WebIndex.jsx';
 import SeatStatus from './web/components/SeatStatus.jsx';
 import SignUp from './web/pages/SignUp.jsx';
 import Login from './web/pages/Login.jsx';
+import GoogleSetup from './web/pages/GoogleSetup.jsx';
 
 const router = createBrowserRouter([
     {
@@ -47,6 +48,10 @@ const router = createBrowserRouter([
     {
         path: '/web/login',
         element: <Login />,
+    },
+    {
+        path: '/web/google/setup',
+        element: <GoogleSetup />,
     },
 ]);
 

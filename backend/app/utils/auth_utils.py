@@ -122,16 +122,19 @@ def get_cookies_info(
 
         # 리프레시 토큰이 만료되었을때
         if error == "expired":
-            raise HTTPException(status_code=401, detail="expired refresh token")
+            # raise HTTPException(status_code=401, detail="expired refresh token")
+            return None
 
         # 리프레시 토큰이 유효하지않을때
         if error == "invalid":
-            raise HTTPException(status_code=401, detail="invalid refresh token")
+            # raise HTTPException(status_code=401, detail="invalid refresh token")
+            return None
 
         # DB에 있는 리프레시 토큰과 일치 여부 검증
         db_token = db.query(Token).filter((Token.token == refresh_token) & (Token.is_revoked == False)).first()
         if not db_token:
-            raise HTTPException(status_code=401, detail="token not found in DB")
+            # raise HTTPException(status_code=401, detail="token not found in DB")
+            return None
 
         # 엑세스 토큰 재발급
         new_access_token = create_access_token(mem_info["member_id"], mem_info["name"])
@@ -145,7 +148,8 @@ def get_cookies_info(
         return mem_info
 
     # 리프레시 토큰이 없을때
-    raise HTTPException(status_code=401, detail="invalid tokens")
+    # raise HTTPException(status_code=401, detail="invalid tokens")
+    return None
 
 """ 기존 리프레시 토큰 무효화 (쿠키 기반) """
 def revoke_existing_token(db: Session, refresh_token: str = None):
@@ -210,6 +214,31 @@ def decode_temp_signup_token(token: str):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
         if payload.get("type") != "temp_signup":
+            raise HTTPException(status_code=401, detail="invalid token")
+
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=401, detail="invalid token")
+
+""" 구글 추가정보 입력 페이지 검증 토큰 생성 """
+def encode_google_temp_token():
+    exp = datetime.now(KST) + timedelta(minutes=5)
+
+    payload = {
+        "type": "temp_google_check",
+        "exp": exp,
+        "check": "check"
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    return token
+
+""" 구글 추가정보 입력 페이지 검증 토큰 해독 """
+def decode_google_temp_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if payload.get("type") != "temp_google_check":
             raise HTTPException(status_code=401, detail="invalid token")
 
         return payload

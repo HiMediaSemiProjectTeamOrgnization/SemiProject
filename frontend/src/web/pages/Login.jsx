@@ -1,15 +1,36 @@
-import { AuthSocialButton } from '../components/AuthButton.jsx';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AuthSocialButton } from '../components/AuthButton.jsx';
 import { authFetchLogin } from '../../utils/authFetchUtils.js';
 
 const Login = () => {
+    const navigate = useNavigate();
     const [userId, setUserId] = useState('');
     const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleLoginSubmit = (e) => {
+    // 로그인 폼 제출 이벤트
+    const handleLoginSubmit = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
 
-        const result = authFetchLogin({userId, password});
+        const data = {
+            "member_id": userId,
+            "password": password
+        };
+        const result = await authFetchLogin(data);
+
+        if (result === 200) {
+            navigate('/web')
+        } else {
+            alert(`에러발생, 에러코드: ${result}`);
+        }
+        setIsLoading(false);
+    };
+
+    // 소셜 로그인 클릭 이벤트
+    const handleSocialLogin = (type) => {
+        window.location.href = `/api/auth/${type}/login`;
     };
 
     return (
@@ -43,9 +64,9 @@ const Login = () => {
                 <div className="relative z-20 flex flex-col gap-6">
 
                     {/* 1. 홈으로 돌아가기 버튼 */}
-                    <div className="flex justify-start">
+                    <div className="flex justify-center">
                         <button
-                            onClick={() => window.location.href = '/web'}
+                            onClick={() => navigate('/web')}
                             className="flex items-center gap-2 px-3 py-1.5
                                        bg-white/40 dark:bg-slate-800/40
                                        backdrop-blur-md border border-white/60 dark:border-white/10
@@ -130,9 +151,12 @@ const Login = () => {
                         </div>
 
                         {/* 로그인 버튼 */}
-                        <button
-                            type="submit"
-                            className="w-full h-12
+                        {isLoading ? (
+                            <div>로그인 중...</div>
+                        ) : (
+                            <button
+                                type="submit"
+                                className="w-full h-12
                                        bg-slate-900 hover:bg-slate-800
                                        dark:bg-blue-600 dark:hover:bg-blue-500
                                        text-white rounded-xl font-medium text-[15px]
@@ -140,9 +164,10 @@ const Login = () => {
                                        shadow-lg shadow-slate-900/10 dark:shadow-blue-900/20
                                        flex items-center justify-center gap-2
                                        active:scale-[0.98] cursor-pointer"
-                        >
-                            로그인
-                        </button>
+                            >
+                                로그인
+                            </button>
+                        )}
                     </form>
 
                         {/* 3. 회원가입 및 비밀번호 찾기 */}
@@ -172,6 +197,7 @@ const Login = () => {
                     <div className="flex flex-col gap-3">
                         {/* 카카오 로그인 (브랜드 컬러 유지) */}
                         <AuthSocialButton
+                            onClick={() => handleSocialLogin("kakao")}
                             background="bg-[#FEE500]"
                             textColor="text-black/90"
                             text="Kakao"
@@ -184,6 +210,7 @@ const Login = () => {
 
                         {/* 네이버 로그인 (브랜드 컬러 유지) */}
                         <AuthSocialButton
+                            onClick={() => handleSocialLogin("naver")}
                             background="bg-[#03C75A]"
                             textColor="text-white"
                             text="Naver"
@@ -196,6 +223,7 @@ const Login = () => {
 
                         {/* 구글 로그인 (다크모드 대응) */}
                         <AuthSocialButton
+                            onClick={() => handleSocialLogin("google")}
                             background="bg-white dark:bg-slate-800"
                             textColor="text-gray-700 dark:text-gray-200"
                             border="border border-gray-300 dark:border-gray-600"
