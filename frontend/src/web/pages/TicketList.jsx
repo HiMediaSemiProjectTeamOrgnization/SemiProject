@@ -76,7 +76,7 @@ function TicketList() {
     const handleCancel = () => navigate("/web");
 
     // 기간권 선택일 경우 좌석 선택페이지로 이동
-    if (showSeatSelector) return <SeatSelector choiceTicket={choiceTicket} seats={seats} />
+    if (showSeatSelector) return <SeatSelector choiceTicket={choiceTicket} seats={seats} onBack={() => setShowSeatSelector(false)} />
 
 
     return (
