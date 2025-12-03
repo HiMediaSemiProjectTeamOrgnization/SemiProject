@@ -10,25 +10,13 @@ from database import get_db
 from models import Token, Member
 from schemas import TokenCreate, MemberCreate
 
-"""
-# 쿠키 정보 가져오기
-1. 라우터 매개 변수에 추가
-member: dict = Depends(auth_utils.get_cookies_info)
-
-2. dict이므로 다음과 같이 member_id, name 꺼내기
-member["member_id"]
-member["name"]
-"""
-
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
-
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 ACCESS_TOKEN_EXPIRE_SECONDS = 60 * ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 REFRESH_TOKEN_EXPIRE_SECONDS = 60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS
-
 KST = ZoneInfo("Asia/Seoul")
 BCRYPT = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

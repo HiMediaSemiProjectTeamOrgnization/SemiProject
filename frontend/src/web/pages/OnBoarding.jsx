@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authFetchGoogleSetup, authFetchGoogleTemp } from '../../utils/authFetchUtils.js';
+import { authApi } from '../../utils/authApi.js';
 
-const GoogleSetup = () => {
+const OnBoarding = () => {
     const navigate = useNavigate();
     const [phoneNumber, setPhoneNumber] = useState('');
     const [birthday, setBirthday] = useState('');
@@ -12,8 +12,8 @@ const GoogleSetup = () => {
     // 구글 소셜 로그인 외 클라이언트 접근 차단
     useEffect(() => {
         const checkClient = async () => {
-            const result = await authFetchGoogleTemp();
-            if (result !== 200) {
+            const result = await authApi.onBoardingInvalidAccess();
+            if (result.status !== 200) {
                 navigate('/web');
             } else {
                 setIsChecking(false);
@@ -35,9 +35,9 @@ const GoogleSetup = () => {
             "phone": phoneNumber,
             "birthday": birthday
         };
-        const result = await authFetchGoogleSetup(data);
+        const result = await authApi.onBoarding(data);
 
-        if (result !== 200) {
+        if (result.status !== 200) {
             alert(`에러발생, 에러코드: ${result}`);
         }
         setIsLoading(false);
@@ -186,4 +186,4 @@ const GoogleSetup = () => {
     );
 };
 
-export default GoogleSetup;
+export default OnBoarding;

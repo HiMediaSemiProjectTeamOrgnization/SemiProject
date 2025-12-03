@@ -9,7 +9,7 @@ import SeatStatus from './web/components/SeatStatus.jsx';
 import PaymentSuccess from './web/pages/PaymentSuccess.jsx';
 import SignUp from './web/pages/SignUp.jsx';
 import Login from './web/pages/Login.jsx';
-import GoogleSetup from './web/pages/GoogleSetup.jsx';
+import OnBoarding from './web/pages/OnBoarding.jsx';
 
 const router = createBrowserRouter([
     {
@@ -55,8 +55,8 @@ const router = createBrowserRouter([
         element: <Login />,
     },
     {
-        path: '/web/google/setup',
-        element: <GoogleSetup />,
+        path: '/web/google/onboarding',
+        element: <OnBoarding />,
     },
 ]);
 

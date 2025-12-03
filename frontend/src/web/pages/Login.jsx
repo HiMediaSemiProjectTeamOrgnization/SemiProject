@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthSocialButton } from '../components/AuthButton.jsx';
-import { authFetchLogin } from '../../utils/authFetchUtils.js';
+import { authApi } from '../../utils/authApi.js';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -15,12 +15,12 @@ const Login = () => {
         setIsLoading(true);
 
         const data = {
-            "member_id": userId,
+            "login_id": userId,
             "password": password
         };
-        const result = await authFetchLogin(data);
+        const result = await authApi.login(data);
 
-        if (result === 200) {
+        if (result.status === 200) {
             navigate('/web')
         } else {
             alert(`에러발생, 에러코드: ${result}`);

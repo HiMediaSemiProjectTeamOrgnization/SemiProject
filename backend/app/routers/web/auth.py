@@ -8,7 +8,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Token, Member
 from schemas import TokenCreate, MemberCreate, MemberLogin, MemberGoogleSetup
-from utils.auth_utils import password_encode, password_decode, revoke_existing_token, revoke_existing_token_by_id, set_token_cookies, get_cookies_info, encode_temp_signup_token, decode_temp_signup_token, verify_token, create_access_token, create_refresh_token, encode_google_temp_token, decode_google_temp_token
+from utils.auth_utils import (password_encode, password_decode, revoke_existing_token, revoke_existing_token_by_id,
+                              set_token_cookies, get_cookies_info, encode_temp_signup_token, decode_temp_signup_token,
+                              verify_token, create_access_token, create_refresh_token, encode_google_temp_token,
+                              decode_google_temp_token)
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -55,6 +58,7 @@ def create_member(
         existing_member.login_id = member_data.login_id
         existing_member.password = hashed_pw
         existing_member.name = member_data.name
+        existing_member.social_type = None
         db.commit()
         db.refresh(existing_member)
 
@@ -67,7 +71,8 @@ def create_member(
             login_id=member_data.login_id,
             name=member_data.name,
             password=hashed_pw,
-            phone=member_data.phone
+            phone=member_data.phone,
+            social_type=None
         )
         db.add(member)
         db.commit()
@@ -98,6 +103,10 @@ def login(
         if not member or not password_decode(member_data.password, member.password):
             raise HTTPException(status_code=400, detail="incorrect id or password")
 
+        # 소셜 타입 공백으로 만들어서 일반 로그인으로 만든다.
+        member.social_type = None
+        db.commit()
+        db.refresh(member)
     # 그외 문제 예외처리
     else:
         raise HTTPException(status_code=401, detail="missing credentials")
@@ -181,9 +190,7 @@ async def kakao_callback(
     kakao_phone_number = kakao_phone_number.replace(kakao_phone_number.split("-")[0], "010")
 
     # Member DB에서 카카오 계정 존재 확인
-    kakao_account = db.query(Member).filter(
-        (Member.social_type == "kakao") & (Member.kakao_id == kakao_id)
-    ).first()
+    kakao_account = db.query(Member).filter(Member.kakao_id == kakao_id).first()
 
     # 카카오 계정이 존재 할때, 로그인
     if kakao_account:
@@ -192,6 +199,11 @@ async def kakao_callback(
 
         # 기존 DB의 리프레시 토큰들 무효화 (id)
         revoke_existing_token_by_id(db, kakao_account.member_id)
+
+        # 소셜 타입을 카카오 로그인으로 바꾼다
+        kakao_account.social_type = "kakao"
+        db.commit()
+        db.refresh(kakao_account)
 
     # 카카오 계정이 존재하지 않을 때
     else:
@@ -213,6 +225,11 @@ async def kakao_callback(
 
             # 기존 DB의 리프레시 토큰들 무효화 (id)
             revoke_existing_token_by_id(db, existing_member.member_id)
+
+            # 소셜 타입을 카카오 로그인으로 바꾼다
+            existing_member.social_type = "kakao"
+            db.commit()
+            db.refresh(existing_member)
 
         # 휴대폰 번호가 존재하지 않을때, 회원가입
         else:
@@ -330,9 +347,7 @@ async def naver_callback(
     naver_birthday = naver_birthday.replace("-", "")
 
     # Member DB에서 네이버 계정 존재 확인
-    naver_account = db.query(Member).filter(
-        (Member.social_type == "naver") & (Member.naver_id == naver_id)
-    ).first()
+    naver_account = db.query(Member).filter(Member.naver_id == naver_id).first()
 
     # 네이버 계정이 존재 할때, 로그인
     if naver_account:
@@ -342,6 +357,10 @@ async def naver_callback(
         # 기존 DB의 리프레시 토큰들 무효화 (id)
         revoke_existing_token_by_id(db, naver_account.member_id)
 
+        # 소셜 타입을 네이버 로그인으로 바꾼다
+        naver_account.social_type = "naver"
+        db.commit()
+        db.refresh(naver_account)
     else:
         # 휴대폰 번호 조회
         existing_member = db.query(Member).filter(Member.phone == naver_phone_number).first()
@@ -362,6 +381,10 @@ async def naver_callback(
             # 기존 DB의 리프레시 토큰들 무효화 (id)
             revoke_existing_token_by_id(db, existing_member.member_id)
 
+            # 소셜 타입을 네이버 로그인으로 바꾼다
+            existing_member.social_type = "naver"
+            db.commit()
+            db.refresh(existing_member)
         # 휴대폰 번호가 존재하지 않을때, 회원가입
         else:
             try:
@@ -458,9 +481,7 @@ async def google_callback(
     google_name = user_info.get("name", {})
 
     # Member DB에서 구글 계정 존재 확인
-    google_account = db.query(Member).filter(
-        (Member.social_type == "google") & (Member.google_id == google_id)
-    ).first()
+    google_account = db.query(Member).filter(Member.google_id == google_id).first()
 
     # 구글 계정이 존재 할때, 로그인
     if google_account:
@@ -470,6 +491,10 @@ async def google_callback(
         # 기존 DB의 리프레시 토큰들 무효화 (id)
         revoke_existing_token_by_id(db, google_account.member_id)
 
+        # 소셜 타입을 구글 로그인으로 바꾼다
+        google_account.social_type = "google"
+        db.commit()
+        db.refresh(google_account)
     # 구글 계정이 존재하지 않을때
     else:
         # 쿠키 정보 가져오기
@@ -511,11 +536,15 @@ async def google_callback(
             # 기존 DB의 리프레시 토큰들 무효화 (id)
             revoke_existing_token_by_id(db, existing_member.member_id)
 
+            # 소셜 타입을 구글 로그인으로 바꾼다
+            existing_member.social_type = "google"
+            db.commit()
+            db.refresh(existing_member)
         # 휴대폰 번호가 존재하지 않을 때
         else:
             # phone_number, birthday, birthyear 추가 정보 입력을 위한 페이지 이동
             # 리다이렉트 url 설정
-            response = RedirectResponse(url=f"{FRONTEND_URL}/web/google/setup")
+            response = RedirectResponse(url=f"{FRONTEND_URL}/web/google/onboarding")
 
             # 쿠키로 저장하기 위해 정보 담기 및 JWT 변환
             payload = {
@@ -547,8 +576,8 @@ async def google_callback(
     return response
 
 """ 구글 로그인 추가 정보 입력 """
-@router.post("/google/setup")
-def google_setup(
+@router.post("/google/onboarding")
+def google_onboarding(
     response: Response,
     member: MemberGoogleSetup,
     temp_member: str = Cookie(None),
@@ -585,6 +614,11 @@ def google_setup(
         # 기존 DB의 리프레시 토큰들 무효화 (id)
         revoke_existing_token_by_id(db, existing_member.member_id)
 
+        # 소셜 타입을 구글 로그인으로 바꾼다
+        existing_member.social_type = "google"
+        db.commit()
+        db.refresh(existing_member)
+
     # 휴대폰 번호가 존재하지 않을때, 회원가입
     else:
         try:
@@ -612,8 +646,8 @@ def google_setup(
     return {"status": "ok"}
 
 """ 구글 추가정보 검증 토큰 가져오기 """
-@router.post("/google/temp")
-def get_google_temp_token(
+@router.post("/google/onboarding/invalid-access")
+def google_onboarding_invalid_access(
     temp_google_check: str = Cookie(None)
 ):
     if not temp_google_check:
