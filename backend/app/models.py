@@ -91,7 +91,6 @@ class Order(Base):
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="SET NULL"), nullable=True)
     product_id = Column(BigInteger, ForeignKey("products.product_id", ondelete="SET NULL"), nullable=True)
     buyer_phone = Column(String(20), nullable=True)
-    total_price = Column(Integer, nullable=False)
     payment_amount = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     period_start_date = Column(DateTime, nullable=True)

@@ -9,19 +9,20 @@ function SeatSelector({ choiceTicket, seats }) {
 
     // 좌석 구분
     const fixedSeats = seats.filter((s) => s.type === "fix");
-    const freeSeats = seats.filter((s) => s.type === "free");
 
     const handleSeatClick = (seat) => {
         if (seat.is_status) setSelectedSeat(seat);
     };
 
     const handleSubmit = () => {
-        if (!selectedSeat) {
-            alert("좌석을 선택하세요");
-            return;
-        }
+        if (!selectedSeat) alert("좌석을 선택하세요");
+        navigate("/web/payment", {
+            state: {
+                Ticket: choiceTicket,
+                SelectSeat: selectedSeat
+            }
+        });
 
-        alert("날짜 선택창으로 이동");
     };
 
     return (
@@ -29,13 +30,6 @@ function SeatSelector({ choiceTicket, seats }) {
             <h2 className="text-xl font-bold mb-2">고정석</h2>
             <div className="grid grid-cols-10 gap-3 mb-8">
                 {fixedSeats.map((seat) => (
-                    <SeatBox key={seat.seat_id} seat={seat} onClick={handleSeatClick} isSelected={selectedSeat?.seat_id === seat.seat_id} />
-                ))}
-            </div>
-
-            <h2 className="text-xl font-bold mb-2">자유석</h2>
-            <div className="grid grid-cols-10 gap-3 mb-4">
-                {freeSeats.map((seat) => (
                     <SeatBox key={seat.seat_id} seat={seat} onClick={handleSeatClick} isSelected={selectedSeat?.seat_id === seat.seat_id} />
                 ))}
             </div>

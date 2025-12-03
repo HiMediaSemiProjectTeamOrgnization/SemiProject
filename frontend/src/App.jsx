@@ -6,6 +6,7 @@ import TicketList from './web/pages/TicketList.jsx';
 import Payments from './web/pages/Payment.jsx';
 import WebIndex from './web/pages/WebIndex.jsx';
 import SeatStatus from './web/components/SeatStatus.jsx';
+import PaymentSuccess from './web/pages/PaymentSuccess.jsx';
 import SignUp from './web/pages/SignUp.jsx';
 import Login from './web/pages/Login.jsx';
 import GoogleSetup from './web/pages/GoogleSetup.jsx';
@@ -34,6 +35,10 @@ const router = createBrowserRouter([
             {
                 path: 'payment',
                 element: <Payments />
+            },
+            {
+                path: 'payment/success',
+                element: <PaymentSuccess />
             },
             {
                 path: 'seat',
