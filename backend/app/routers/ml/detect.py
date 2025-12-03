@@ -17,8 +17,7 @@ os.makedirs(DETECT_DIR, exist_ok=True)
 
 # 자리번호 + 카메라 인덱스 
 SEAT_CAMERA_MAP = {
-    1:0,
-    2:1,
+    40:0,
 }
 
 # 프레임 캡처 후 저장하는 함수
