@@ -2,7 +2,7 @@ import os
 import httpx
 import uuid
 from dotenv import load_dotenv
-from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Depends
+from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Depends, Body
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from database import get_db
@@ -60,7 +60,7 @@ def signup(
             phone=member_data.phone,
             social_type=None,
             birthday=member_data.birthday,
-            pin_code=member_data.pin_code,
+            pin_code=int(member_data.pin_code),
             email=member_data.email
         )
         db.add(member)
@@ -72,6 +72,30 @@ def signup(
     response.status_code = 201
 
     return {"status": "ok"}
+
+""" 아이디 중복 체크 """
+@router.post("/signup/check-id")
+def check_id(
+    login_id: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    member = db.query(Member).filter(Member.login_id == login_id).first()
+    if member:
+        raise HTTPException(status_code=400, detail="already exists id")
+
+    return Response(status_code=204)
+
+""" 휴대폰 중복 체크 """
+@router.post("/signup/check-phone")
+def check_phone(
+    phone: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    member = db.query(Member).filter(Member.phone == phone).first()
+    if member:
+        raise HTTPException(status_code=400, detail="already exists phone")
+
+    return Response(status_code=204)
 
 """ 일반 로그인 """
 @router.post("/login")
@@ -107,6 +131,20 @@ def login(
     set_token_cookies(member.member_id, member.name, db, response)
 
     return {"status": "ok"}
+
+""" 핀코드 업데이트 """
+@router.post("/login/update-pincode")
+def update_pincode(
+    mem_data: dict = Body(...),
+    cookie_member: dict = Depends(get_cookies_info),
+    db: Session = Depends(get_db)
+):
+    member = db.query(Member).filter(Member.member_id == cookie_member.get("member_id")).first()
+    member.pin_code = int(mem_data.get("pin_code"))
+    db.commit()
+    db.refresh(member)
+
+    return Response(status_code=204)
 ########################################################################################################################
 # 카카오 로그인 관련 로직
 ########################################################################################################################
@@ -580,10 +618,6 @@ def google_onboarding(
     # 쿠키 내용 언패킹 및 해독
     mem_info = decode_temp_signup_token(temp_member)
 
-    # 추가 정보를 담은 쿠키 및 임시 체크 쿠키 제거
-    response.delete_cookie("temp_member")
-    response.delete_cookie("temp_google_check")
-
     # 휴대폰 번호 조회
     existing_member = db.query(Member).filter(Member.phone == member.phone).first()
 
@@ -594,6 +628,10 @@ def google_onboarding(
     # 휴대폰 번호가 존재하지 않을때, 회원가입
     else:
         try:
+            # 추가 정보를 담은 쿠키 및 임시 체크 쿠키 제거
+            response.delete_cookie("temp_member")
+            response.delete_cookie("temp_google_check")
+
             # 구글 계정 정보를 Member DB에 추가
             member = Member(
                 google_id=mem_info["google_id"],
@@ -601,7 +639,8 @@ def google_onboarding(
                 social_type="google",
                 name=mem_info["google_name"],
                 phone=member.phone,
-                birthday=member.birthday
+                birthday=member.birthday,
+                pin_code=int(member.pin_code)
             )
             db.add(member)
             db.commit()
@@ -620,19 +659,20 @@ def google_onboarding(
 """ 구글 추가정보 검증 토큰 가져오기 """
 @router.post("/google/onboarding/invalid-access")
 def google_onboarding_invalid_access(
+    response: Response,
     temp_google_check: str = Cookie(None)
 ):
     if not temp_google_check:
-        raise HTTPException(status_code=401, detail="cookie not exists")
+        raise HTTPException(status_code=403, detail="cookie not exists")
     try:
         temp_info = decode_google_temp_token(temp_google_check)
 
         if temp_info and temp_info["check"] == "check":
             return {"status": "ok"}
 
-        raise HTTPException(status_code=401, detail="invalid check")
+        raise HTTPException(status_code=403, detail="invalid check")
     except Exception:
-        raise HTTPException(status_code=401, detail="token error")
+        raise HTTPException(status_code=403, detail="token error")
 ########################################################################################################################
 # 공통 로직
 ########################################################################################################################
@@ -655,6 +695,22 @@ def logout(
 """ 로그인 정보 가져오는 함수 """
 @router.post("/cookies")
 def get_cookies(
-    member: dict = Depends(get_cookies_info)
+    response: Response,
+    member: dict = Depends(get_cookies_info),
+    db: Session = Depends(get_db)
 ):
-    return member
+    if not member:
+        return None
+
+    mem_db = db.query(Member).filter(Member.member_id == member.get("member_id")).first()
+
+    # DB에 회원정보가 없다면 쿠키 삭제
+    if not mem_db:
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
+        return None
+
+    return {
+        **member,
+        "pin_code": mem_db.pin_code
+    }

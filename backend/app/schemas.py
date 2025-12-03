@@ -57,6 +57,7 @@ class MemberLogin(MemberBase):
 class MemberGoogleOnboarding(MemberBase):
     phone: str
     birthday: str
+    pin_code: str
 
 # -------------------------------------------------------------------
 # TOKENS

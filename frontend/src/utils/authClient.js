@@ -32,10 +32,10 @@ authClient.interceptors.response.use(
     async (error) => {
         // 네트워크 오류는 response가 없기에 response 객체가 있는지 확인
         if (error.response) {
-            const status = error.response;
+            const status = error.response.status;
 
             if (status === 401) {
-                console.log('login session expired, return to login page');
+                console.log('login session expired, return to main page');
                 window.location.href = '/web/login';
             }
 

@@ -6,17 +6,22 @@ const GoogleOnBoarding = () => {
     const navigate = useNavigate();
     const [phoneNumber, setPhoneNumber] = useState('');
     const [birthday, setBirthday] = useState('');
+    const [pincode, setPincode] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
 
     // 구글 소셜 로그인 외 클라이언트 접근 차단
     useEffect(() => {
         const checkClient = async () => {
-            const result = await authApi.onBoardingInvalidAccess();
-            if (result.status !== 200) {
+            try {
+                setIsChecking(true);
+                const result = await authApi.onBoardingInvalidAccess();
+
+                if (result.status === 200) {
+                    setIsChecking(false);
+                }
+            } catch (error) {
                 navigate('/web', { replace: true });
-            } else {
-                setIsChecking(false);
             }
         };
         void checkClient();
@@ -33,15 +38,43 @@ const GoogleOnBoarding = () => {
 
         const data = {
             "phone": phoneNumber,
-            "birthday": birthday
+            "birthday": birthday,
+            "pin_code": pincode
         };
-        const result = await authApi.onBoarding(data);
+        try {
+            const result = await authApi.onBoarding(data);
 
-        if (result.status !== 200) {
-            alert(`에러발생, 에러코드: ${result}`);
+            if (result.status !== 200) {
+                navigate('/web');
+            }
+        } catch (error) {
+            if (error.response) {
+                if (error.response.status === 400) {
+                    alert('이미 가입된 휴대폰 번호입니다')
+                }
+            }
+        } finally {
+            setIsLoading(false);
         }
-        setIsLoading(false);
-        navigate('/web');
+    };
+
+    // 휴대폰 번호 자동 하이픈 핸들러
+    const handlePhoneInput = (e) => {
+        // 1. 숫자만 남기고 다 제거 (문자열, 기존 하이픈 등)
+        const rawValue = e.target.value.replace(/[^0-9]/g, '');
+        let formatted = '';
+
+        // 2. 길이에 따라 포맷팅 (010-1234-5678 기준)
+        if (rawValue.length < 4) {
+            formatted = rawValue;
+        } else if (rawValue.length < 8) {
+            formatted = `${rawValue.slice(0, 3)}-${rawValue.slice(3)}`;
+        } else {
+            formatted = `${rawValue.slice(0, 3)}-${rawValue.slice(3, 7)}-${rawValue.slice(7, 11)}`;
+        }
+
+        // 3. 상태 업데이트
+        setPhoneNumber(formatted);
     };
 
     return (
@@ -101,10 +134,14 @@ const GoogleOnBoarding = () => {
                                 transition-colors duration-200">
                                 </div>
                                 <input
-                                    type="tel"
+                                    type="text"
+                                    required
                                     placeholder="010-1234-5678"
                                     value={phoneNumber}
-                                    onChange={(e) => setPhoneNumber(e.target.value)}
+                                    pattern="010-[0-9]{4}-[0-9]{4}"
+                                    title="010-1234-5678"
+                                    maxLength="13"
+                                    onChange={handlePhoneInput}
                                     className="w-full h-12 pl-12 pr-4
                              bg-white/50 dark:bg-slate-950/50
                              border border-slate-200/80 dark:border-slate-700/80
@@ -133,9 +170,53 @@ const GoogleOnBoarding = () => {
                                 </div>
                                 <input
                                     type="text"
-                                    placeholder="19991212"
+                                    inputMode="numeric"
+                                    pattern="(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])"
+                                    required
+                                    placeholder="19990101"
+                                    maxLength="8"
+                                    title="19990101"
                                     value={birthday}
-                                    onChange={(e) => setBirthday(e.target.value)}
+                                    onChange={(e) => setBirthday(e.target.value.replace(/[^0-9]/g, ""))}
+                                    className="w-full h-12 pl-12 pr-4
+                             bg-white/50 dark:bg-slate-950/50
+                             border border-slate-200/80 dark:border-slate-700/80
+                             rounded-xl text-sm outline-none
+                             text-slate-800 dark:text-slate-200
+                             focus:bg-white dark:focus:bg-slate-900
+                             focus:border-blue-500/50 dark:focus:border-blue-400/50
+                             focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
+                             transition-all duration-200
+                             placeholder:text-slate-400 dark:placeholder:text-slate-600
+                             hover:bg-white/80 dark:hover:bg-slate-900/80
+
+                             /* 달력 아이콘 색상 조정 (브라우저 기본 스타일) */
+                             dark:[color-scheme:dark]"
+                                />
+                            </div>
+                        </div>
+
+                        {/* 핀코드 입력 */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
+                                핀코드
+                            </label>
+                            <div className="group relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2
+                                text-slate-400 dark:text-slate-500
+                                group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400
+                                transition-colors duration-200">
+                                </div>
+                                <input
+                                    type="password"
+                                    pattern="\d{4}"
+                                    maxLength="4"
+                                    inputMode="numeric"
+                                    required
+                                    placeholder="키오스크 필수 핀코드"
+                                    title="키오스크 필수 핀코드"
+                                    value={pincode}
+                                    onChange={(e) => setPincode(e.target.value.replace(/[^0-9]/g, ""))}
                                     className="w-full h-12 pl-12 pr-4
                              bg-white/50 dark:bg-slate-950/50
                              border border-slate-200/80 dark:border-slate-700/80

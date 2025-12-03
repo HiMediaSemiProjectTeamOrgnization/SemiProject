@@ -14,6 +14,8 @@ const Signup = () => {
     const [birthday, setBirthday] = useState('');
     const [pincode, setPincode] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [checkId, setCheckId] = useState(true);
+    const [checkPhone, setCheckPhone] = useState(true);
     const { member, fetchMember, isLoading: isAuthLoading } = useAuthCookieStore();
 
     // 컴포넌트 마운트 시 최신 인증 정보를 확인
@@ -33,6 +35,7 @@ const Signup = () => {
         return <div>pending...</div>
     }
 
+    // 회원가입 폼 제출 이벤트
     const handleSignupForm = async (e) => {
         e.preventDefault();
 
@@ -74,6 +77,61 @@ const Signup = () => {
         }
     };
 
+    // 중복된 아이디 체크
+    const handleLoginIdBlur = async () => {
+        try {
+            const result = await authApi.checkId({"login_id": loginId});
+            if (result.status === 204) {
+                setCheckId(true);
+            }
+        } catch (error) {
+            if (error.response) {
+                if (error.response.status === 400) {
+                    setCheckId(false);
+                }
+            } else {
+                alert(`통신 불가: ${error}`);
+            }
+        }
+    };
+
+    // 중복된 휴대폰번호 체크
+    const handlePhoneBlur = async () => {
+        try {
+            const result = await authApi.checkPhone({"phone": phone});
+            if (result.status === 204) {
+                setCheckPhone(true);
+            }
+        } catch (error) {
+            if (error.response) {
+                if (error.response.status === 400) {
+                    setCheckPhone(false);
+                }
+            } else {
+                alert(`통신 불가: ${error}`);
+            }
+        }
+    };
+
+    // 휴대폰 번호 자동 하이픈 핸들러
+    const handlePhoneInput = (e) => {
+        // 1. 숫자만 남기고 다 제거 (문자열, 기존 하이픈 등)
+        const rawValue = e.target.value.replace(/[^0-9]/g, '');
+        let formatted = '';
+
+        // 2. 길이에 따라 포맷팅 (010-1234-5678 기준)
+        if (rawValue.length < 4) {
+            formatted = rawValue;
+        } else if (rawValue.length < 8) {
+            formatted = `${rawValue.slice(0, 3)}-${rawValue.slice(3)}`;
+        } else {
+            formatted = `${rawValue.slice(0, 3)}-${rawValue.slice(3, 7)}-${rawValue.slice(7, 11)}`;
+        }
+
+        // 3. 상태 업데이트
+        setPhone(formatted);
+    };
+
     return (
         // [전체 컨테이너]
         // light: 부드러운 화이트 블루 배경
@@ -104,6 +162,24 @@ const Signup = () => {
 
                 {/* 컨텐츠 레이어 */}
                 <div className="relative z-20 flex flex-col gap-6">
+
+                    {/* 1. 홈으로 돌아가기 버튼 */}
+                    <div className="flex justify-center">
+                        <button
+                            onClick={() => navigate('/web')}
+                            className="flex items-center gap-2 px-3 py-1.5
+                                       bg-white/40 dark:bg-slate-800/40
+                                       backdrop-blur-md border border-white/60 dark:border-white/10
+                                       rounded-full shadow-sm
+                                       text-slate-600 dark:text-slate-300
+                                       hover:bg-white/80 dark:hover:bg-slate-700/80
+                                       hover:scale-105 hover:shadow-md
+                                       transition-all duration-300 group cursor-pointer"
+                        >
+                            <span className="text-xs font-medium group-hover:text-slate-900 dark:group-hover:text-white transition-colors">홈으로</span>
+                        </button>
+                    </div>
+
                     {/* 2. 헤더 텍스트 */}
                     <div className="space-y-2 text-center mt-2">
                         <h2 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight flex items-center justify-center gap-2">
@@ -163,6 +239,7 @@ const Signup = () => {
                                 <input
                                     type="text"
                                     required
+                                    onBlur={handleLoginIdBlur}
                                     placeholder="사용하실 아이디"
                                     value={loginId}
                                     onChange={(e) => setLoginId(e.target.value)}
@@ -179,6 +256,10 @@ const Signup = () => {
                              hover:bg-white/80 dark:hover:bg-slate-900/80"
                                 />
                             </div>
+                            {/* 아이디가 중복일때 안내 */}
+                            {!checkId && (
+                                <p className="text-xs text-red-500 ml-1">아이디가 중복되었습니다.</p>
+                            )}
                         </div>
 
                         {/* 비밀번호 입력 */}
@@ -196,7 +277,8 @@ const Signup = () => {
                                     type="password"
                                     required
                                     minLength="4"
-                                    placeholder="비밀번호 (4자 이상)"
+                                    maxLength="20"
+                                    placeholder="비밀번호 (4자 이상 20자 이하)"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     className="w-full h-12 pl-12 pr-4
@@ -229,7 +311,8 @@ const Signup = () => {
                                     type="password"
                                     required
                                     minLength="4"
-                                    placeholder="비밀번호 재입력(4자 이상)"
+                                    maxLength="20"
+                                    placeholder="비밀번호 재입력 (4자 이상 20자 이하)"
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     className="w-full h-12 pl-12 pr-4
@@ -245,7 +328,7 @@ const Signup = () => {
                              hover:bg-white/80 dark:hover:bg-slate-900/80"
                                 />
                             </div>
-                            {/* 불일치 시 안내 메시지 (선택사항) */}
+                            {/* 불일치 시 안내 메시지 */}
                             {confirmPassword && password !== confirmPassword && (
                                 <p className="text-xs text-red-500 ml-1">비밀번호가 일치하지 않습니다.</p>
                             )}
@@ -268,8 +351,10 @@ const Signup = () => {
                                     required
                                     placeholder="010-1234-5678"
                                     title="010-1234-5678"
+                                    maxLength="13"
+                                    onBlur={handlePhoneBlur}
                                     value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
+                                    onChange={handlePhoneInput}
                                     className="w-full h-12 pl-12 pr-4
                              bg-white/50 dark:bg-slate-950/50
                              border border-slate-200/80 dark:border-slate-700/80
@@ -283,6 +368,10 @@ const Signup = () => {
                              hover:bg-white/80 dark:hover:bg-slate-900/80"
                                 />
                             </div>
+                            {/* 휴대폰번호가 중복일때 안내 */}
+                            {!checkPhone && (
+                                <p className="text-xs text-red-500 ml-1">휴대폰번호가 중복되었습니다.</p>
+                            )}
                         </div>
 
                         {/* 이메일 입력 */}
@@ -332,12 +421,14 @@ const Signup = () => {
                                 </div>
                                 <input
                                     type="text"
+                                    inputMode="numeric"
                                     pattern="(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])"
                                     required
                                     placeholder="19990101"
                                     title="19990101"
+                                    maxLength="8"
                                     value={birthday}
-                                    onChange={(e) => setBirthday(e.target.value)}
+                                    onChange={(e) => setBirthday(e.target.value.replace(/[^0-9]/g, ""))}
                                     className="w-full h-12 pl-12 pr-4
                              bg-white/50 dark:bg-slate-950/50
                              border border-slate-200/80 dark:border-slate-700/80
@@ -373,7 +464,7 @@ const Signup = () => {
                                     placeholder="숫자 핀코드 (4글자)"
                                     title="숫자 핀코드 (4글자)"
                                     value={pincode}
-                                    onChange={(e) => setPincode(e.target.value)}
+                                    onChange={(e) => setPincode(e.target.value.replace(/[^0-9]/g, ""))}
                                     className="w-full h-12 pl-12 pr-4
                              bg-white/50 dark:bg-slate-950/50
                              border border-slate-200/80 dark:border-slate-700/80

@@ -44,7 +44,11 @@ const Login = () => {
             }
         } catch (error) {
             if (error.response) {
-                alert(`에러발생, 에러코드: ${error.response.status}`);
+                if (error.response.status === 400) {
+                    alert('올바른 아이디나 비밀번호를 입력해주세요');
+                } else {
+                    alert(`에러발생, 에러코드: ${error.response.status}`);
+                }
             } else {
                 alert('통신 불가');
             }
