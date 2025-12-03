@@ -39,23 +39,19 @@ class SeatResponse(SeatBase):
 # MEMBERS
 # -------------------------------------------------------------------
 class MemberBase(BaseSchema):
-    name: Optional[str] = None
+    pass
 
-class MemberCreate(MemberBase):
+class MemberSignup(MemberBase):
+    name: str
     login_id: str
     password: str
-    phone: Optional[str] = None
+    phone: str
 
 class MemberLogin(MemberBase):
     login_id: str
     password: str
 
-class MemberResponse(MemberBase):
-    login_id: Optional[str] = None
-    password: Optional[str] = None
-    email: Optional[str] = None
-
-class MemberGoogleSetup(BaseSchema):
+class MemberGoogleOnboarding(MemberBase):
     phone: str
     birthday: str
 

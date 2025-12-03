@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../../utils/authApi.js';
 
-const OnBoarding = () => {
+const GoogleOnBoarding = () => {
     const navigate = useNavigate();
     const [phoneNumber, setPhoneNumber] = useState('');
     const [birthday, setBirthday] = useState('');
@@ -186,4 +186,4 @@ const OnBoarding = () => {
     );
 };
 
-export default OnBoarding;
+export default GoogleOnBoarding;

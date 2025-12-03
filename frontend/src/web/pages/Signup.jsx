@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import {useEffect, useState} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../../utils/authApi.js';
+import { useAuthCookieStore } from '../../utils/useAuthStores.js';
 
 const Signup = () => {
     const navigate = useNavigate();
@@ -9,6 +10,24 @@ const Signup = () => {
     const [password, setPassword] = useState('');
     const [phone, setPhone] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const { member, fetchMember, isLoading: isAuthLoading } = useAuthCookieStore();
+
+    // 컴포넌트 마운트 시 최신 인증 정보를 확인
+    useEffect(() => {
+        void fetchMember();
+    }, [fetchMember]);
+
+    // member 상태가 변하면 리다이렉트 체크
+    useEffect(() => {
+        if (member) {
+            navigate('/web', { replace: true });
+        }
+    }, [member, navigate]);
+
+    // 비동기 통신 동안 보여줄 로딩 문구
+    if (isAuthLoading) {
+        return <div>pending...</div>
+    }
 
     const handleSignupForm = async (e) => {
         e.preventDefault();

@@ -5,6 +5,10 @@ export const authApi = {
     login: async (member_data) => {
         return await authClient.post('/auth/login', member_data);
     },
+    // 로그아웃
+    logout: async () => {
+        return await authClient.post('/auth/logout');
+    },
     // 회원 가입
     signup: async (member_data) => {
         return await authClient.post('/auth/signup', member_data);

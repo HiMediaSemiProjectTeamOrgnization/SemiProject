@@ -1,6 +1,7 @@
 import { Outlet, Link } from 'react-router-dom';
 import { useAuthCookieStore } from '../../utils/useAuthStores.js';
 import { useEffect } from 'react';
+import { authApi } from '../../utils/authApi.js';
 
 const WebLayout = () => {
     const { member, fetchMember, isLoading } = useAuthCookieStore();
@@ -8,6 +9,10 @@ const WebLayout = () => {
     useEffect(() => {
         void fetchMember();
     }, []);
+
+    const handleLogoutSubmit = async () => {
+        await authApi.logout
+    };
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -25,6 +30,9 @@ const WebLayout = () => {
                             <Link to="/web/ticket" className="font-bold hover:text-blue-200">
                                 이용권 구매
                             </Link >
+                            <button onClick={handleLogoutSubmit}>
+                                로그아웃
+                            </button>
                         </>
                     ) : (
                         <Link to="/web/login" className="font-bold hover:text-blue-200">

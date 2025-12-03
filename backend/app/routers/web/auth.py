@@ -3,11 +3,11 @@ import httpx
 import uuid
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Token, Member
-from schemas import TokenCreate, MemberCreate, MemberLogin, MemberGoogleSetup
+from schemas import TokenCreate, MemberSignup, MemberLogin, MemberGoogleOnboarding
 from utils.auth_utils import (password_encode, password_decode, revoke_existing_token, revoke_existing_token_by_id,
                               set_token_cookies, get_cookies_info, encode_temp_signup_token, decode_temp_signup_token,
                               verify_token, create_access_token, create_refresh_token, encode_google_temp_token,
@@ -32,14 +32,14 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 """ 일반 회원 가입 """
 @router.post("/signup")
 def signup(
-    member_data: MemberCreate,
+    member_data: MemberSignup,
     response: Response,
     db: Session = Depends(get_db)
 ):
     # 아이디 중복 조회
     id_exists = db.query(Member).filter(Member.login_id == member_data.login_id).first()
     if id_exists:
-        raise HTTPException(status_code=400, detail="already used loginid")
+        raise HTTPException(status_code=409, detail="already used loginid")
 
     # 휴대폰 번호 조회
     existing_member = db.query(Member).filter(Member.phone == member_data.phone).first()
@@ -49,21 +49,7 @@ def signup(
 
     # 휴대폰 번호가 존재할때
     if existing_member:
-        # 로그인 id가 존재할때
-        if existing_member.login_id:
-            raise HTTPException(status_code=400, detail="exists loginid")
-
-        # 로그인 id가 존재하지 않을때, 연동가입
-        # 정보 업데이트
-        existing_member.login_id = member_data.login_id
-        existing_member.password = hashed_pw
-        existing_member.name = member_data.name
-        existing_member.social_type = None
-        db.commit()
-        db.refresh(existing_member)
-
-        # 토큰 및 쿠키 생성 함수
-        set_token_cookies(existing_member.member_id, existing_member.name, db, response)
+        raise HTTPException(status_code=400, detail="exists phone number")
 
     # 휴대폰 번호가 존재하지 않을 때, 회원가입
     else:
@@ -301,7 +287,7 @@ async def naver_callback(
 ):
     # state가 없을 시
     if not naver_oauth_state:
-        raise HTTPException(status_code=404, detail="oauth state not found")
+        raise HTTPException(status_code=401, detail="oauth state not found")
 
     # 리다이렉트 할 URL 주소
     response = RedirectResponse(url=f"{FRONTEND_URL}/web")
@@ -520,7 +506,7 @@ async def google_callback(
         # 휴대폰 번호 조회
         existing_member = db.query(Member).filter(Member.member_id == current_member_id).first()
 
-        # 휴대폰 번호가 존재 할때, 연동가입 (마이페이지 O)
+        # 휴대폰 번호가 존재 할때, 연동가입
         if existing_member:
             # 이메일이 존재하지 않을 때만 업데이트
             if not existing_member.email:
@@ -579,14 +565,14 @@ async def google_callback(
 @router.post("/google/onboarding")
 def google_onboarding(
     response: Response,
-    member: MemberGoogleSetup,
+    member: MemberGoogleOnboarding,
     temp_member: str = Cookie(None),
     db: Session = Depends(get_db)
 ):
     # 쿠키 가져오기
     # 쿠키가 없을때 예외 처리
     if not temp_member:
-        raise HTTPException(status_code=401, detail="cookie not found")
+        raise HTTPException(status_code=401, detail="session expired")
 
     # 쿠키 내용 언패킹 및 해독
     mem_info = decode_temp_signup_token(temp_member)
@@ -598,26 +584,9 @@ def google_onboarding(
     # 휴대폰 번호 조회
     existing_member = db.query(Member).filter(Member.phone == member.phone).first()
 
-    # 휴대폰 번호가 존재 할때, 연동가입 (마이페이지 X)
+    # 휴대폰 번호 중복체크
     if existing_member:
-        # 이메일이 존재하지 않을 때만 업데이트
-        if not existing_member.email:
-            existing_member.email = mem_info["google_email"]
-        existing_member.social_type = "google"
-        existing_member.google_id = mem_info["google_id"]
-        db.commit()
-        db.refresh(existing_member)
-
-        # 토큰 및 쿠키 생성 함수
-        set_token_cookies(existing_member.member_id, existing_member.name, db, response)
-
-        # 기존 DB의 리프레시 토큰들 무효화 (id)
-        revoke_existing_token_by_id(db, existing_member.member_id)
-
-        # 소셜 타입을 구글 로그인으로 바꾼다
-        existing_member.social_type = "google"
-        db.commit()
-        db.refresh(existing_member)
+        raise HTTPException(status_code=400, detail="phone number exists")
 
     # 휴대폰 번호가 존재하지 않을때, 회원가입
     else:
@@ -636,7 +605,7 @@ def google_onboarding(
             db.refresh(member)
 
             # 토큰 및 쿠키 생성 함수
-            set_token_cookies(member.member_id, member.name, db, response)
+            set_token_cookies(member.member_id, mem_info["google_name"], db, response)
 
             # 기존 DB의 리프레시 토큰들 무효화 (id)
             revoke_existing_token_by_id(db, member.member_id)
@@ -685,18 +654,3 @@ def logout(
 def get_cookies(member: dict = Depends(get_cookies_info)):
 
     return member
-########################################################################################################################
-# 테스트 관련 로직
-########################################################################################################################
-""" JWT 토큰 테스트용 페이지 """
-@router.get("/token_test", response_class=HTMLResponse)
-def token_test(member: dict = Depends(get_cookies_info)):
-    return f"""
-    <html>
-        <body>
-            <h1>👤 내 프로필</h1>
-            <h2>안녕하세요, {member["name"]}님!</h2>
-            <h2>당신의 member_id: {member["member_id"]}님!</h2>
-        </body>
-    </html>
-    """
