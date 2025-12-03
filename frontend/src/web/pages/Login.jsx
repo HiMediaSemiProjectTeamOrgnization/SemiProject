@@ -37,14 +37,20 @@ const Login = () => {
             "login_id": userId,
             "password": password
         };
-        const result = await authApi.login(data);
-
-        if (result.status === 200) {
-            navigate('/web')
-        } else {
-            alert(`에러발생, 에러코드: ${result}`);
+        try {
+            const result = await authApi.login(data);
+            if (result.status === 200) {
+                navigate('/web')
+            }
+        } catch (error) {
+            if (error.response) {
+                alert(`에러발생, 에러코드: ${error.response.status}`);
+            } else {
+                alert('통신 불가');
+            }
+        } finally {
+            setIsLoading(false);
         }
-        setIsLoading(false);
     };
 
     // 소셜 로그인 클릭 이벤트

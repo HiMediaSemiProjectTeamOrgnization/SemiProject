@@ -58,7 +58,10 @@ def signup(
             name=member_data.name,
             password=hashed_pw,
             phone=member_data.phone,
-            social_type=None
+            social_type=None,
+            birthday=member_data.birthday,
+            pin_code=member_data.pin_code,
+            email=member_data.email
         )
         db.add(member)
         db.commit()
@@ -651,6 +654,7 @@ def logout(
 
 """ 로그인 정보 가져오는 함수 """
 @router.post("/cookies")
-def get_cookies(member: dict = Depends(get_cookies_info)):
-
+def get_cookies(
+    member: dict = Depends(get_cookies_info)
+):
     return member

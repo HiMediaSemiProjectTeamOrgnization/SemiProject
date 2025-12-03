@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional
 
@@ -46,6 +46,9 @@ class MemberSignup(MemberBase):
     login_id: str
     password: str
     phone: str
+    email: str
+    birthday: str
+    pin_code: str
 
 class MemberLogin(MemberBase):
     login_id: str

@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../../utils/authApi.js';
 import { useAuthCookieStore } from '../../utils/useAuthStores.js';
@@ -8,7 +8,11 @@ const Signup = () => {
     const [name, setName] = useState('');
     const [loginId, setLoginId] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [phone, setPhone] = useState('');
+    const [email, setEmail] = useState('');
+    const [birthday, setBirthday] = useState('');
+    const [pincode, setPincode] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { member, fetchMember, isLoading: isAuthLoading } = useAuthCookieStore();
 
@@ -31,13 +35,21 @@ const Signup = () => {
 
     const handleSignupForm = async (e) => {
         e.preventDefault();
+
+        if (password !== confirmPassword) {
+            return;
+        }
+
         setIsLoading(true);
 
         const data = {
             "name": name,
             "login_id": loginId,
             "password": password,
-            "phone": phone
+            "phone": phone,
+            "birthday": birthday,
+            "email": email,
+            "pin_code": pincode
         };
 
         try {
@@ -47,7 +59,13 @@ const Signup = () => {
             }
         } catch (error) {
             if (error.response) {
-                alert(`에러발생, 에러코드: ${error.response.status}`);
+                if (error.response.status === 409) {
+                    alert(`중복된 아이디입니다`);
+                } else if (error.response.status === 400) {
+                    alert(`중복된 휴대폰 번호입니다`);
+                } else {
+                    alert(`에러발생, 에러코드: ${error.response.status}`);
+                }
             } else {
                 alert('통신 불가');
             }
@@ -96,10 +114,10 @@ const Signup = () => {
                         </p>
                     </div>
 
-                    {/* 3. 입력 폼 영역 (MemberCreate 스키마 반영) */}
+                    {/* 3. 입력 폼 영역 */}
                     <form className="space-y-4 mt-1" onSubmit={handleSignupForm}>
 
-                        {/* 이름 입력 (MemberBase: name) */}
+                        {/* 이름 입력 */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
                                 이름
@@ -131,7 +149,7 @@ const Signup = () => {
                             </div>
                         </div>
 
-                        {/* 아이디 입력 (MemberCreate: login_id) */}
+                        {/* 아이디 입력 */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
                                 아이디
@@ -163,7 +181,7 @@ const Signup = () => {
                             </div>
                         </div>
 
-                        {/* 비밀번호 입력 (MemberCreate: password) */}
+                        {/* 비밀번호 입력 */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
                                 비밀번호
@@ -177,7 +195,8 @@ const Signup = () => {
                                 <input
                                     type="password"
                                     required
-                                    placeholder="비밀번호 (8자 이상)"
+                                    minLength="4"
+                                    placeholder="비밀번호 (4자 이상)"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     className="w-full h-12 pl-12 pr-4
@@ -195,7 +214,44 @@ const Signup = () => {
                             </div>
                         </div>
 
-                        {/* 휴대폰 번호 입력 (MemberCreate: phone) */}
+                        {/* 비밀번호 재입력 */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
+                                비밀번호 재입력
+                            </label>
+                            <div className="group relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2
+                                text-slate-400 dark:text-slate-500
+                                group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400
+                                transition-colors duration-200">
+                                </div>
+                                <input
+                                    type="password"
+                                    required
+                                    minLength="4"
+                                    placeholder="비밀번호 재입력(4자 이상)"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    className="w-full h-12 pl-12 pr-4
+                             bg-white/50 dark:bg-slate-950/50
+                             border border-slate-200/80 dark:border-slate-700/80
+                             rounded-xl text-sm outline-none
+                             text-slate-800 dark:text-slate-200
+                             focus:bg-white dark:focus:bg-slate-900
+                             focus:border-blue-500/50 dark:focus:border-blue-400/50
+                             focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
+                             transition-all duration-200
+                             placeholder:text-slate-400 dark:placeholder:text-slate-600
+                             hover:bg-white/80 dark:hover:bg-slate-900/80"
+                                />
+                            </div>
+                            {/* 불일치 시 안내 메시지 (선택사항) */}
+                            {confirmPassword && password !== confirmPassword && (
+                                <p className="text-xs text-red-500 ml-1">비밀번호가 일치하지 않습니다.</p>
+                            )}
+                        </div>
+
+                        {/* 휴대폰 번호 입력 */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
                                 휴대폰번호
@@ -208,8 +264,10 @@ const Signup = () => {
                                 </div>
                                 <input
                                     type="text"
+                                    pattern="010-[0-9]{4}-[0-9]{4}"
                                     required
                                     placeholder="010-1234-5678"
+                                    title="010-1234-5678"
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value)}
                                     className="w-full h-12 pl-12 pr-4
@@ -227,7 +285,111 @@ const Signup = () => {
                             </div>
                         </div>
 
-                        {/* 4. 가입하기 버튼 */}
+                        {/* 이메일 입력 */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
+                                이메일
+                            </label>
+                            <div className="group relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2
+                                text-slate-400 dark:text-slate-500
+                                group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400
+                                transition-colors duration-200">
+                                </div>
+                                <input
+                                    type="text"
+                                    pattern="^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$"
+                                    required
+                                    placeholder="example@example.com"
+                                    title="example@example.com"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full h-12 pl-12 pr-4
+                             bg-white/50 dark:bg-slate-950/50
+                             border border-slate-200/80 dark:border-slate-700/80
+                             rounded-xl text-sm outline-none
+                             text-slate-800 dark:text-slate-200
+                             focus:bg-white dark:focus:bg-slate-900
+                             focus:border-blue-500/50 dark:focus:border-blue-400/50
+                             focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
+                             transition-all duration-200
+                             placeholder:text-slate-400 dark:placeholder:text-slate-600
+                             hover:bg-white/80 dark:hover:bg-slate-900/80"
+                                />
+                            </div>
+                        </div>
+
+                        {/* 생년월일 입력 */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
+                                생년월일
+                            </label>
+                            <div className="group relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2
+                                text-slate-400 dark:text-slate-500
+                                group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400
+                                transition-colors duration-200">
+                                </div>
+                                <input
+                                    type="text"
+                                    pattern="(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])"
+                                    required
+                                    placeholder="19990101"
+                                    title="19990101"
+                                    value={birthday}
+                                    onChange={(e) => setBirthday(e.target.value)}
+                                    className="w-full h-12 pl-12 pr-4
+                             bg-white/50 dark:bg-slate-950/50
+                             border border-slate-200/80 dark:border-slate-700/80
+                             rounded-xl text-sm outline-none
+                             text-slate-800 dark:text-slate-200
+                             focus:bg-white dark:focus:bg-slate-900
+                             focus:border-blue-500/50 dark:focus:border-blue-400/50
+                             focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
+                             transition-all duration-200
+                             placeholder:text-slate-400 dark:placeholder:text-slate-600
+                             hover:bg-white/80 dark:hover:bg-slate-900/80"
+                                />
+                            </div>
+                        </div>
+
+                        {/* 핀코드 입력 */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
+                                키오스크에서 사용할 핀코드
+                            </label>
+                            <div className="group relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2
+                                text-slate-400 dark:text-slate-500
+                                group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400
+                                transition-colors duration-200">
+                                </div>
+                                <input
+                                    type="password"
+                                    pattern="\d{4}"
+                                    maxLength="4"
+                                    inputMode="numeric"
+                                    required
+                                    placeholder="숫자 핀코드 (4글자)"
+                                    title="숫자 핀코드 (4글자)"
+                                    value={pincode}
+                                    onChange={(e) => setPincode(e.target.value)}
+                                    className="w-full h-12 pl-12 pr-4
+                             bg-white/50 dark:bg-slate-950/50
+                             border border-slate-200/80 dark:border-slate-700/80
+                             rounded-xl text-sm outline-none
+                             text-slate-800 dark:text-slate-200
+                             focus:bg-white dark:focus:bg-slate-900
+                             focus:border-blue-500/50 dark:focus:border-blue-400/50
+                             focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
+                             transition-all duration-200
+                             placeholder:text-slate-400 dark:placeholder:text-slate-600
+                             hover:bg-white/80 dark:hover:bg-slate-900/80"
+                                />
+                            </div>
+                        </div>
+
+                        {/* 가입하기 버튼 */}
                         {isLoading ? (
                             <div>pending... </div>
                         ) : (

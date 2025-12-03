@@ -1,17 +1,27 @@
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuthCookieStore } from '../../utils/useAuthStores.js';
 import { useEffect } from 'react';
 import { authApi } from '../../utils/authApi.js';
 
 const WebLayout = () => {
-    const { member, fetchMember, isLoading } = useAuthCookieStore();
+    const navigate = useNavigate();
+    const { member, fetchMember, clearMember, isLoading } = useAuthCookieStore();
 
     useEffect(() => {
         void fetchMember();
     }, []);
 
     const handleLogoutSubmit = async () => {
-        await authApi.logout
+        try {
+            const result = await authApi.logout();
+
+            if (result.status === 200) {
+                clearMember();
+                navigate('/web');
+            }
+        } catch (error) {
+            alert(`에러발생, 에러코드: ${error.response.status}`);
+        }
     };
 
     return (
@@ -30,7 +40,7 @@ const WebLayout = () => {
                             <Link to="/web/ticket" className="font-bold hover:text-blue-200">
                                 이용권 구매
                             </Link >
-                            <button onClick={handleLogoutSubmit}>
+                            <button onClick={handleLogoutSubmit} className="font-bold hover:text-blue-200 cursor-pointer">
                                 로그아웃
                             </button>
                         </>
