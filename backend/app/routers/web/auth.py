@@ -31,7 +31,7 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 ########################################################################################################################
 """ 일반 회원 가입 """
 @router.post("/signup")
-def create_member(
+def signup(
     member_data: MemberCreate,
     response: Response,
     db: Session = Depends(get_db)
@@ -39,7 +39,7 @@ def create_member(
     # 아이디 중복 조회
     id_exists = db.query(Member).filter(Member.login_id == member_data.login_id).first()
     if id_exists:
-        raise HTTPException(status_code=409, detail="already used loginid")
+        raise HTTPException(status_code=400, detail="already used loginid")
 
     # 휴대폰 번호 조회
     existing_member = db.query(Member).filter(Member.phone == member_data.phone).first()

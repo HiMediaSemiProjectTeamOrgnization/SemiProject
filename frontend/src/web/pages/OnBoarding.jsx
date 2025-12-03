@@ -14,7 +14,7 @@ const OnBoarding = () => {
         const checkClient = async () => {
             const result = await authApi.onBoardingInvalidAccess();
             if (result.status !== 200) {
-                navigate('/web');
+                navigate('/web', { replace: true });
             } else {
                 setIsChecking(false);
             }

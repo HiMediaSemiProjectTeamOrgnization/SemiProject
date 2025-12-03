@@ -1,9 +1,13 @@
 import authClient from './authClient.js';
 
 export const authApi = {
-    // 일반 로그인
+    // 로그인
     login: async (member_data) => {
         return await authClient.post('/auth/login', member_data);
+    },
+    // 회원 가입
+    signup: async (member_data) => {
+        return await authClient.post('/auth/signup', member_data);
     },
     // 추가 정보 기재 페이지
     onBoarding: async (member_data) => {

@@ -7,9 +7,10 @@ import Payments from './web/pages/Payment.jsx';
 import WebIndex from './web/pages/WebIndex.jsx';
 import SeatStatus from './web/components/SeatStatus.jsx';
 import PaymentSuccess from './web/pages/PaymentSuccess.jsx';
-import SignUp from './web/pages/SignUp.jsx';
+import Signup from './web/pages/Signup.jsx';
 import Login from './web/pages/Login.jsx';
 import OnBoarding from './web/pages/OnBoarding.jsx';
+import AccountRecovery from './web/pages/AccountRecovery.jsx';
 
 const router = createBrowserRouter([
     {
@@ -48,7 +49,7 @@ const router = createBrowserRouter([
     },
     {
         path: '/web/signup',
-        element: <SignUp />,
+        element: <Signup />,
     },
     {
         path: '/web/login',
@@ -57,6 +58,10 @@ const router = createBrowserRouter([
     {
         path: '/web/google/onboarding',
         element: <OnBoarding />,
+    },
+    {
+        path: '/web/account-recovery',
+        element: <AccountRecovery />,
     },
 ]);
 
