@@ -16,5 +16,6 @@ export const useAuthCookieStore = create((set) => ({
         } finally {
             set({ isLoading: false });
         }
-    }
+    },
+    clearMember: () => set({ member: null })
 }));

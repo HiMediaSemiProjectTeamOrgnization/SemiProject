@@ -1,4 +1,3 @@
-# app/routers/kiosk/kiosk.py
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from database import get_db
@@ -6,6 +5,7 @@ from models import Member, Product, Order, Seat, SeatUsage, MileageHistory # Mil
 from schemas import PinAuthRequest # 추가
 from datetime import datetime, timedelta # timedelta 추가
 from typing import Optional
+from routers.ml.detect import capture_predict
 
 router = APIRouter(prefix="/api/kiosk")
 
@@ -134,11 +134,7 @@ def purchase_ticket(
     # -------------------------------------------------------
     # [추가] 마일리지 사용 로직
     # -------------------------------------------------------
-    if use_mileage > 0:
-        # 비회원 사용 불가
-        if member.role == "guest":
-            raise HTTPException(status_code=400, detail="비회원은 마일리지를 사용할 수 없습니다.")
-        
+    if use_mileage > 0:        
         # 보유량 체크
         if member.total_mileage < use_mileage:
             raise HTTPException(status_code=400, detail="보유 마일리지가 부족합니다.")
@@ -352,19 +348,18 @@ def check_in(
         "ticket_expired_time": usage.ticket_expired_time.isoformat() if usage.ticket_expired_time else None
     }
 
-# ------------------------
-# 6) 퇴실 (수정: 회원 PIN / 비회원 Phone 인증 분기)
-# ------------------------
+
 @router.post("/check-out")
 def check_out(
     seat_id: int = Body(...),
-    phone: Optional[str] = Body(None), # 비회원용
-    pin: Optional[int] = Body(None),   # 회원용
+    phone: Optional[str] = Body(None),
+    pin: Optional[int] = Body(None),
+    force: bool = Body(False), # [추가] 강제 퇴실 여부 (기본값 False)
     db: Session = Depends(get_db)
 ):
     now = datetime.now()
 
-    # 1. 좌석의 현재 입실 정보 조회
+    # 1. 좌석 정보 조회
     usage = db.query(SeatUsage).filter(
         SeatUsage.seat_id == seat_id,
         SeatUsage.check_out_time == None
@@ -373,48 +368,65 @@ def check_out(
     if not usage:
         raise HTTPException(status_code=404, detail="해당 좌석의 입실 기록을 찾을 수 없습니다.")
 
-    # 2. 입실자 정보 조회
+    # 2. 입실자 조회
     member = db.query(Member).filter(Member.member_id == usage.member_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="입실자 정보를 찾을 수 없습니다.")
 
-    # 3. 본인 확인 (인증)
+    # 3. 본인 확인
     if member.role == "guest":
-        # [비회원] 전화번호 검증
         if not phone:
             raise HTTPException(status_code=400, detail="비회원은 전화번호 입력이 필요합니다.")
-        
         if not usage.order:
              raise HTTPException(status_code=400, detail="비회원 주문 정보를 찾을 수 없습니다.")
         
         input_phone = phone.replace("-", "")
         db_phone = usage.order.buyer_phone.replace("-", "") if usage.order.buyer_phone else ""
-        
         if input_phone != db_phone:
             raise HTTPException(status_code=401, detail="전화번호가 일치하지 않습니다.")
-            
     else:
-        # [회원] PIN 번호 검증
         if pin is None:
             raise HTTPException(status_code=400, detail="회원은 PIN 번호 입력이 필요합니다.")
-            
         if member.pin_code != pin:
             raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
 
-    # 4. 사용 시간 계산
+    # =========================================================================
+    # [수정] 3-5. YOLO Object Detection (force가 False일 때만 검사)
+    # =========================================================================
+    if not force: # 강제 퇴실이 아닐 때만 검사
+        try:
+            is_detected, img_path, classes, msg = capture_predict(seat_id)
+            print(f"좌석 {seat_id} 감지 결과: {is_detected}, 물체: {classes}") 
+
+            if is_detected:
+                web_image_url = "/" + img_path.replace("\\", "/")
+                detected_items = ", ".join(classes)
+                
+                raise HTTPException(
+                    status_code=400, 
+                    detail={
+                        "code": "DETECTED",
+                        "message": f"좌석에 짐({detected_items})이 감지되었습니다.\n놓고 가는 물건이 없는지 사진을 확인해주세요.",
+                        "image_url": web_image_url
+                    }
+                )
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise e
+            print(f"[Warning] YOLO Error: {e}")
+    # =========================================================================
+
+    # 4. 시간 계산
     time_used = now - usage.check_in_time
     time_used_minutes = int(time_used.total_seconds() / 60)
     
-    # [수정] 5. 회원 정산 (사용한 시간만큼 차감)
+    # 5. 정산
     if member.role != "guest":
-        # 기존 로직(+= remaining)은 시간을 더해버리는 문제가 있었음 -> (-= time_used)로 수정
         member.saved_time_minute -= time_used_minutes
-
-        # 잔여 시간이 0보다 작아지면 0으로 보정 (초과 사용 시)
         if member.saved_time_minute < 0:
             member.saved_time_minute = 0 
     
-    # 6. 퇴실 처리 및 좌석 반납
+    # 6. 퇴실 처리
     usage.check_out_time = now
     db.add(usage)
 

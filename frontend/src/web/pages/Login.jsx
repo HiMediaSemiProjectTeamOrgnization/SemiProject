@@ -1,16 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthSocialButton } from '../components/AuthButton.jsx';
 import { authApi } from '../../utils/authApi.js';
+import { useAuthCookieStore } from '../../utils/useAuthStores.js';
 
 const Login = () => {
     const navigate = useNavigate();
     const [userId, setUserId] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const { member, fetchMember, isLoading: isAuthLoading } = useAuthCookieStore();
+
+    // 컴포넌트 마운트 시 최신 인증 정보를 확인
+    useEffect(() => {
+        void fetchMember();
+    }, [fetchMember]);
+
+    // member 상태가 변하면 리다이렉트 체크
+    useEffect(() => {
+        if (member) {
+            navigate('/web', { replace: true });
+        }
+    }, [member, navigate]);
+
+    // 비동기 통신 동안 보여줄 로딩 문구
+    if (isAuthLoading) {
+        return <div>pending...</div>
+    }
 
 
-    const handleLoginSubmit = (e) => {
+    const handleLoginSubmit = async (e) => {
         e.preventDefault();
         setIsLoading(true);
 
@@ -18,8 +37,29 @@ const Login = () => {
             "login_id": userId,
             "password": password
         };
+        try {
+            const result = await authApi.login(data);
+            if (result.status === 200) {
+                navigate('/web')
+            }
+        } catch (error) {
+            if (error.response) {
+                if (error.response.status === 400) {
+                    alert('올바른 아이디나 비밀번호를 입력해주세요');
+                } else {
+                    alert(`에러발생, 에러코드: ${error.response.status}`);
+                }
+            } else {
+                alert('통신 불가');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-        const result = authApi.login(data);
+    // 소셜 로그인 클릭 이벤트
+    const handleSocialLogin = (type) => {
+        window.location.href = `/api/auth/${type}/login`;
     };
 
     return (
@@ -159,19 +199,22 @@ const Login = () => {
                         )}
                     </form>
 
-                    {/* 3. 회원가입 및 비밀번호 찾기 */}
-                    <div className="flex items-center justify-center gap-4 pt-1">
-                        <button type="button" className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:underline transition-colors cursor-pointer">
-                            비밀번호 찾기
-                        </button>
-                        <span className="w-[1px] h-3 bg-slate-300 dark:bg-slate-600"></span>
-                        <button
-                            type="button"
-                            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:underline transition-colors cursor-pointer"
-                        >
-                            회원가입
-                        </button>
-                    </div>
+                        {/* 3. 회원가입 및 아이디, 비밀번호 찾기 */}
+                        <div className="flex items-center justify-center gap-4 pt-1">
+                            <button type="button"
+                                    onClick={() => navigate('/web/account-recovery')}
+                                    className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:underline transition-colors cursor-pointer">
+                                아이디 / 비밀번호 찾기
+                            </button>
+                            <span className="w-[1px] h-3 bg-slate-300 dark:bg-slate-600"></span>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/web/signup')}
+                                className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:underline transition-colors cursor-pointer"
+                            >
+                                회원가입
+                            </button>
+                        </div>
 
                     {/* 구분선 */}
                     <div className="relative flex items-center py-2">

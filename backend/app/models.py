@@ -46,7 +46,7 @@ class Member(Base):
     login_id = Column(String(50), unique=True, nullable=True)
     password = Column(String(255), nullable=True)
     phone = Column(String(20), unique=True)
-    email = Column(String(100))
+    email = Column(String(100), unique=True)
     birthday = Column(String(20), nullable=True)
     pin_code = Column(Integer, nullable=True)
     social_type = Column(String(20), nullable=True)

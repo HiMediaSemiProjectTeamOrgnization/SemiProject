@@ -8,7 +8,6 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Token, Member
-from schemas import TokenCreate, MemberCreate
 
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -64,14 +63,13 @@ def create_refresh_token(member_id, name, db: Session):
     return token
 
 """ JWT 토큰 검증 """
-def verify_token(db: Session, token: str, token_type: str = "access"):
+def verify_token(token: str, token_type: str = "access"):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         member_id = payload.get("member_id")
         name = payload.get("name")
         type_check = payload.get("type")
 
-        # 사용할 member_id, name을 dict 자료형으로 보내기
         mem_info = {
             "member_id": member_id,
             "name": name
@@ -98,7 +96,7 @@ def get_cookies_info(
 ):
     # 엑세스 토큰이 있을때
     if access_token:
-        mem_info, error = verify_token(db, access_token, "access")
+        mem_info, error = verify_token(access_token, "access")
 
         if not error:
             return mem_info
@@ -106,22 +104,19 @@ def get_cookies_info(
     # 엑세스 토큰이 없거나 만료되었을때
     # 리프레시 토큰이 있을때
     if refresh_token:
-        mem_info, error = verify_token(db, refresh_token, "refresh")
+        mem_info, error = verify_token(refresh_token, "refresh")
 
         # 리프레시 토큰이 만료되었을때
         if error == "expired":
-            # raise HTTPException(status_code=401, detail="expired refresh token")
             return None
 
         # 리프레시 토큰이 유효하지않을때
         if error == "invalid":
-            # raise HTTPException(status_code=401, detail="invalid refresh token")
             return None
 
         # DB에 있는 리프레시 토큰과 일치 여부 검증
         db_token = db.query(Token).filter((Token.token == refresh_token) & (Token.is_revoked == False)).first()
         if not db_token:
-            # raise HTTPException(status_code=401, detail="token not found in DB")
             return None
 
         # 엑세스 토큰 재발급
@@ -136,7 +131,6 @@ def get_cookies_info(
         return mem_info
 
     # 리프레시 토큰이 없을때
-    # raise HTTPException(status_code=401, detail="invalid tokens")
     return None
 
 """ 기존 리프레시 토큰 무효화 (쿠키 기반) """

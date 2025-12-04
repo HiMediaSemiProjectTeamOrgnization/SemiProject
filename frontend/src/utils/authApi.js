@@ -1,9 +1,29 @@
 import authClient from './authClient.js';
 
 export const authApi = {
-    // 일반 로그인
+    // 로그인
     login: async (member_data) => {
         return await authClient.post('/auth/login', member_data);
+    },
+    // 핀코드 입력 모달
+    updatePinCode: async (member_data) => {
+        return await authClient.post('/auth/login/update-pincode', member_data)
+    },
+    // 로그아웃
+    logout: async () => {
+        return await authClient.post('/auth/logout');
+    },
+    // 회원 가입
+    signup: async (member_data) => {
+        return await authClient.post('/auth/signup', member_data);
+    },
+    // 회원 가입 중 아이디 중복 체크
+    checkId: async (login_id) => {
+        return await authClient.post('/auth/signup/check-id', login_id)
+    },
+    // 회원 가입 중 휴대폰 중복 체크
+    checkPhone: async (phone) => {
+        return await authClient.post('/auth/signup/check-phone', phone)
     },
     // 추가 정보 기재 페이지
     onBoarding: async (member_data) => {

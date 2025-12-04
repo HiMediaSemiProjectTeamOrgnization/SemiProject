@@ -7,7 +7,7 @@ from ultralytics import YOLO
 
 router = APIRouter(prefix="/test", tags=["test"])
 # coco-dataset으로 학습된 yolo 모델
-model = YOLO(model="yolo11n.pt")
+model = YOLO(model="models/yolo11n.pt")
 
 # 저장폴더
 CAPTURE_DIR = "captures/real"
@@ -17,8 +17,7 @@ os.makedirs(DETECT_DIR, exist_ok=True)
 
 # 자리번호 + 카메라 인덱스 
 SEAT_CAMERA_MAP = {
-    1:0,
-    2:1,
+    40:0,
 }
 
 # 프레임 캡처 후 저장하는 함수
