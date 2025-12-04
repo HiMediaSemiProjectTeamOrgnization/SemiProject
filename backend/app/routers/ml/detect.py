@@ -7,7 +7,7 @@ from ultralytics import YOLO
 
 router = APIRouter(prefix="/test", tags=["test"])
 # coco-dataset으로 학습된 yolo 모델
-model = YOLO(model="yolo11n.pt")
+model = YOLO(model="/models/yolo11n.pt")
 
 # 저장폴더
 CAPTURE_DIR = "captures/real"

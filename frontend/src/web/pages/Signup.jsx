@@ -63,9 +63,9 @@ const Signup = () => {
         } catch (error) {
             if (error.response) {
                 if (error.response.status === 409) {
-                    alert(`중복된 아이디입니다`);
+                    alert(`가입된 아이디입니다`);
                 } else if (error.response.status === 400) {
-                    alert(`중복된 휴대폰 번호입니다`);
+                    alert(`가입된 휴대폰 번호입니다`);
                 } else {
                     alert(`에러발생, 에러코드: ${error.response.status}`);
                 }
