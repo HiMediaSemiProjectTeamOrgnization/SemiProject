@@ -9,6 +9,7 @@ const WebLayout = () => {
     const [showPinModal, setShowPinModal] = useState(false);
     const [pinInput, setPinInput] = useState('');
     const [isPinSubmitting, setIsPinSubmitting] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     // 페이지 로드시 내 정보 쿠키 가져오기
     useEffect(() => {
@@ -125,48 +126,106 @@ const WebLayout = () => {
                 </div>
             )}
 
-            {/* 헤더 (네비게이션) - Glass Header 적용 */}
-            <header className="sticky top-0 z-50 w-full border-b border-white/20 dark:border-white/10
-            bg-[#f0f4f8] dark:bg-slate-900
-            transition-colors duration-300">
+            {/* 헤더 */}
+            <header className="sticky top-0 z-50 w-full border-b border-white/20 dark:border-white/10 bg-[#f0f4f8] dark:bg-slate-900 transition-colors duration-300">
                 <nav className="flex items-center justify-between container mx-auto px-4 h-16">
-                    {/* 로고 영역 */}
+                    {/* 로고 */}
                     <div className="flex items-center">
-                        <Link to="/web" className="text-lg font-bold text-slate-800 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                        <Link to="/web" onClick={() => setIsMenuOpen(false)} className="text-lg font-bold text-slate-800 dark:text-white hover:text-blue-600 transition-colors">
                             HOME
                         </Link>
                     </div>
 
-                    {/* 메뉴 영역 */}
-                    <div className="flex items-center gap-4 text-sm font-medium">
+                    {/* [PC 버전 메뉴] md(768px) 이상에서만 보임 (hidden md:flex) */}
+                    <div className="hidden md:flex items-center gap-3 text-sm font-medium">
                         {isLoading ? (
                             <div className="text-slate-400 animate-pulse">확인 중...</div>
                         ) : member ? (
                             <>
-                                {/* 사용자 이름 뱃지 스타일 */}
-                                <button className="hidden sm:block px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 cursor-pointer hover:text-blue-600 transition-colors">
+                                <button className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors cursor-default">
                                     <span className="font-bold">{member.name}</span>님
                                 </button>
-                                <Link to="/web/ticket" className="hidden sm:block px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
+                                <Link to="/web/ticket" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
                                     이용권 구매
                                 </Link>
-                                <button
-                                    onClick={handleLogoutSubmit}
-                                    className="hidden sm:block px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 cursor-pointer hover:text-blue-600 transition-colors"
-                                >
+                                <button onClick={handleLogoutSubmit} className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 cursor-pointer hover:text-blue-600 transition-colors">
                                     로그아웃
                                 </button>
                             </>
                         ) : (
-                            <Link
-                                to="/web/login"
-                                className="hidden sm:block px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors"
-                            >
+                            <Link to="/web/login" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
                                 로그인
                             </Link>
                         )}
                     </div>
+
+                    {/* [모바일 햄버거 버튼] md(768px) 미만에서만 보임 (md:hidden) */}
+                    <div className="md:hidden flex items-center">
+                        <button
+                            onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            className="p-2 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none"
+                        >
+                            {/* 아이콘: 메뉴 열림/닫힘 상태에 따라 변경 (SVG 사용) */}
+                            {isMenuOpen ? (
+                                // X 아이콘
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            ) : (
+                                // 햄버거 아이콘
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                                </svg>
+                            )}
+                        </button>
+                    </div>
                 </nav>
+
+                {/* [모바일 메뉴 드롭다운 영역] */}
+                {/* isMenuOpen이 true일 때만 렌더링 */}
+                {isMenuOpen && (
+                    <div className="md:hidden absolute top-16 left-0 w-full bg-[#f0f4f8] dark:bg-slate-900 border-b border-white/20 dark:border-slate-800 shadow-xl animate-in slide-in-from-top-2 duration-200">
+                        <div className="flex flex-col p-4 space-y-3">
+                            {isLoading ? (
+                                <div className="text-center text-slate-400 py-2">로딩 중...</div>
+                            ) : member ? (
+                                <>
+                                    {/* 모바일: 사용자 정보 */}
+                                    <div className="p-3 bg-white/50 dark:bg-slate-800/50 rounded-xl text-center mb-2">
+                                        <span className="text-slate-800 dark:text-white font-bold">{member.name}</span>
+                                        <span className="text-slate-500 dark:text-slate-400 text-sm">님 환영합니다</span>
+                                    </div>
+
+                                    {/* 모바일: 이용권 구매 */}
+                                    <Link
+                                        to="/web/ticket"
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className="block w-full p-3 text-center bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold rounded-xl hover:bg-blue-200 transition-colors"
+                                    >
+                                        이용권 구매
+                                    </Link>
+
+                                    {/* 모바일: 로그아웃 */}
+                                    <button
+                                        onClick={handleLogoutSubmit}
+                                        className="block w-full p-3 text-center bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-300 transition-colors"
+                                    >
+                                        로그아웃
+                                    </button>
+                                </>
+                            ) : (
+                                /* 모바일: 로그인 버튼 */
+                                <Link
+                                    to="/web/login"
+                                    onClick={() => setIsMenuOpen(false)}
+                                    className="block w-full p-3 text-center bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors"
+                                >
+                                    로그인 하러가기
+                                </Link>
+                            )}
+                        </div>
+                    </div>
+                )}
             </header>
 
             {/* ▼ 메인(Outlet): 여기는 배경색 관련 클래스가 없으므로 투명(컨텐츠 본연의 색) 유지됨 */}
