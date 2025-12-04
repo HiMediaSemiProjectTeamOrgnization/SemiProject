@@ -32,7 +32,6 @@ def getMemberInfo(token = Depends(get_cookies_info), db: Session = Depends(get_d
 def getSeatStatus(db: Session = Depends(get_db)):
     """좌석현황 조회"""
     seat = db.query(Seat).order_by(Seat.seat_id).all()
-
     return seat
 
 # 좌석별 종료시간 조회
@@ -60,32 +59,35 @@ def getTicketList(db: Session = Depends(get_db)):
 
 # ===== 결제 관련 =====
 @router.post("/payments")
-def getPaymentPage(ticketData: dict = Body(...), user: dict = Body(...), SelectSeat: Optional[dict] = Body(None), db: Session = Depends(get_db)):
+def getPaymentPage(ticketData: dict = Body(...), user: dict = Body(...), SelectSeat: Optional[dict] = Body(None), db: Session = Depends(get_db), token = Depends(get_cookies_info)):
     """사용자가 이용권 선택 후 결제내역 받아오는 로직"""
 
     ticket = ticketData
-    phone = f"{user['phone1']}-{user['phone2']}-{user['phone3']}"
     useMileage = ticket["price"] - ticket["total_amount"]
-    member = db.query(Member).filter(Member.name == user["name"]).filter(Member.phone == phone).first()
+
+    id = token["member_id"]
+    member = db.query(Member).filter(Member.member_id == id).first()
 
     order = Order(
             member_id = member.member_id,
             product_id = ticket["product_id"],
-            buyer_phone = phone,
+            buyer_phone = user["phone"],
             payment_amount = ticket["total_amount"]
         )
     
     # 기간제 이용권일 때만 좌석 + 날짜 정보 추가
     if SelectSeat is not None:
         now = datetime.now()
-        order.period_start_date = now
-        order.period_end_date = now + timedelta(days=ticket["value"])
+        order.period_start_date = now.date()
+        order.period_end_date = (now + timedelta(days=ticket["value"])).date()
         order.fixed_seat_id = SelectSeat["seat_id"]
 
         # 좌석 사용불가 처리
         seat = db.query(Seat).filter(Seat.seat_id == order.fixed_seat_id).first()
         seat.is_status = False
         db.add(seat)
+    else:
+        member.saved_time_minute += ticket["value"] * 60
     
     db.add(order)
     db.flush()

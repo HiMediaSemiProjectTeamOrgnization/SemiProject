@@ -25,7 +25,7 @@ function SeatSelector({ choiceTicket, seats, onBack }) {
     };
 
     return (
-        <div className="w-full h-screen bg-slate-900 flex flex-col font-sans text-white select-none overflow-hidden">
+        <div className="flex-1 flex flex-col px-4 pb-4 container mx-auto max-w-6xl h-full">
             <main className="flex-1 flex flex-col px-4 pb-6 w-full h-full">
                 <div className="flex justify-between items-end mb-4 shrink-0 px-2">
                     <div>

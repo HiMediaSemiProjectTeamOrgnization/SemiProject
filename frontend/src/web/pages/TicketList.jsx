@@ -14,10 +14,14 @@ function TicketList() {
     const [seats, setSeats] = useState([]); // 좌석 목록 저장
     const [showSeatSelector, setShowSeatSelector] = useState(false); // 좌석선택 페이지 보여줄지 여부
 
-    useEffect(() => {
-        getTicketList();
-        getSeats();
-    }, []);
+    // 로그인 체크
+    const loginCheck = async () => {
+        const res = await fetch(`/api/web/me`, { credentials: 'include' });
+        if (!res.ok) {
+            navigate("/web/login");
+            return;
+        }
+    };
 
     // 이용권 목록 조회
     const getTicketList = async () => {
@@ -32,6 +36,12 @@ function TicketList() {
         const seatData = await res.json();
         setSeats(seatData);
     };
+
+    useEffect(() => {
+        loginCheck();
+        getTicketList();
+        getSeats();
+    }, []);
 
     const timeTickets = tickets.filter(t => t.type === "시간제");
     const dayTickets = tickets.filter(t => t.type === "기간제");

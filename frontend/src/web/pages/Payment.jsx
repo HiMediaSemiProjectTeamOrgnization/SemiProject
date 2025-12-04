@@ -22,13 +22,10 @@ function Payments() {
     const getUserData = async () => {
         const response = await fetch(`/api/web/me`, { credentials: 'include' });
         const data = await response.json();
-        const [phone1, phone2, phone3] = data.phone.split("-");
         setUser({
             name: data.name,
             email: data.email,
-            phone1,
-            phone2,
-            phone3,
+            phone: data.phone,
             mileage: data.total_mileage
         });
     };
@@ -43,6 +40,21 @@ function Payments() {
         setUser(prev => ({ ...prev, [name]: value }));
     };
 
+    // 전화번호 포맷팅 함수
+    const handlePhoneChange = (e) => {
+        const value = e.target.value.replace(/[^0-9]/g, '');
+
+        let formattedPhone = '';
+        if (value.length <= 3) {
+            formattedPhone = value;
+        } else if (value.length <= 7) {
+            formattedPhone = `${value.slice(0, 3)}-${value.slice(3)}`;
+        } else {
+            formattedPhone = `${value.slice(0, 3)}-${value.slice(3, 7)}-${value.slice(7, 11)}`;
+        }
+
+        setUser(prev => ({ ...prev, phone: formattedPhone }));
+    }
     // 마일리지 사용
     const handlePointChange = (e) => {
         const val = Number(e.target.value);
@@ -61,12 +73,28 @@ function Payments() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!user.name || !user.phone1 || !user.phone2 || !user.phone3 || !user.email) alert("이름, 전화번호, 이메일을 모두 입력하세요");
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+        const nameRegex = /^[가-힣A-Za-z]{2,20}$/
+        const phoneRegex = /^01[016789]-\d{3,4}-\d{4}$/
+
+
+        if (!nameRegex.test(user.name)) {
+            alert("유효한 이름을 입력하세요.");
+            return;
+        }
+
+        if (!phoneRegex.test(user.phone)) {
+            alert("유효한 전화번호를 입력하세요. (010-1234-5678)");
+            return;
+        }
+
+        if (!emailRegex.test(user.email)) {
+            alert("유효한 이메일 주소를 입력하세요.");
+            return;
+        }
 
         const ticketData = { ...ticket, total_amount: totalPrice };
         const resData = { user, ticketData }
-
-        console.log(ticketData);
 
         if (SelectSeat) resData.SelectSeat = SelectSeat
 
@@ -79,8 +107,6 @@ function Payments() {
         if (!res.ok) alert("서버에 오류가 발생했습니다. 다시 시도하세요.");
 
         const result = await res.json();
-
-        console.log(result.order)
 
         if (result.status === 200) navigate("/web/payment/success", {
             state: {
@@ -110,13 +136,15 @@ function Payments() {
                 <h2 className="text-2xl font-bold mb-4">주문자 정보</h2>
                 <form className="flex flex-col gap-4">
                     <input type="text" name="name" placeholder="이름 입력" value={user.name} onChange={handleChange} className="p-3 rounded-xl bg-slate-700 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <div className="flex gap-2 items-center">
-                        <input type="text" name="phone1" value={user.phone1} onChange={handleChange} className="w-16 p-3 rounded-xl bg-slate-700 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                        <span>-</span>
-                        <input type="text" name="phone2" value={user.phone2} onChange={handleChange} className="w-16 p-3 rounded-xl bg-slate-700 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                        <span>-</span>
-                        <input type="text" name="phone3" value={user.phone3} onChange={handleChange} className="w-16 p-3 rounded-xl bg-slate-700 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
+                    <input
+                        type="tel" // 모바일에서 숫자 키패드 활성화
+                        name="phone"
+                        placeholder="전화번호 입력 (010-1234-5678)"
+                        value={user.phone}
+                        onChange={handlePhoneChange} // 단일 핸들러 함수 필요
+                        maxLength={13} // 하이픈 포함 최대 길이 (010-XXXX-XXXX)
+                        className="p-3 rounded-xl bg-slate-700 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                     <input type="text" name="email" placeholder="이메일" value={user.email} onChange={handleChange} className="p-3 rounded-xl bg-slate-700 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </form>
             </div>

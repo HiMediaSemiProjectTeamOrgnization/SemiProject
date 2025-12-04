@@ -1,6 +1,6 @@
 import { FaChair, FaClock, FaLock, FaUser } from "react-icons/fa";
 
-function SeatBox({ seat, onClick, tabType = "daily", isSelected = false }) {
+function SeatBox({ seat, onClick, tabType = "daily", isSelected = false, disableHover = false, hideSelectText = false, disableSelection = false }) {
 
     function formatTime(minutes) {
         if (minutes === undefined || minutes === null) return "-";
@@ -17,14 +17,14 @@ function SeatBox({ seat, onClick, tabType = "daily", isSelected = false }) {
     if (seat.is_status) {
         cardStyle = `
             bg-${colorTheme}-500/10 border-${colorTheme}-500/50 text-${colorTheme}-400
-            hover:bg-${colorTheme}-500 hover:text-white hover:border-${colorTheme}-400 hover:shadow-lg hover:-translate-y-1 cursor-pointer active:scale-95
+            cursor-pointer ${!disableHover ? `hover:bg-${colorTheme}-500 hover:text-white hover:border-${colorTheme}-400 hover:shadow-lg hover:-translate-y-1` : ''}
             border
         `;
         content = (
             <>
-                <FaChair className="text-2xl mb-1 opacity-80" />
-                <span className="text-lg font-bold">{seat.seat_id}</span>
-                <span className="text-[10px] opacity-70">선택 가능</span>
+                <FaChair className={`text-2xl mb-1 opacity-80 ${isSelected && !disableSelection ? 'text-blue-400' : ''}`} />
+                <span className={`text-lg font-bold ${isSelected && !disableSelection ? 'text-blue-400' : ''}`}>{seat.seat_id}</span>
+                {!hideSelectText && <span className={`text-[10px] opacity-70 ${isSelected && !disableSelection ? 'text-blue-300' : ''}`}>선택 가능</span>}
             </>
         );
     } else {
@@ -54,11 +54,11 @@ function SeatBox({ seat, onClick, tabType = "daily", isSelected = false }) {
     return (
         <div className={`relative rounded-xl transition-all duration-200 aspect-square`} onClick={() => onClick?.(seat)}>
             {/* overlay like TicketList */}
-            <div className={`absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent rounded-xl transition-opacity pointer-events-none ${isSelected ? 'opacity-100' : 'opacity-0'}`}></div>
+            {!disableSelection && <div className={`absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent rounded-xl transition-opacity pointer-events-none ${isSelected ? 'opacity-100' : 'opacity-0'}`}></div>}
 
-            <div className={`relative rounded-xl h-full w-full p-2 flex flex-col items-center justify-center ${isSelected ? 'bg-slate-800 border-2 border-blue-500 text-white shadow-xl shadow-blue-900/40' : cardStyle}`}>
+            <div className={`relative rounded-xl h-full w-full p-2 flex flex-col items-center justify-center ${disableSelection || !isSelected ? cardStyle : 'bg-gradient-to-br from-blue-600/30 to-blue-900/40 border-2 border-blue-500 text-white shadow-xl shadow-blue-900/50'}`}>
                 {content}
-                {isSelected && (
+                {!disableSelection && isSelected && (
                     <span className="absolute bottom-2 text-[10px] font-bold text-blue-100 bg-blue-600/30 px-2 py-0.5 rounded-full">
                         선택됨
                     </span>

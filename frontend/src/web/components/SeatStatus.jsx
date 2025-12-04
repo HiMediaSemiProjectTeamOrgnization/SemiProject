@@ -55,7 +55,7 @@ function SeatStatus() {
     }
 
     return (
-        <div className="w-full h-screen bg-slate-900 flex flex-col font-sans text-white select-none overflow-hidden">
+        <div className="flex-1 flex flex-col px-4 pb-4 container mx-auto max-w-6xl h-full">
 
             <main className="flex-1 flex flex-col px-4 pb-4 w-full h-full bg-slate-900">
 
@@ -100,6 +100,9 @@ function SeatStatus() {
                                 seat={seat}
                                 tabType={activeTab}
                                 onClick={() => handleSeatClick(seat)}
+                                disableHover={true}
+                                hideSelectText={true}
+                                disableSelection={true}
                             />
                         ))}
                     </div>
@@ -110,15 +113,6 @@ function SeatStatus() {
                     </div>
                 </div>
             </main>
-
-            {/* 모달 영역 */}
-            {modalOpen && selectedSeat && (
-                <SeatModal
-                    seat={selectedSeat.seat_id}
-                    endTime={selectedSeat.end_time}
-                    onClose={() => setModalOpen(false)}
-                />
-            )}
         </div>
     );
 }
@@ -133,15 +127,7 @@ function TabButton({ isActive, onClick, label, color }) {
     const finalClass = isActive ? activeClass : inactiveClass;
 
     return (
-        <button
-            onClick={onClick}
-            className={`
-                px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200
-                ${finalClass}
-            `}
-        >
-            {label}
-        </button>
+        <button onClick={onClick} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${finalClass}`}>{label}</button>
     );
 }
 
