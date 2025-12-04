@@ -44,7 +44,7 @@ const WebLayout = () => {
             await fetchMember();
             alert("핀번호 입력 완료.");
         } catch (error) {
-            alert("잘못된 형식입니다. 핀번호를 다시 입력하세요.");
+            alert(`잘못된 형식입니다. 핀번호를 다시 입력하세요.${error}`);
         } finally {
             setIsPinSubmitting(false);
         }
@@ -66,7 +66,7 @@ const WebLayout = () => {
 
     return (
         // [전체 컨테이너] 배경색 및 폰트 설정
-        <div className="min-h-screen w-full flex flex-col relative">
+        <div className="min-h-screen w-full flex flex-col relative bg-[#f0f4f8] dark:bg-slate-900 text-blue-1000 dark:text-blue-300">
             {/* 핀번호 설정 모달 */}
             {showPinModal && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-all">
@@ -94,7 +94,7 @@ const WebLayout = () => {
                                     placeholder="••••"
                                     title="숫자 핀코드 (4글자)"
                                     value={pinInput}
-                                    onChange={(e) => setPinInput(e.target.value)}
+                                    onChange={(e) => setPinInput(e.target.value.replace(/[^0-9]/g, ''))}
                                     className="w-full h-14 text-center text-2xl font-bold tracking-[0.5em]
                                              bg-white/50 dark:bg-slate-950/50
                                              border border-slate-200 dark:border-slate-700
@@ -142,7 +142,7 @@ const WebLayout = () => {
                             <div className="text-slate-400 animate-pulse">확인 중...</div>
                         ) : member ? (
                             <>
-                                <button className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors cursor-default">
+                                <button className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors cursor-pointer">
                                     <span className="font-bold">{member.name}</span>님
                                 </button>
                                 <Link to="/web/ticket" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
@@ -233,7 +233,7 @@ const WebLayout = () => {
                 <Outlet />
             </main>
 
-            {/* ▼ 풋터 수정: 기존 bg-white/40... 지우고 요청하신 색상 적용 */}
+            {/*  풋터  */}
             <footer className="relative z-10 w-full border-t border-white/20 dark:border-white/10
             bg-[#f0f4f8] dark:bg-slate-900
             transition-colors duration-300">

@@ -7,6 +7,7 @@ const GoogleOnBoarding = () => {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [birthday, setBirthday] = useState('');
     const [pincode, setPincode] = useState('');
+    const [birthError, setBirthError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
 
@@ -21,6 +22,7 @@ const GoogleOnBoarding = () => {
                     setIsChecking(false);
                 }
             } catch (error) {
+                console.log(error);
                 navigate('/web', { replace: true });
             }
         };
@@ -75,6 +77,47 @@ const GoogleOnBoarding = () => {
 
         // 3. 상태 업데이트
         setPhoneNumber(formatted);
+    };
+
+    // [핸들러 함수] 생년월일 입력 및 검증 로직
+    const handleBirthChange = (e) => {
+        const val = e.target.value.replace(/[^0-9]/g, ""); // 숫자만 남기기
+
+        // 1. 일단 입력값 업데이트 (사용자가 타이핑은 할 수 있게)
+        setBirthday(val);
+        setBirthError(''); // 에러 초기화
+
+        // 2. 8자리가 되었을 때 정밀 검증 시작
+        if (val.length === 8) {
+            const year = parseInt(val.substring(0, 4));
+            const month = parseInt(val.substring(4, 6));
+            const day = parseInt(val.substring(6, 8));
+
+            const currentYear = new Date().getFullYear();
+
+            // [검증 1] 연도 범위: 1900년 ~ 현재 연도
+            if (year < 1900 || year > currentYear - 16) {
+                setBirthError(`${year}년은 올바르지 않습니다. (1900~${currentYear - 16})`);
+                return;
+            }
+
+            // [검증 2] 월 범위: 01 ~ 12
+            if (month < 1 || month > 12) {
+                setBirthError('월은 1월부터 12월까지만 가능합니다.');
+                return;
+            }
+
+            // [검증 3] 일 유효성 (실제로 존재하는 날짜인지 체크 - 예: 2월 30일 방지)
+            // new Date(년, 월-1, 일) -> 월은 0부터 시작하므로 -1
+            const date = new Date(year, month - 1, day);
+            if (
+                date.getFullYear() !== year ||
+                date.getMonth() + 1 !== month ||
+                date.getDate() !== day
+            ) {
+                setBirthError(`${month}월에는 ${day}일이 존재하지 않습니다.`);
+            }
+        }
     };
 
     return (
@@ -136,10 +179,10 @@ const GoogleOnBoarding = () => {
                                 <input
                                     type="text"
                                     required
-                                    placeholder="010-1234-5678"
+                                    placeholder="휴대폰번호 (010-1234-5678)"
                                     value={phoneNumber}
                                     pattern="010-[0-9]{4}-[0-9]{4}"
-                                    title="010-1234-5678"
+                                    title="휴대폰번호 (010-1234-5678)"
                                     maxLength="13"
                                     onChange={handlePhoneInput}
                                     className="w-full h-12 pl-12 pr-4
@@ -157,43 +200,50 @@ const GoogleOnBoarding = () => {
                             </div>
                         </div>
 
-                        {/* 생년월일 입력 */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
                                 생년월일
                             </label>
                             <div className="group relative">
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2
-                                text-slate-400 dark:text-slate-500
-                                group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400
-                                transition-colors duration-200">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400...">
+                                    {/* 아이콘이 있다면 유지 */}
                                 </div>
                                 <input
                                     type="text"
                                     inputMode="numeric"
-                                    pattern="(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])"
+                                    // 정규식 설명:
+                                    // (19|20)\d{2} : 19xx 또는 20xx 년도
+                                    // (0[1-9]|1[0-2]) : 01~09 또는 10~12 월
+                                    // (0[1-9]|[12][0-9]|3[01]) : 01~09, 10~29, 30~31 일
+                                    pattern="^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])$"
                                     required
-                                    placeholder="19990101"
+                                    placeholder="생년월일 (19990101)"
+                                    title="생년월일 (19990101)"
                                     maxLength="8"
-                                    title="19990101"
                                     value={birthday}
-                                    onChange={(e) => setBirthday(e.target.value.replace(/[^0-9]/g, ""))}
-                                    className="w-full h-12 pl-12 pr-4
-                             bg-white/50 dark:bg-slate-950/50
-                             border border-slate-200/80 dark:border-slate-700/80
-                             rounded-xl text-sm outline-none
-                             text-slate-800 dark:text-slate-200
-                             focus:bg-white dark:focus:bg-slate-900
-                             focus:border-blue-500/50 dark:focus:border-blue-400/50
-                             focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
-                             transition-all duration-200
-                             placeholder:text-slate-400 dark:placeholder:text-slate-600
-                             hover:bg-white/80 dark:hover:bg-slate-900/80
-
-                             /* 달력 아이콘 색상 조정 (브라우저 기본 스타일) */
-                             dark:[color-scheme:dark]"
+                                    // ▼▼▼ 핸들러 교체 ▼▼▼
+                                    onChange={handleBirthChange}
+                                    className={`w-full h-12 pl-12 pr-4
+                                 bg-white/50 dark:bg-slate-950/50
+                                 border rounded-xl text-sm outline-none
+                                 text-slate-800 dark:text-slate-200
+                                 transition-all duration-200
+                                 placeholder:text-slate-400 dark:placeholder:text-slate-600
+                                 hover:bg-white/80 dark:hover:bg-slate-900/80
+                                 /* 에러가 있으면 테두리를 빨간색으로 변경하는 조건부 스타일 */
+                                 ${birthError
+                                        ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10'
+                                        : 'border-slate-200/80 dark:border-slate-700/80 focus:border-blue-500/50 dark:focus:border-blue-400/50 focus:ring-blue-500/10'
+                                    }`}
                                 />
                             </div>
+
+                            {/* ▼▼▼ 에러 메시지 표시 영역 추가 ▼▼▼ */}
+                            {birthError && (
+                                <p className="text-xs text-red-500 ml-1 font-medium animate-pulse">
+                                    {birthError}
+                                </p>
+                            )}
                         </div>
 
                         {/* 핀코드 입력 */}
@@ -213,8 +263,8 @@ const GoogleOnBoarding = () => {
                                     maxLength="4"
                                     inputMode="numeric"
                                     required
-                                    placeholder="키오스크 필수 핀코드"
-                                    title="키오스크 필수 핀코드"
+                                    placeholder="숫자 핀코드 (4자)"
+                                    title="숫자 핀코드 (4자)"
                                     value={pincode}
                                     onChange={(e) => setPincode(e.target.value.replace(/[^0-9]/g, ""))}
                                     className="w-full h-12 pl-12 pr-4

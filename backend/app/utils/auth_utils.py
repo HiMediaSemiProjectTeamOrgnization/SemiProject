@@ -1,4 +1,6 @@
 import os
+import random
+import string
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
@@ -6,18 +8,37 @@ from fastapi import HTTPException, Response, Cookie, Depends
 from jose import jwt, JWTError, ExpiredSignatureError
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+from pydantic import SecretStr
 from database import get_db
 from models import Token, Member
 
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
+MAIL_USERNAME=os.getenv("MAIL_USERNAME")
+MAIL_PASSWORD=os.getenv("MAIL_PASSWORD")
+MAIL_FROM=os.getenv("MAIL_FROM")
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 ACCESS_TOKEN_EXPIRE_SECONDS = 60 * ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 REFRESH_TOKEN_EXPIRE_SECONDS = 60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS
 KST = ZoneInfo("Asia/Seoul")
 BCRYPT = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# 이메일 설정 (Gmail 앱 비밀번호 사용)
+conf = ConnectionConfig(
+    MAIL_USERNAME=MAIL_USERNAME,
+    MAIL_PASSWORD=SecretStr(MAIL_PASSWORD),
+    MAIL_FROM=MAIL_FROM,
+    MAIL_PORT=587,
+    MAIL_SERVER="smtp.gmail.com",
+    MAIL_STARTTLS=True,
+    MAIL_SSL_TLS=False,
+    USE_CREDENTIALS=True,
+    VALIDATE_CERTS=True
+)
+fast_mail = FastMail(conf)
 
 """ 비밀번호 인코딩 """
 def password_encode(password: str):
@@ -226,3 +247,101 @@ def decode_google_temp_token(token: str):
         return payload
     except JWTError:
         raise HTTPException(status_code=401, detail="invalid token")
+
+""" 랜덤 인증번호 생성 """
+def generate_random_code(length=6):
+    return ''.join(random.choices(string.digits, k=length))
+
+""" 랜덤 비밀번호 생성 """
+def generate_temp_password(length=10):
+    chars = string.ascii_letters + string.digits + "!@#$"
+    return ''.join(random.choices(chars, k=length))
+
+""" 아이디 및 비밀번호 찾기 jwt 쿠키 생성 """
+async def encode_account_recovery_temp_token(response: Response, recovery_type: str, login_id: str, email: str):
+    # 인증번호 생성 (6자리)
+    code = generate_random_code()
+    # 쿠키 만료시간 생성
+    exp = datetime.now(KST) + timedelta(minutes=5)
+
+    # 아이디 찾기 일때
+    if recovery_type == "recovery_id":
+        payload = {
+            "type": "recovery_id",
+            "exp": exp,
+            "code": code,
+            "login_id": login_id
+        }
+
+        # jwt 생성
+        token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+        # 쿠키 생성
+        response.set_cookie(
+            key="recovery_id",
+            value=token,
+            httponly=True,
+            samesite="lax",
+            max_age=60 * 5
+        )
+
+        # 메일 보내기 및 전송
+        message = MessageSchema(
+            subject="하이미디어 스터디카페, 아이디 요청 인증코드",
+            recipients=[email],
+            body=f"""
+                <p>인증코드: {code}</p>
+                <p>인증코드는 5분 뒤에 만료됩니다.</p>
+                """,
+            subtype=MessageType.html
+        )
+        await fast_mail.send_message(message)
+
+    # 비밀번호 찾기 일때
+    elif recovery_type == "recovery_pw":
+        payload = {
+            "type": "recovery_pw",
+            "exp": exp,
+            "code": code,
+            "login_id": login_id
+        }
+
+        # jwt 생성
+        token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+        # 쿠키 생성
+        response.set_cookie(
+            key="recovery_pw",
+            value=token,
+            httponly=True,
+            samesite="lax",
+            max_age=60 * 5
+        )
+
+        # 메일 보내기 및 전송
+        message = MessageSchema(
+            subject="하이미디어 스터디카페, 비밀번호 요청 인증코드",
+            recipients=[email],
+            body=f"""
+                <p>인증코드: {code}</p>
+                <p>인증코드는 5분 뒤에 만료됩니다.</p>
+                """,
+            subtype=MessageType.html
+        )
+        await fast_mail.send_message(message)
+    else:
+        raise HTTPException(status_code=400, detail="invalid type")
+
+    return response
+
+""" 아이디 및 비밀번호 찾기 jwt 쿠키 해독 """
+def decode_account_recovery_temp_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if payload.get("type") == "recovery_id" or payload.get("type") == "recovery_pw":
+            return payload
+        else:
+            raise HTTPException(status_code=400, detail="invalid token")
+    except JWTError:
+        raise HTTPException(status_code=400, detail="invalid token")

@@ -11,7 +11,8 @@ from schemas import TokenCreate, MemberSignup, MemberLogin, MemberGoogleOnboardi
 from utils.auth_utils import (password_encode, password_decode, revoke_existing_token, revoke_existing_token_by_id,
                               set_token_cookies, get_cookies_info, encode_temp_signup_token, decode_temp_signup_token,
                               verify_token, create_access_token, create_refresh_token, encode_google_temp_token,
-                              decode_google_temp_token)
+                              decode_google_temp_token, generate_temp_password, encode_account_recovery_temp_token,
+                              decode_account_recovery_temp_token)
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -714,3 +715,86 @@ def get_cookies(
         **member,
         "pin_code": mem_db.pin_code
     }
+
+""" 아이디 찾기 """
+@router.post("/account-recovery/id")
+async def account_recovery_id(
+    response: Response,
+    id_recovery_data: dict = Body(...), # {"email": email}
+    db: Session = Depends(get_db)
+):
+    # 이메일이 존재하는지 검증
+    valid_member = db.query(Member).filter(Member.email == id_recovery_data.get("email")).first()
+    if not valid_member or not valid_member.login_id:
+        raise HTTPException(status_code=404, detail="email or loginid not exists")
+
+    # 아이디 반환 준비
+    login_id = valid_member.login_id
+
+    # 인증코드 검증용 jwt 쿠키 생성
+    response = await encode_account_recovery_temp_token(
+        response, "recovery_id", login_id, id_recovery_data.get("email")
+    )
+
+    return response
+
+""" 비밀번호 찾기 """
+@router.post("/account-recovery/pw")
+async def account_recovery_pw(
+    response: Response,
+    pw_recovery_data: dict = Body(...), # {"login_id": login_id, "email": email}
+    db: Session = Depends(get_db)
+):
+    # 이메일이랑 아이디가 존재하는지 검증
+    valid_member = db.query(Member).filter(
+        (Member.email == pw_recovery_data.get("email")),
+        (Member.login_id == pw_recovery_data.get("login_id"))
+    ).first()
+    if not valid_member:
+        raise HTTPException(status_code=404, detail="email or id not exists")
+
+    # 아이디 반환 준비
+    login_id = valid_member.login_id
+
+    # 인증코드 검증용 jwt 쿠키 생성
+    response = await encode_account_recovery_temp_token(
+        response, "recovery_pw", login_id, pw_recovery_data.get("email")
+    )
+
+    return response
+
+""" 아이디/비밀번호 찾기 인증번호 입력 검증 """
+@router.post("/account-recovery/code")
+def account_recovery_code(
+    input_code: str,
+    recovery_id: str = Cookie(None),
+    recovery_pw: str = Cookie(None),
+    db: Session = Depends(get_db)
+):
+    # 아이디 찾기
+    if recovery_id:
+        payload = decode_account_recovery_temp_token(recovery_id)
+
+        # 이메일로 보낸 코드가 일치하면
+        if input_code == payload.get("code"):
+            return payload.get("login_id")
+        raise HTTPException(status_code=404, detail="incorrect code")
+    # 비밀번호 찾기
+    elif recovery_pw:
+        payload = decode_account_recovery_temp_token(recovery_pw)
+
+        # 이메일로 보낸 코드가 일치하면
+        if input_code == payload.get("code"):
+            # 비밀번호 생성 (10자리)
+            password = generate_temp_password()
+
+            # 임시 비밀번호 변경
+            member = db.query(Member).filter(Member.login_id == payload.get("login_id")).first()
+            member.password = password
+            db.commit()
+            db.refresh(member)
+
+            return password
+        raise HTTPException(status_code=404, detail="incorrect code")
+    else:
+        raise HTTPException(status_code=400, detail="expired cookie")

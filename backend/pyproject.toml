@@ -9,6 +9,7 @@ dependencies = [
     "bcrypt==4.0.1",
     "dotenv>=0.9.9",
     "fastapi>=0.121.3",
+    "fastapi-mail[aioredis,httpx]>=1.5.8",
     "httpx>=0.28.1",
     "numpy<2.0.0",
     "opencv-python>=4.11.0.86",
