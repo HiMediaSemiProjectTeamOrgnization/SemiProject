@@ -1,13 +1,49 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, Body
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
-from database import get_db
+from database import get_db, SessionLocal
 from datetime import datetime, timedelta
 from models import Product, Member, Order, Seat, MileageHistory
 from utils.auth_utils import get_cookies_info
 from typing import Optional
+from apscheduler.schedulers.background import BackgroundScheduler
+
 
 router = APIRouter(prefix="/api/web", tags=["웹사이트 관리"])
+
+# 좌석 상태 초기화 스케줄러
+def reset_seat_status():
+    db: Session = SessionLocal()
+    try:
+        now = datetime.now().date()
+        print("[스케줄러] 좌석 초기화 작업 시작")
+    
+        expired_seats = (
+            db.query(Order.fixed_seat_id).filter(Order.period_end_date < now).filter(Order.fixed_seat_id.isnot(None)).distinct().all()
+        )
+
+        expired_idx = [s[0] for s in expired_seats]
+
+        if expired_idx:
+            updated = db.query(Seat).filter(Seat.seat_id.in_(expired_idx)).filter(Seat.is_status == False).update({"is_status": True}, synchronize_session=False)
+            db.commit()
+
+            if updated > 0:
+                print("기간이 만료된 좌석이 발견되어 사용가능 처리했습니다. 좌석 ID :", expired_idx)
+            else:
+                print("사용 중인 좌석 중 기간만료된 좌석이 없습니다.")
+
+    except Exception as e:
+        db.rollback()
+        print("좌석 상태 업데이트 중 오류 발생 :", str(e))
+
+    finally:
+        db.close()
+
+def start_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(reset_seat_status, 'cron', hour=0, minute=0)
+    scheduler.start()
 
 # ===== 로그인 사용자 정보 가져오기 =====
 @router.get("/me")
@@ -78,6 +114,13 @@ def getPaymentPage(ticketData: dict = Body(...), user: dict = Body(...), SelectS
     # 기간제 이용권일 때만 좌석 + 날짜 정보 추가
     if SelectSeat is not None:
         now = datetime.now()
+
+        # 기존 이용권 기간 만료 여부 확인
+        latest_order = (db.query(Order.period_end_date).filter(Order.member_id == id).filter(Order.period_end_date != None).order_by(Order.order_id.desc()).first())
+        latest_expiration_date = latest_order[0] if latest_order else None
+        if latest_expiration_date and latest_expiration_date.date() > now.date() :
+            raise HTTPException(status_code=400, detail="이용권 기간이 남아있는 상태에서는 새로운 기간제 이용권을 구매할 수 없습니다.")
+        
         order.period_start_date = now.date()
         order.period_end_date = (now + timedelta(days=ticket["value"])).date()
         order.fixed_seat_id = SelectSeat["seat_id"]
@@ -116,4 +159,4 @@ def getPaymentPage(ticketData: dict = Body(...), user: dict = Body(...), SelectS
     db.commit()
     db.refresh(order)
 
-    return {"status" : 200, "order" : order}
+    return order

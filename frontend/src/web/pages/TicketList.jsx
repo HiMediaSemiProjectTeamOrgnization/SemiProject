@@ -133,8 +133,8 @@ function TicketList() {
 
             <div className="mt-8 flex justify-between items-center bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-inner">
                 <div>
-                    <p className="text-lg text-slate-300">이용 기간: <span className="text-white font-semibold">{choiceTicket.name || '미선택'}</span></p>
-                    <p className="text-lg text-slate-300">총 금액: <span className="text-white font-semibold">{choiceTicket.price ? Number(choiceTicket.price).toLocaleString() + "원" : '0원'}</span></p>
+                    <p className="text-lg text-slate-300">이용 기간: <span className="text-white font-semibold">{choiceTicket.name || ''}</span></p>
+                    <p className="text-lg text-slate-300">총 금액: <span className="text-white font-semibold">{choiceTicket.price ? Number(choiceTicket.price).toLocaleString() + "원" : ''}</span></p>
                 </div>
                 <div className="flex gap-4">
                     <button className="px-6 py-3 rounded-2xl bg-red-600 text-white font-semibold cursor-pointer" onClick={handleCancel}>취소하기</button>

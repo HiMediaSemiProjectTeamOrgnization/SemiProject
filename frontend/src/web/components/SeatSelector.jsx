@@ -26,7 +26,7 @@ function SeatSelector({ choiceTicket, seats, onBack }) {
 
     return (
         <div className="flex-1 flex flex-col px-4 pb-4 container mx-auto max-w-6xl h-full">
-            <main className="flex-1 flex flex-col px-4 pb-6 w-full h-full">
+            <main className="flex-1 flex flex-col px-4 pb-6 w-full h-full relative">
                 <div className="flex justify-between items-end mb-4 shrink-0 px-2">
                     <div>
                         <h2 className="text-3xl font-bold text-white tracking-tight">좌석 선택</h2>
@@ -58,16 +58,13 @@ function SeatSelector({ choiceTicket, seats, onBack }) {
                 </div>
 
                 {/* 버튼은 선택된 좌석이 있을 때만 하단 고정으로 표시 */}
-                {/* 기존 위치의 버튼 제거 */}
-            </main>
-
-            {selectedSeat && (
-                <div className="fixed left-1/2 transform -translate-x-1/2 z-50 w-full px-4" style={{ bottom: 30 }}>
-                    <div className="max-w-6xl mx-auto bg-slate-800 p-4 rounded-3xl border border-slate-700 shadow-inner flex items-center justify-between gap-4">
-                        <div>
-                            <p className="text-sm text-slate-300">선택된 좌석</p>
-                            <p className="text-lg font-semibold text-white">{selectedSeat.seat_id}</p>
-                        </div>
+                {selectedSeat && (
+                    <div className="absolute left-1/2 transform -translate-x-1/2 z-50 w-full px-4" style={{ bottom: '5px' }}>
+                        <div className="max-w-6xl mx-auto bg-slate-800 p-4 rounded-3xl border border-slate-700 shadow-inner flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-sm text-slate-300">선택된 좌석</p>
+                                <p className="text-lg font-semibold text-white">{selectedSeat.seat_id}</p>
+                            </div>
 
                             <div className="flex items-center gap-4">
                                 <button
@@ -87,9 +84,10 @@ function SeatSelector({ choiceTicket, seats, onBack }) {
                                     다음
                                 </button>
                             </div>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+            </main>
         </div>
     );
 }

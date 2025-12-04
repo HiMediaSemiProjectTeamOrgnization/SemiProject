@@ -104,17 +104,22 @@ function Payments() {
             body: JSON.stringify(resData),
         });
 
-        if (!res.ok) alert("서버에 오류가 발생했습니다. 다시 시도하세요.");
+        if (res.ok) {
+            const result = await res.json();
+            navigate("/web/payment/success", {
+                state: {
+                    ticket: ticket,
+                    seat: SelectSeat,
+                    order: result
+                }
+            })
+        } else {
+            const errorData = await res.json();
+            alert(errorData.detail);
+            navigate("/web/ticket");
+        }
 
-        const result = await res.json();
 
-        if (result.status === 200) navigate("/web/payment/success", {
-            state: {
-                ticket: ticket,
-                seat: SelectSeat,
-                order: result.order
-            }
-        })
     };
 
     return (
