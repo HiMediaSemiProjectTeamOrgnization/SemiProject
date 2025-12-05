@@ -12,6 +12,7 @@ import os
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_tables()
+    ticket.start_scheduler()
     yield
 
 app = FastAPI(lifespan=lifespan)
