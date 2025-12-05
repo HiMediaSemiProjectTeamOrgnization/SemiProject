@@ -1,35 +1,40 @@
 import os
 import random
 import string
+import hashlib
+import base64
+from fastapi import HTTPException, Response, Cookie, Depends
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
-from fastapi import HTTPException, Response, Cookie, Depends
 from jose import jwt, JWTError, ExpiredSignatureError
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
-from pydantic import SecretStr
+from cryptography.fernet import Fernet
 from database import get_db
 from models import Token, Member
 
 load_dotenv()
-SECRET_KEY = os.getenv("SECRET_KEY")
+
+SECRET_KEY  = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
-MAIL_USERNAME=os.getenv("MAIL_USERNAME")
-MAIL_PASSWORD=os.getenv("MAIL_PASSWORD")
-MAIL_FROM=os.getenv("MAIL_FROM")
+MAIL_USERNAME = os.getenv("MAIL_USERNAME")
+MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
+MAIL_FROM = os.getenv("MAIL_FROM")
+
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 ACCESS_TOKEN_EXPIRE_SECONDS = 60 * ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 REFRESH_TOKEN_EXPIRE_SECONDS = 60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS
+
 KST = ZoneInfo("Asia/Seoul")
 BCRYPT = CryptContext(schemes=["bcrypt"], deprecated="auto")
+FERNET = Fernet(base64.urlsafe_b64encode(hashlib.sha256(SECRET_KEY.encode()).digest()))
 
-# 이메일 설정 (Gmail 앱 비밀번호 사용)
 conf = ConnectionConfig(
     MAIL_USERNAME=MAIL_USERNAME,
-    MAIL_PASSWORD=SecretStr(MAIL_PASSWORD),
+    MAIL_PASSWORD=MAIL_PASSWORD,
     MAIL_FROM=MAIL_FROM,
     MAIL_PORT=587,
     MAIL_SERVER="smtp.gmail.com",
@@ -38,6 +43,7 @@ conf = ConnectionConfig(
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=True
 )
+
 fast_mail = FastMail(conf)
 
 """ 비밀번호 인코딩 """
@@ -72,7 +78,6 @@ def create_refresh_token(member_id, name, db: Session):
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-    # 리프레시 토큰 DB 저장
     refresh_token = Token(
         member_id=member_id,
         token=token,
@@ -96,7 +101,6 @@ def verify_token(token: str, token_type: str = "access"):
             "name": name
         }
 
-        # 토큰 타입 검증
         if type_check != token_type:
             return None, "invalid"
 
@@ -176,7 +180,7 @@ def set_token_cookies(member_id: int, name: str, db: Session, response: Response
     # 엑세스 토큰 생성
     access_token = create_access_token(member_id, name)
 
-    # 리프레시 토큰 생성
+    # 리프레시 토큰 생성 및 DB에 저장
     refresh_token = create_refresh_token(member_id, name, db)
 
     # 토큰들을 쿠키에 저장
@@ -248,29 +252,56 @@ def decode_google_temp_token(token: str):
     except JWTError:
         raise HTTPException(status_code=401, detail="invalid token")
 
+""" 암호화 함수 """
+def encrypt_data(data: str):
+    if not data:
+        return ""
+    return FERNET.encrypt(data.encode()).decode()
+
+""" 복호화 함수 """
+def decrypt_data(encrypted_data: str):
+    if not encrypted_data:
+        return ""
+    try:
+        return FERNET.decrypt(encrypted_data.encode()).decode()
+    except Exception:
+        raise HTTPException(status_code=400, detail="decryption failed")
+
 """ 랜덤 인증번호 생성 """
 def generate_random_code(length=6):
-    return ''.join(random.choices(string.digits, k=length))
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(chars, k=length))
 
 """ 랜덤 비밀번호 생성 """
 def generate_temp_password(length=10):
     chars = string.ascii_letters + string.digits + "!@#$"
     return ''.join(random.choices(chars, k=length))
 
+""" 코드 해싱 함수 """
+def get_code_hash(code: str):
+    return hashlib.sha256((code + SECRET_KEY).encode('utf-8')).hexdigest()
+
 """ 아이디 및 비밀번호 찾기 jwt 쿠키 생성 """
 async def encode_account_recovery_temp_token(response: Response, recovery_type: str, login_id: str, email: str):
     # 인증번호 생성 (6자리)
     code = generate_random_code()
+
+    # 인증번호 암호화
+    hashed_code = get_code_hash(code)
+
     # 쿠키 만료시간 생성
     exp = datetime.now(KST) + timedelta(minutes=5)
+
+    # 아이디 암호화
+    encrypted_login_id = encrypt_data(login_id)
 
     # 아이디 찾기 일때
     if recovery_type == "recovery_id":
         payload = {
             "type": "recovery_id",
             "exp": exp,
-            "code": code,
-            "login_id": login_id
+            "code": hashed_code,
+            "login_id": encrypted_login_id
         }
 
         # jwt 생성
@@ -302,8 +333,8 @@ async def encode_account_recovery_temp_token(response: Response, recovery_type: 
         payload = {
             "type": "recovery_pw",
             "exp": exp,
-            "code": code,
-            "login_id": login_id
+            "code": hashed_code,
+            "login_id": encrypted_login_id
         }
 
         # jwt 생성

@@ -5,18 +5,21 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Depends, Body
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from database import get_db
 from models import Token, Member
-from schemas import TokenCreate, MemberSignup, MemberLogin, MemberGoogleOnboarding
-from utils.auth_utils import (password_encode, password_decode, revoke_existing_token, revoke_existing_token_by_id,
-                              set_token_cookies, get_cookies_info, encode_temp_signup_token, decode_temp_signup_token,
-                              verify_token, create_access_token, create_refresh_token, encode_google_temp_token,
-                              decode_google_temp_token, generate_temp_password, encode_account_recovery_temp_token,
-                              decode_account_recovery_temp_token)
+from schemas import MemberSignup, MemberLogin, MemberGoogleOnboarding
+from utils.auth_utils import (
+    password_encode, password_decode, revoke_existing_token, revoke_existing_token_by_id, set_token_cookies,
+    get_cookies_info, encode_temp_signup_token, decode_temp_signup_token, verify_token, encode_google_temp_token,
+    decode_google_temp_token, generate_temp_password, encode_account_recovery_temp_token, get_code_hash,
+    decode_account_recovery_temp_token, decrypt_data
+)
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 load_dotenv()
+
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
 KAKAO_CLIENT_SECRET = os.getenv("KAKAO_CLIENT_SECRET")
@@ -27,52 +30,60 @@ NAVER_REDIRECT_URI = os.getenv("NAVER_REDIRECT_URI")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+
 ########################################################################################################################
 # 일반 로그인 관련 로직
 ########################################################################################################################
 """ 일반 회원 가입 """
-@router.post("/signup")
+@router.post("/signup", status_code=201)
 def signup(
     member_data: MemberSignup,
     response: Response,
     db: Session = Depends(get_db)
 ):
-    # 아이디 중복 조회
+    # 아이디로 회원 조회
     id_exists = db.query(Member).filter(Member.login_id == member_data.login_id).first()
     if id_exists:
         raise HTTPException(status_code=409, detail="already used loginid")
 
-    # 휴대폰 번호 조회
+    # 휴대폰 번호로 회원 조회
     existing_member = db.query(Member).filter(Member.phone == member_data.phone).first()
-
-    # 비밀번호 해싱
-    hashed_pw = password_encode(member_data.password)
-
-    # 휴대폰 번호가 존재할때
     if existing_member:
         raise HTTPException(status_code=400, detail="exists phone number")
 
-    # 휴대폰 번호가 존재하지 않을 때, 회원가입
+    # 회원이 존재하지 않을때, 회원가입
     else:
-        member = Member(
-            login_id=member_data.login_id,
-            name=member_data.name,
-            password=hashed_pw,
-            phone=member_data.phone,
-            social_type=None,
-            birthday=member_data.birthday,
-            pin_code=int(member_data.pin_code),
-            email=member_data.email
-        )
-        db.add(member)
-        db.commit()
+        try:
+            # 비밀번호 해싱
+            hashed_pw = password_encode(member_data.password)
+
+            # DB에 회원 추가
+            member = Member(
+                login_id=member_data.login_id,
+                name=member_data.name,
+                password=hashed_pw,
+                phone=member_data.phone,
+                social_type=None,
+                birthday=member_data.birthday,
+                pin_code=int(member_data.pin_code),
+                email=member_data.email
+            )
+
+            db.add(member)
+            db.commit()
+
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(status_code=409, detail="already exists")
+
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=str(e))
 
         # 토큰 및 쿠키 생성 함수
         set_token_cookies(member.member_id, member.name, db, response)
 
-    response.status_code = 201
-
-    return {"status": "ok"}
+    return None
 
 """ 아이디 중복 체크 """
 @router.post("/signup/check-id")
@@ -80,6 +91,7 @@ def check_id(
     login_id: str = Body(..., embed=True),
     db: Session = Depends(get_db)
 ):
+    # 아이디로 회원 조회
     member = db.query(Member).filter(Member.login_id == login_id).first()
     if member:
         raise HTTPException(status_code=400, detail="already exists id")
@@ -92,6 +104,7 @@ def check_phone(
     phone: str = Body(..., embed=True),
     db: Session = Depends(get_db)
 ):
+    # 휴대폰 번호로 회원 조회
     member = db.query(Member).filter(Member.phone == phone).first()
     if member:
         raise HTTPException(status_code=400, detail="already exists phone")
@@ -117,10 +130,19 @@ def login(
         if not member or not password_decode(member_data.password, member.password):
             raise HTTPException(status_code=400, detail="incorrect id or password")
 
-        # 소셜 타입 공백으로 만들어서 일반 로그인으로 만든다.
-        member.social_type = None
-        db.commit()
-        db.refresh(member)
+        try:
+            # 소셜 타입 공백으로 만들어서 일반 로그인으로 만든다.
+            member.social_type = None
+            db.commit()
+            db.refresh(member)
+
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(status_code=409, detail="Integrity Error")
+
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=str(e))
     # 그외 문제 예외처리
     else:
         raise HTTPException(status_code=401, detail="missing credentials")
@@ -141,9 +163,19 @@ def update_pincode(
     db: Session = Depends(get_db)
 ):
     member = db.query(Member).filter(Member.member_id == cookie_member.get("member_id")).first()
-    member.pin_code = int(mem_data.get("pin_code"))
-    db.commit()
-    db.refresh(member)
+
+    try:
+        member.pin_code = int(mem_data.get("pin_code"))
+        db.commit()
+        db.refresh(member)
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Integrity Error")
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
     return Response(status_code=204)
 ########################################################################################################################
@@ -151,12 +183,15 @@ def update_pincode(
 ########################################################################################################################
 """ 카카오 로그인 리다이렉트 """
 @router.get("/kakao/login")
-async def kakao_login(
+def kakao_login(
     db: Session = Depends(get_db),
     refresh_token: str = Cookie(None)
 ):
     # 기존 DB의 리프레시 토큰들 무효화 (쿠키)
     revoke_existing_token(db, refresh_token)
+
+    # 랜덤 state 생성
+    state = str(uuid.uuid4())
 
     kakao_auth_url = (
         f"https://kauth.kakao.com/oauth/authorize"
@@ -164,16 +199,32 @@ async def kakao_login(
         f"&client_id={KAKAO_CLIENT_ID}"
         f"&redirect_uri={KAKAO_REDIRECT_URI}"
         f"&prompt=select_account"
+        f"&state={state}"
     )
 
-    return RedirectResponse(url=kakao_auth_url)
+    # 카카오 oauth용 state를 쿠키에 저장
+    response = RedirectResponse(url=kakao_auth_url)
+    response.set_cookie(
+        key="kakao_oauth_state",
+        value=state,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 5
+    )
+
+    return response
 
 """ 카카오 로그인 콜백 """
 @router.get("/kakao/callback")
-async def kakao_callback(
+def kakao_callback(
     code: str,
+    kakao_oauth_state: str = Cookie(None),
     db: Session = Depends(get_db)
 ):
+    # state가 없을 시
+    if not kakao_oauth_state:
+        raise HTTPException(status_code=401, detail="oauth state not found")
+
     # 리다이렉트 할 URL 주소
     response = RedirectResponse(url=f"{FRONTEND_URL}/web")
 
@@ -185,12 +236,16 @@ async def kakao_callback(
         "client_id": KAKAO_CLIENT_ID,
         "redirect_uri": KAKAO_REDIRECT_URI,
         "client_secret": KAKAO_CLIENT_SECRET,
-        "code": code
+        "code": code,
+        "state": kakao_oauth_state
     }
 
+    # state 쿠키 다시 제거
+    response.delete_cookie("kakao_oauth_state")
+
     # OAUTH에서 엑세스, 리프레시 토큰 요청
-    async with httpx.AsyncClient() as client:
-        token_response = await client.post(token_url, data=token_data)
+    with httpx.Client() as client:
+        token_response = client.post(token_url, data=token_data)
 
         # 카카오의 엑세스 토큰은 오직 유저 정보를 받아오는 용도로만 사용한다.
         # 유저 정보를 토대로 자체 JWT로 만든 엑세스, 리프레시 토큰으로 관리한다.
@@ -203,7 +258,7 @@ async def kakao_callback(
         # OAUTH의 엑세스 토큰으로 사용자 정보 가져오기
         user_info_url = "https://kapi.kakao.com/v2/user/me"
         headers = {"Authorization": f"Bearer {kakao_access_token}"}
-        user_response = await client.get(user_info_url, headers=headers)
+        user_response = client.get(user_info_url, headers=headers)
         user_info = user_response.json()
 
     kakao_id = str(user_info.get("id"))
@@ -289,7 +344,7 @@ async def kakao_callback(
 ########################################################################################################################
 """ 네이버 로그인 리다이렉트 """
 @router.get("/naver/login")
-async def naver_login(
+def naver_login(
     db: Session = Depends(get_db),
     refresh_token: str = Cookie(None)
 ):
@@ -322,7 +377,7 @@ async def naver_login(
 
 """ 네이버 로그인 콜백 """
 @router.get("/naver/callback")
-async def naver_callback(
+def naver_callback(
     code: str,
     naver_oauth_state: str = Cookie(None),
     db: Session = Depends(get_db)
@@ -346,9 +401,12 @@ async def naver_callback(
         "state": naver_oauth_state
     }
 
+    # state 쿠키 다시 제거
+    response.delete_cookie("naver_oauth_state")
+
     # OAUTH에서 엑세스, 리프레시 토큰 요청
-    async with httpx.AsyncClient() as client:
-        token_response = await client.post(token_url, data=token_data)
+    with httpx.Client() as client:
+        token_response = client.post(token_url, data=token_data)
 
         # 네이버의 엑세스 토큰은 오직 유저 정보를 받아오는 용도로만 사용한다.
         # 유저 정보를 토대로 자체 JWT로 만든 엑세스, 리프레시 토큰으로 관리한다.
@@ -361,7 +419,7 @@ async def naver_callback(
         # OAUTH의 엑세스 토큰으로 사용자 정보 가져오기
         user_info_url = "https://openapi.naver.com/v1/nid/me"
         headers = {"Authorization": f"Bearer {naver_access_token}"}
-        user_response = await client.get(user_info_url, headers=headers)
+        user_response = client.get(user_info_url, headers=headers)
         user_info = user_response.json().get("response")
 
     naver_id = str(user_info.get("id"))
@@ -437,21 +495,21 @@ async def naver_callback(
             except Exception as e:
                 raise HTTPException(status_code=401, detail=f"transaction failed: {e}")
 
-    # state 쿠키 다시 제거
-    response.delete_cookie("naver_oauth_state")
-
     return response
 ########################################################################################################################
 # 구글 로그인 관련 로직
 ########################################################################################################################
 """ 구글 로그인 리다이렉트 """
 @router.get("/google/login")
-async def google_login(
+def google_login(
     db: Session = Depends(get_db),
     refresh_token: str = Cookie(None)
 ):
     # 기존 DB의 리프레시 토큰들 무효화 (쿠키)
     revoke_existing_token(db, refresh_token)
+
+    # 랜덤 state 생성
+    state = str(uuid.uuid4())
 
     google_auth_url = (
         f"https://accounts.google.com/o/oauth2/auth"
@@ -460,17 +518,33 @@ async def google_login(
         f"&redirect_uri={GOOGLE_REDIRECT_URI}"
         f"&scope=openid%20email%20profile"
         f"&prompt=select_account"
+        f"&state={state}"
     )
 
-    return RedirectResponse(url=google_auth_url)
+    # 구글 oauth용 state를 쿠키에 저장
+    response = RedirectResponse(url=google_auth_url)
+    response.set_cookie(
+        key="google_oauth_state",
+        value=state,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 5
+    )
+
+    return response
 
 """ 구글 로그인 콜백 """
 @router.get("/google/callback")
-async def google_callback(
+def google_callback(
     code: str,
     request: Request,
+    google_oauth_state: str = Cookie(None),
     db: Session = Depends(get_db)
 ):
+    # state가 없을 시
+    if not google_oauth_state:
+        raise HTTPException(status_code=401, detail="oauth state not found")
+
     # 리다이렉트 할 URL 주소
     response = RedirectResponse(url=f"{FRONTEND_URL}/web")
 
@@ -482,12 +556,16 @@ async def google_callback(
         "client_id": GOOGLE_CLIENT_ID,
         "client_secret": GOOGLE_CLIENT_SECRET,
         "redirect_uri": GOOGLE_REDIRECT_URI,
-        "code": code
+        "code": code,
+        "state": google_oauth_state
     }
 
+    # state 쿠키 다시 제거
+    response.delete_cookie("google_oauth_state")
+
     # OAUTH에서 엑세스, 리프레시 토큰 요청
-    async with httpx.AsyncClient() as client:
-        token_response = await client.post(token_url, data=token_data)
+    with httpx.Client() as client:
+        token_response = client.post(token_url, data=token_data)
 
         # 구글의 엑세스 토큰은 오직 유저 정보를 받아오는 용도로만 사용한다.
         # 유저 정보를 토대로 자체 JWT로 만든 엑세스, 리프레시 토큰으로 관리한다.
@@ -500,7 +578,7 @@ async def google_callback(
         # OAUTH의 엑세스 토큰으로 사용자 정보 가져오기
         user_info_url = "https://www.googleapis.com/oauth2/v3/userinfo"
         headers = {"Authorization": f"Bearer {google_access_token}"}
-        user_response = await client.get(user_info_url, headers=headers)
+        user_response = client.get(user_info_url, headers=headers)
         user_info = user_response.json()
 
     # 구글은 phone_number, birthday, birthyear 안보냄
@@ -720,7 +798,7 @@ def get_cookies(
 @router.post("/account-recovery/id")
 async def account_recovery_id(
     response: Response,
-    id_recovery_data: dict = Body(...), # {"email": email}
+    id_recovery_data: dict = Body(...),
     db: Session = Depends(get_db)
 ):
     # 이메일이 존재하는지 검증
@@ -728,21 +806,22 @@ async def account_recovery_id(
     if not valid_member or not valid_member.login_id:
         raise HTTPException(status_code=404, detail="email or loginid not exists")
 
-    # 아이디 반환 준비
+    # 아이디, 이메일 반환 준비
     login_id = valid_member.login_id
+    email = valid_member.email
 
     # 인증코드 검증용 jwt 쿠키 생성
-    response = await encode_account_recovery_temp_token(
-        response, "recovery_id", login_id, id_recovery_data.get("email")
+    await encode_account_recovery_temp_token(
+        response, "recovery_id", login_id, email
     )
 
-    return response
+    return None
 
 """ 비밀번호 찾기 """
 @router.post("/account-recovery/pw")
 async def account_recovery_pw(
     response: Response,
-    pw_recovery_data: dict = Body(...), # {"login_id": login_id, "email": email}
+    pw_recovery_data: dict = Body(...),
     db: Session = Depends(get_db)
 ):
     # 이메일이랑 아이디가 존재하는지 검증
@@ -753,48 +832,73 @@ async def account_recovery_pw(
     if not valid_member:
         raise HTTPException(status_code=404, detail="email or id not exists")
 
-    # 아이디 반환 준비
+    # 아이디, 이메일 반환 준비
     login_id = valid_member.login_id
+    email = valid_member.email
 
     # 인증코드 검증용 jwt 쿠키 생성
-    response = await encode_account_recovery_temp_token(
-        response, "recovery_pw", login_id, pw_recovery_data.get("email")
+    await encode_account_recovery_temp_token(
+        response, "recovery_pw", login_id, email
     )
 
-    return response
+    return None
 
 """ 아이디/비밀번호 찾기 인증번호 입력 검증 """
 @router.post("/account-recovery/code")
 def account_recovery_code(
-    input_code: str,
+    response: Response,
+    input_code: str = Body(..., embed=True),
     recovery_id: str = Cookie(None),
     recovery_pw: str = Cookie(None),
     db: Session = Depends(get_db)
 ):
+    # 입력한 코드가 없을때
+    if not input_code:
+        raise HTTPException(status_code=404, detail="code not exists")
+
+    # 입력 코드 해싱
+    hashed_input_code = get_code_hash(input_code)
+
     # 아이디 찾기
     if recovery_id:
         payload = decode_account_recovery_temp_token(recovery_id)
 
         # 이메일로 보낸 코드가 일치하면
-        if input_code == payload.get("code"):
-            return payload.get("login_id")
+        if hashed_input_code == payload.get("code"):
+            response.delete_cookie("recovery_id")
+
+            # 해싱된 로그인 아이디 가져오기
+            encrypted_id = payload.get("login_id")
+            login_id = decrypt_data(encrypted_id)
+
+            return {"login_id": login_id, "recovery_type": "id"}
+
         raise HTTPException(status_code=404, detail="incorrect code")
+
     # 비밀번호 찾기
     elif recovery_pw:
         payload = decode_account_recovery_temp_token(recovery_pw)
 
         # 이메일로 보낸 코드가 일치하면
-        if input_code == payload.get("code"):
+        if hashed_input_code == payload.get("code"):
+            response.delete_cookie("recovery_pw")
+
+            # 해싱된 로그인 아이디 가져오기
+            encrypted_id = payload.get("login_id")
+            login_id = decrypt_data(encrypted_id)
+
             # 비밀번호 생성 (10자리)
             password = generate_temp_password()
 
             # 임시 비밀번호 변경
-            member = db.query(Member).filter(Member.login_id == payload.get("login_id")).first()
-            member.password = password
+            member = db.query(Member).filter(Member.login_id == login_id).first()
+            member.password = password_encode(password)
             db.commit()
             db.refresh(member)
 
-            return password
+            return {"password": password, "recovery_type": "pw"}
+
         raise HTTPException(status_code=404, detail="incorrect code")
+
     else:
         raise HTTPException(status_code=400, detail="expired cookie")

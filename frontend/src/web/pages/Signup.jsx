@@ -238,7 +238,7 @@ const Signup = () => {
                         {/* 이름 입력 */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
-                                이름
+                                이름 (실제이름)
                             </label>
                             <div className="group relative">
                                 <div className="absolute left-4 top-1/2 -translate-y-1/2

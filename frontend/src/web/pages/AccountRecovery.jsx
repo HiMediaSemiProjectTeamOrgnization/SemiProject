@@ -1,57 +1,74 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AuthSentEmailScreen from '../components/AuthSentEmailScreen.jsx';
+import { authApi } from '../../utils/authApi.js';
+import { useAuthCookieStore } from '../../utils/useAuthStores.js';
 
 const AccountRecovery = () => {
+    const navigate = useNavigate();
     const [findIdEmail, setFindIdEmail] = useState('');
     const [findPwId, setFindPwId] = useState('');
     const [findPwEmail, setFindPwEmail] = useState('');
-
-    // [추가] 단계 관리: 1(정보입력) -> 2(인증코드입력) -> 3(최종결과)
     const [step, setStep] = useState(1);
-
-    // [추가] 인증코드 관련 State
-    const [authCode, setAuthCode] = useState(''); // 사용자가 입력한 코드
-    const [timeLeft, setTimeLeft] = useState(300); // 5분 (300초)
+    const [authCode, setAuthCode] = useState('');
+    const [timeLeft, setTimeLeft] = useState(300);
     const [isTimerActive, setIsTimerActive] = useState(false);
-
-    // [추가] 결과 데이터 (찾은 아이디 또는 발급된 임시비번)
     const [resultData, setResultData] = useState('');
-
-    // 탭 상태: 'find_id' | 'find_pw' | 'sent_id_email' | 'sent_pw_email'
     const [activeTab, setActiveTab] = useState('find_id');
     const [isLoading, setIsLoading] = useState(false);
+    const { member, fetchMember, isLoading: isAuthLoading } = useAuthCookieStore();
 
-    // 실제 앱에서는 router를 사용하겠지만, 여기서는 예시를 위해 함수로 대체하거나
-    // react-router-dom의 useNavigate를 사용합니다.
-    const navigate = useNavigate();
-    // const navigate = (path) => console.log(`Maps to: ${path}`); // 테스트용
+    // 컴포넌트 마운트 시 최신 인증 정보를 확인
+    useEffect(() => {
+        void fetchMember();
+    }, [fetchMember]);
 
-    // 아이디 찾기 제출
-    const handleFindIdSubmit = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
+    // member 상태가 변하면 리다이렉트 체크
+    useEffect(() => {
+        if (member) {
+            navigate('/web', { replace: true });
+        }
+    }, [member, navigate]);
 
-        // API 연동 시뮬레이션
-        setTimeout(() => {
-            // 성공 시 이메일 전송 완료 화면으로 전환
-            setActiveTab('sent_id_email');
-            setIsLoading(false);
-        }, 1200);
-    };
+    // [수정 완료] 타이머 로직 통합 (ESLint 에러 해결 버전)
+    useEffect(() => {
+        let interval = null;
 
-    // 비밀번호 찾기 제출
-    const handleFindPwSubmit = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
+        // 타이머가 활성화되었을 때만 실행
+        if (isTimerActive) {
+            interval = setInterval(() => {
+                setTimeLeft((prevTime) => {
+                    // 다음 틱에서 시간이 0 이하가 될 경우
+                    if (prevTime <= 1) {
+                        clearInterval(interval);
 
-        // API 연동 시뮬레이션
-        setTimeout(() => {
-            // 성공 시 이메일 전송 완료 화면으로 전환
-            setActiveTab('sent_pw_email');
-            setIsLoading(false);
-        }, 1200);
-    };
+                        // ★ [핵심 해결 포인트]
+                        // setState(setTimeLeft) 내부에서 다른 setState(setIsTimerActive)를
+                        // 동기적으로 호출하면 리액트 렌더링 충돌이 발생합니다.
+                        // setTimeout(() => {}, 0)을 사용하여 종료 로직을 '다음 렌더링 사이클'로 미루면 에러가 사라집니다.
+                        setTimeout(() => {
+                            setIsTimerActive(false);
+                            alert("인증 시간이 만료되었습니다. 다시 시도해주세요.");
+                            setStep(1);
+                        }, 0);
+
+                        return 0; // 시간은 0으로 설정
+                    }
+                    // 아니면 1초 감소
+                    return prevTime - 1;
+                });
+            }, 1000);
+        }
+
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+        // 의존성 배열에서 timeLeft를 제거했습니다. (prevTime을 사용하므로 없어도 됨)
+    }, [isTimerActive]);
+
+    // 비동기 통신 동안 보여줄 로딩 문구
+    if (isAuthLoading) {
+        return <div>pending...</div>
+    }
 
     // [추가] 탭 변경 시 상태 초기화
     const handleTabChange = (tab) => {
@@ -61,22 +78,6 @@ const AccountRecovery = () => {
         setIsTimerActive(false);
         setResultData('');
     };
-
-    // [추가] 타이머 로직 (5분 카운트다운)
-    useEffect(() => {
-        let interval = null;
-        if (isTimerActive && timeLeft > 0) {
-            interval = setInterval(() => {
-                setTimeLeft((prevTime) => prevTime - 1);
-            }, 1000);
-        } else if (timeLeft === 0) {
-            // 시간 초과 시 처리
-            setIsTimerActive(false);
-            alert("인증 시간이 만료되었습니다. 다시 시도해주세요.");
-            setStep(1); // 처음으로 강제 이동
-        }
-        return () => clearInterval(interval);
-    }, [isTimerActive, timeLeft]);
 
     // [추가] 시간을 00:00 포맷으로 변환
     const formatTime = (seconds) => {
@@ -90,35 +91,74 @@ const AccountRecovery = () => {
         e.preventDefault();
         setIsLoading(true);
 
-        // API: 이메일로 인증코드 발송 요청
-        setTimeout(() => {
-            setIsLoading(false);
-            setStep(2); // 인증 코드 입력 단계로 이동
-            setTimeLeft(300); // 5분 리셋
-            setIsTimerActive(true);
-            // 실제 구현 시: 쿠키에 만료시간 저장
-            // document.cookie = `auth_expire=${new Date().getTime() + 300000}; path=/`;
-        }, 1000);
+        // 탭 상태 체크 'find_id' | 'find_pw'
+        try {
+            if (activeTab === 'find_id') {
+                const data = {
+                    'email': findIdEmail
+                };
+                await authApi.accountRecoveryId(data);
+            } else {
+                const data = {
+                    'email': findPwEmail,
+                    'login_id': findPwId
+                };
+                await authApi.accountRecoveryPw(data);
+            }
+        } catch (error) {
+            if (error.response) {
+                if (error.response.status === 404) {
+                    if (activeTab === 'find_id') {
+                        setIsLoading(false);
+                        return alert('해당되는 계정이 없습니다. 이메일을 다시 입력하세요.');
+                    } else {
+                        setIsLoading(false);
+                        return alert('해당되는 계정이 없습니다. 아이디, 이메일을 다시 입력하세요.');
+                    }
+                } else {
+                    return alert(`에러발생: ${error.status}`);
+                }
+            } else {
+                return alert(`통신불가: ${error}`);
+            }
+        }
+        setIsLoading(false);
+        setStep(2); // 인증 코드 입력 단계로 이동
+        setTimeLeft(300); // 5분 리셋
+        setIsTimerActive(true);
     };
 
-    // [추가] 인증코드 확인 요청 (Step 2 -> Step 3)
+    // [추가] 인증코드 확인 요청 (Step 2 -> Step 3) 'find_id' | 'find_pw'
     const handleVerifyCode = async (e) => {
         e.preventDefault();
         // API: 인증코드 검증 요청
         setIsLoading(true);
 
-        setTimeout(() => {
+        try {
+            const result = await authApi.accountRecoveryCode({'input_code': authCode});
+            if (result.data.login_id) {
+                setResultData(result.data.login_id);
+            } else if (result.data.password) {
+                setResultData(result.data.password);
+            }
+            setStep(3);
+        } catch (error) {
+            if (error.response) {
+                if (error.response === 404) {
+                    setIsLoading(false);
+                    return alert('올바른 인증번호를 다시 입력해주세요.')
+                } else if (error.response === 400) {
+                    navigate('/web/login');
+                } else {
+                    return alert(`에러발생: ${error.status}`);
+                }
+            } else {
+                return alert(`통신불가: ${error}`);
+            }
+        } finally {
             setIsLoading(false);
             setIsTimerActive(false);
-
-            // 검증 성공 시 결과 데이터 세팅
-            if (activeTab === 'find_id') {
-                setResultData('user_found_id_example'); // 찾은 아이디
-            } else {
-                setResultData('TEMP_PASS_1234'); // 임시 비밀번호
-            }
-            setStep(3); // 결과 화면으로 이동
-        }, 1000);
+        }
     };
 
     return (
@@ -271,10 +311,10 @@ const AccountRecovery = () => {
                                     <input
                                         type="text"
                                         maxLength={6}
-                                        placeholder="000000"
+                                        placeholder="6자리 인증번호를 입력해주세요"
                                         required
                                         value={authCode}
-                                        onChange={(e) => setAuthCode(e.target.value.replace(/[^0-9]/g, ''))}
+                                        onChange={(e) => setAuthCode(e.target.value)}
                                         className="w-full h-14 text-center text-2xl tracking-[0.5em] font-bold bg-white/50 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-700/80 rounded-xl outline-none text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700 placeholder:tracking-normal placeholder:text-sm"
                                     />
                                     {/* 타이머 표시 */}

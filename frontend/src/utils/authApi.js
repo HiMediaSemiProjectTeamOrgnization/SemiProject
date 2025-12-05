@@ -32,5 +32,17 @@ export const authApi = {
     // 추가 정보 기재 페이지, 비정상적인 접근 차단
     onBoardingInvalidAccess: async () => {
         return await authClient.post('/auth/google/onboarding/invalid-access');
-    }
+    },
+    // 아이디 찾기
+    accountRecoveryId: async (id_recovery_data) => {
+        return await authClient.post('/auth/account-recovery/id', id_recovery_data);
+    },
+    // 비밀번호 찾기
+    accountRecoveryPw: async (pw_recovery_data) => {
+        return await authClient.post('/auth/account-recovery/pw', pw_recovery_data);
+    },
+    // 아이디 / 비밀번호 입력코드 검증
+    accountRecoveryCode: async (input_code) => {
+        return await authClient.post('/auth/account-recovery/code', input_code);
+    },
 };
