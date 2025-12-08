@@ -12,6 +12,7 @@ from routers.ml import detect
 @asynccontextmanager
 async def lifespan(life_app: FastAPI):
     create_tables()
+    ticket.start_scheduler()
     yield
 
 app = FastAPI(lifespan=lifespan)
