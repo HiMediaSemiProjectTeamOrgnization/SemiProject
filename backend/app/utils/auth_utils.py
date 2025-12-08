@@ -3,6 +3,10 @@ import random
 import string
 import hashlib
 import base64
+import time
+import uuid
+import hmac
+import requests
 from fastapi import HTTPException, Response, Cookie, Depends
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from datetime import datetime, timedelta
@@ -22,6 +26,9 @@ ALGORITHM = os.getenv("ALGORITHM")
 MAIL_USERNAME = os.getenv("MAIL_USERNAME")
 MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
 MAIL_FROM = os.getenv("MAIL_FROM")
+SOLAPI_API_KEY = os.getenv("SOLAPI_API_KEY")
+SOLAPI_API_SECRET = os.getenv("SOLAPI_API_SECRET")
+SOLAPI_SENDER_PHONE = os.getenv("SOLAPI_SENDER_PHONE")
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 ACCESS_TOKEN_EXPIRE_SECONDS = 60 * ACCESS_TOKEN_EXPIRE_MINUTES
@@ -371,6 +378,83 @@ def decode_account_recovery_temp_token(token: str):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
         if payload.get("type") == "recovery_id" or payload.get("type") == "recovery_pw":
+            return payload
+        else:
+            raise HTTPException(status_code=400, detail="invalid token")
+    except JWTError:
+        raise HTTPException(status_code=400, detail="invalid token")
+
+""" 솔라피 인증 헤더 생성 함수 """
+def get_iso_datetime():
+    utc_offset_sec = time.altzone if time.localtime().tm_isdst else time.timezone
+    utc_offset = -utc_offset_sec / 60 / 60
+    hours = int(utc_offset)
+    minutes = int((utc_offset - hours) * 60)
+    return '%s%+03d:%02d' % (time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime()), hours, minutes)
+
+def get_solapi_headers(api_key, api_secret):
+    date = get_iso_datetime()
+    salt = str(uuid.uuid4().hex)
+    combined_string = date + salt
+    signature = hmac.new(api_secret.encode(), combined_string.encode(), hashlib.sha256).hexdigest()
+    return {
+        'Authorization': f'HMAC-SHA256 apiKey={api_key}, date={date}, salt={salt}, signature={signature}',
+        'Content-Type': 'application/json'
+    }
+
+""" 휴대폰 인증번호 jwt 쿠키 생성 """
+def encode_phone_token(response: Response, phone: str):
+    # 인증번호 생성
+    code = generate_random_code()
+
+    # 인증번호 암호화
+    hashed_code = get_code_hash(code)
+
+    # 쿠키 만료시간 생성
+    exp = datetime.now(KST) + timedelta(minutes=5)
+
+    payload = {
+        "type": "phone_verification",
+        "exp": exp,
+        "code": hashed_code
+    }
+
+    # jwt 토큰 생성
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    # 쿠키에 인증번호 저장
+    response.set_cookie(
+        key="phone_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 5
+    )
+
+    # 솔라피 전송 로직
+    url = "https://api.solapi.com/messages/v4/send"
+    headers = get_solapi_headers(SOLAPI_API_KEY, SOLAPI_API_SECRET)
+    data = {
+        "message": {
+            "to": phone.replace("-", ""),
+            "from": SOLAPI_SENDER_PHONE,
+            "text": f"[테스트] 인증번호는 [{code}] 입니다."
+        }
+    }
+
+    try:
+        res = requests.post(url, json=data, headers=headers)
+        res.raise_for_status()
+        return {"status": "success", "message": "인증번호가 발송되었습니다."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"문자 전송 실패 {e}")
+
+""" 휴대폰 jwt 쿠키 해독 """
+def decode_phone_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if payload.get("type") == "phone_verification":
             return payload
         else:
             raise HTTPException(status_code=400, detail="invalid token")

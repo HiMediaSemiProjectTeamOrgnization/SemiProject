@@ -13,7 +13,7 @@ from utils.auth_utils import (
     password_encode, password_decode, revoke_existing_token, revoke_existing_token_by_id, set_token_cookies,
     get_cookies_info, encode_temp_signup_token, decode_temp_signup_token, verify_token, encode_google_temp_token,
     decode_google_temp_token, generate_temp_password, encode_account_recovery_temp_token, get_code_hash,
-    decode_account_recovery_temp_token, decrypt_data
+    decode_account_recovery_temp_token, decrypt_data, encode_phone_token, decode_phone_token
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -41,6 +41,10 @@ def signup(
     response: Response,
     db: Session = Depends(get_db)
 ):
+    # 휴대폰번호 인증여부 확인
+    if not member_data.isPhoneVerified:
+        raise HTTPException(status_code=401, detail="not verified")
+
     # 아이디로 회원 조회
     id_exists = db.query(Member).filter(Member.login_id == member_data.login_id).first()
     if id_exists:
@@ -98,18 +102,42 @@ def check_id(
 
     return Response(status_code=204)
 
-""" 휴대폰 중복 체크 """
-@router.post("/signup/check-phone")
+""" 휴대폰 중복 체크 및 번호 인증 보내기"""
+@router.post("/signup/check-phone", status_code=204)
 def check_phone(
+    response: Response,
     phone: str = Body(..., embed=True),
     db: Session = Depends(get_db)
 ):
     # 휴대폰 번호로 회원 조회
     member = db.query(Member).filter(Member.phone == phone).first()
     if member:
-        raise HTTPException(status_code=400, detail="already exists phone")
+        raise HTTPException(status_code=409, detail="already exists phone")
 
-    return Response(status_code=204)
+    encode_phone_token(response, phone)
+
+    return
+
+""" 휴대폰 번호 인증 검사 """
+@router.post("/signup/check-verify-phone", status_code=204)
+def check_verify_phone(
+    input_code: str = Body(..., embed=True),
+    phone_token: str = Cookie(None),
+):
+    # 입력한 코드가 없을때
+    if not input_code:
+        raise HTTPException(status_code=404, detail="code not exists")
+
+    # 입력 코드 해싱
+    hashed_input_code = get_code_hash(input_code)
+
+    # jwt 해독
+    payload = decode_phone_token(phone_token)
+
+    if payload.get("code") == hashed_input_code:
+        return
+    else:
+        raise HTTPException(status_code=400, detail="expired cookie")
 
 """ 일반 로그인 """
 @router.post("/login")

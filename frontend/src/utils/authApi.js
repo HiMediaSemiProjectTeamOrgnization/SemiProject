@@ -25,6 +25,10 @@ export const authApi = {
     checkPhone: async (phone) => {
         return await authClient.post('/auth/signup/check-phone', phone)
     },
+    // 회원 가입 중 휴대폰 중복 체크
+    checkVerifyPhone: async (input_code) => {
+        return await authClient.post('/auth/signup/check-verify-phone', input_code)
+    },
     // 추가 정보 기재 페이지
     onBoarding: async (member_data) => {
         return await authClient.post('/auth/google/onboarding', member_data);
