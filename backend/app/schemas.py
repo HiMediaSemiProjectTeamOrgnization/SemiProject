@@ -19,7 +19,6 @@ class MemberSignup(MemberBase):
     email: str
     birthday: str
     pin_code: str
-    isPhoneVerified: bool
 
 class MemberLogin(MemberBase):
     login_id: str

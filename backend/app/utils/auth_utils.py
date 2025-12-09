@@ -341,7 +341,8 @@ async def encode_account_recovery_temp_token(response: Response, recovery_type: 
             "type": "recovery_pw",
             "exp": exp,
             "code": hashed_code,
-            "login_id": encrypted_login_id
+            "login_id": encrypted_login_id,
+            "email": email
         }
 
         # jwt 생성
@@ -416,7 +417,8 @@ def encode_phone_token(response: Response, phone: str):
     payload = {
         "type": "phone_verification",
         "exp": exp,
-        "code": hashed_code
+        "code": hashed_code,
+        "phone": phone
     }
 
     # jwt 토큰 생성
@@ -460,3 +462,187 @@ def decode_phone_token(token: str):
             raise HTTPException(status_code=400, detail="invalid token")
     except JWTError:
         raise HTTPException(status_code=400, detail="invalid token")
+
+""" 휴대폰 인증 성공후 jwt 생성 """
+def encode_phone_verified_token(response: Response, phone: str):
+    exp = datetime.now(KST) + timedelta(minutes=10) # 가입까지 10분 여유
+    payload = {
+        "type": "phone_verified_success",
+        "phone": phone,
+        "exp": exp
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    # 쿠키에 저장
+    response.set_cookie(
+        key="phone_verified_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 10
+    )
+
+""" 회원가입시 휴대폰 인증 성공후 jwt 해독 """
+def decode_phone_verified_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "phone_verified_success":
+            return None
+        return payload.get("phone")
+    except JWTError:
+        return None
+
+""" 이메일 인증번호 jwt 쿠키 생성 """
+async def encode_email_token(response: Response, email: str):
+    # 인증번호 생성
+    code = generate_random_code()
+
+    # 인증번호 암호화
+    hashed_code = get_code_hash(code)
+
+    # 쿠키 만료시간 생성
+    exp = datetime.now(KST) + timedelta(minutes=5)
+
+    payload = {
+        "type": "email_verification",
+        "exp": exp,
+        "code": hashed_code,
+        "email": email
+    }
+
+    # jwt 토큰 생성
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    # 쿠키에 인증번호 저장
+    response.set_cookie(
+        key="email_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 5
+    )
+
+    # 메일 보내기 및 전송
+    message = MessageSchema(
+        subject="하이미디어 스터디카페, 이메일 인증번호",
+        recipients=[email],
+        body=f"""
+                <p>인증코드: {code}</p>
+                <p>인증코드는 5분 뒤에 만료됩니다.</p>
+                """,
+        subtype=MessageType.html
+    )
+    await fast_mail.send_message(message)
+
+""" 이메일 jwt 쿠키 해독 """
+def decode_email_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if payload.get("type") == "email_verification":
+            return payload
+        else:
+            raise HTTPException(status_code=400, detail="invalid token")
+    except JWTError:
+        raise HTTPException(status_code=400, detail="invalid token")
+
+""" 이메일 인증 성공후 jwt 생성 """
+def encode_email_verified_token(response: Response, email: str):
+    exp = datetime.now(KST) + timedelta(minutes=10) # 가입까지 10분 여유
+    payload = {
+        "type": "email_verified_success",
+        "email": email,
+        "exp": exp
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    # 쿠키에 저장
+    response.set_cookie(
+        key="email_verified_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 10
+    )
+
+""" 회원가입시 이메일 인증 성공후 jwt 해독 """
+def decode_email_verified_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "email_verified_success":
+            return None
+        return payload.get("email")
+    except JWTError:
+        return None
+
+""" 구글 온보딩 휴대폰 인증번호 jwt 쿠키 생성 """
+def encode_google_onboarding_phone_token(response: Response, phone: str):
+    # 인증번호 생성
+    code = generate_random_code()
+
+    # 인증번호 암호화
+    hashed_code = get_code_hash(code)
+
+    # 쿠키 만료시간 생성
+    exp = datetime.now(KST) + timedelta(minutes=5)
+
+    payload = {
+        "type": "google_phone_verification",
+        "exp": exp,
+        "code": hashed_code,
+    }
+
+    # jwt 토큰 생성
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    # 쿠키에 인증번호 저장
+    response.set_cookie(
+        key="google_phone_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 5
+    )
+
+    # 솔라피 전송 로직
+    url = "https://api.solapi.com/messages/v4/send"
+    headers = get_solapi_headers(SOLAPI_API_KEY, SOLAPI_API_SECRET)
+    data = {
+        "message": {
+            "to": phone.replace("-", ""),
+            "from": SOLAPI_SENDER_PHONE,
+            "text": f"[테스트] 인증번호는 [{code}] 입니다."
+        }
+    }
+
+    try:
+        res = requests.post(url, json=data, headers=headers)
+        res.raise_for_status()
+        return {"status": "success", "message": "인증번호가 발송되었습니다."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"문자 전송 실패 {e}")
+
+""" 구글 온보딩 휴대폰 jwt 쿠키 해독 """
+def decode_google_onboarding_phone_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if payload.get("type") == "google_phone_verification":
+            return payload
+        else:
+            raise HTTPException(status_code=400, detail="invalid token")
+    except JWTError:
+        raise HTTPException(status_code=400, detail="invalid token")
+
+""" 비밀번호도 이메일로 보내기 """
+async def send_password(email: str, password: str):
+    # 메일 보내기 및 전송
+    message = MessageSchema(
+        subject="하이미디어 스터디카페, 새 비밀번호",
+        recipients=[email],
+        body=f"""
+                    <p>새 비밀번호: {password}</p>
+               """,
+        subtype=MessageType.html
+    )
+    await fast_mail.send_message(message)
