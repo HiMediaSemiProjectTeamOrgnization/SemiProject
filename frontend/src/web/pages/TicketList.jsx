@@ -14,10 +14,14 @@ function TicketList() {
     const [seats, setSeats] = useState([]); // 좌석 목록 저장
     const [showSeatSelector, setShowSeatSelector] = useState(false); // 좌석선택 페이지 보여줄지 여부
 
-    useEffect(() => {
-        getTicketList();
-        getSeats();
-    }, []);
+    // 로그인 체크
+    const loginCheck = async () => {
+        const res = await fetch(`/api/web/me`, { credentials: 'include' });
+        if (!res.ok) {
+            navigate("/web/login");
+            return;
+        }
+    };
 
     // 이용권 목록 조회
     const getTicketList = async () => {
@@ -32,6 +36,12 @@ function TicketList() {
         const seatData = await res.json();
         setSeats(seatData);
     };
+
+    useEffect(() => {
+        loginCheck();
+        getTicketList();
+        getSeats();
+    }, []);
 
     const timeTickets = tickets.filter(t => t.type === "시간제");
     const dayTickets = tickets.filter(t => t.type === "기간제");
@@ -65,15 +75,18 @@ function TicketList() {
         if (!window.confirm("선택하신 이용권은 " + choiceTicket.name + "입니다.\n구매하시겠습니까?")) return;
 
         if (choiceTicket.type === "기간제") setShowSeatSelector(true);
-        else navigate("/web/payment", { state: choiceTicket });
+        else navigate("/web/payment", {
+            state: {
+                Ticket: choiceTicket
+            }
+        });
     }
 
     // 취소 버튼 
     const handleCancel = () => navigate("/web");
 
-
     // 기간권 선택일 경우 좌석 선택페이지로 이동
-    if (showSeatSelector) return <SeatSelector choiceTicket={choiceTicket} seats={seats} />
+    if (showSeatSelector) return <SeatSelector choiceTicket={choiceTicket} seats={seats} onBack={() => setShowSeatSelector(false)} />
 
 
     return (
@@ -82,7 +95,7 @@ function TicketList() {
 
             <div className="flex gap-4 mb-8">
                 <button data-value="time" className={`px-6 py-3 rounded-2xl font-semibold transition ${activeType === 'time' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`} onClick={handleTicketType} > 시간권 </button>
-                <button data-value="day" className={`px-6 py-3 rounded-2xl font-semibold transition ${activeType === 'day' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`} onClick={handleTicketType}  > 기간권 </button>
+                <button data-value="day" className={`px-6 py-3 rounded-2xl font-semibold transition ${activeType === 'day' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`} onClick={handleTicketType} > 기간권 </button>
             </div>
 
             <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -120,8 +133,8 @@ function TicketList() {
 
             <div className="mt-8 flex justify-between items-center bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-inner">
                 <div>
-                    <p className="text-lg text-slate-300">이용 기간: <span className="text-white font-semibold">{choiceTicket.name || '미선택'}</span></p>
-                    <p className="text-lg text-slate-300">총 금액: <span className="text-white font-semibold">{choiceTicket.price ? Number(choiceTicket.price).toLocaleString() + "원" : '0원'}</span></p>
+                    <p className="text-lg text-slate-300">이용 기간: <span className="text-white font-semibold">{choiceTicket.name || ''}</span></p>
+                    <p className="text-lg text-slate-300">총 금액: <span className="text-white font-semibold">{choiceTicket.price ? Number(choiceTicket.price).toLocaleString() + "원" : ''}</span></p>
                 </div>
                 <div className="flex gap-4">
                     <button className="px-6 py-3 rounded-2xl bg-red-600 text-white font-semibold cursor-pointer" onClick={handleCancel}>취소하기</button>

@@ -1,15 +1,65 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthSocialButton } from '../components/AuthButton.jsx';
-import { useState } from 'react';
-import { authFetchLogin } from '../../utils/authFetchUtils.js';
+import { authApi } from '../../utils/authApi.js';
+import { useAuthCookieStore } from '../../utils/useAuthStores.js';
 
 const Login = () => {
+    const navigate = useNavigate();
     const [userId, setUserId] = useState('');
     const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const { member, fetchMember, isLoading: isAuthLoading } = useAuthCookieStore();
 
-    const handleLoginSubmit = (e) => {
+    // 컴포넌트 마운트 시 최신 인증 정보를 확인
+    useEffect(() => {
+        void fetchMember();
+    }, [fetchMember]);
+
+    // member 상태가 변하면 리다이렉트 체크
+    useEffect(() => {
+        if (member) {
+            navigate('/web', { replace: true });
+        }
+    }, [member, navigate]);
+
+    // 비동기 통신 동안 보여줄 로딩 문구
+    if (isAuthLoading) {
+        return <div>pending...</div>
+    }
+
+
+    const handleLoginSubmit = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
 
-        const result = authFetchLogin({userId, password});
+        const data = {
+            "login_id": userId,
+            "password": password
+        };
+        try {
+            const result = await authApi.login(data);
+            if (result.status === 200) {
+                navigate('/web')
+            }
+        } catch (error) {
+            if (error.response) {
+                if (error.response.status === 400) {
+                    alert('올바른 아이디나 비밀번호를 입력해주세요');
+                } else {
+                    alert(`에러발생, 에러코드: ${error.response.status}`);
+                }
+            } else {
+                alert('통신 불가');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // 소셜 로그인 클릭 이벤트
+    const handleSocialLogin = (type) => {
+        window.location.href = `/api/auth/${type}/login`;
     };
 
     return (
@@ -43,9 +93,9 @@ const Login = () => {
                 <div className="relative z-20 flex flex-col gap-6">
 
                     {/* 1. 홈으로 돌아가기 버튼 */}
-                    <div className="flex justify-start">
+                    <div className="flex justify-center">
                         <button
-                            onClick={() => window.location.href = '/web'}
+                            onClick={() => navigate('/web')}
                             className="flex items-center gap-2 px-3 py-1.5
                                        bg-white/40 dark:bg-slate-800/40
                                        backdrop-blur-md border border-white/60 dark:border-white/10
@@ -130,9 +180,12 @@ const Login = () => {
                         </div>
 
                         {/* 로그인 버튼 */}
-                        <button
-                            type="submit"
-                            className="w-full h-12
+                        {isLoading ? (
+                            <div>로그인 중...</div>
+                        ) : (
+                            <button
+                                type="submit"
+                                className="w-full h-12
                                        bg-slate-900 hover:bg-slate-800
                                        dark:bg-blue-600 dark:hover:bg-blue-500
                                        text-white rounded-xl font-medium text-[15px]
@@ -140,19 +193,23 @@ const Login = () => {
                                        shadow-lg shadow-slate-900/10 dark:shadow-blue-900/20
                                        flex items-center justify-center gap-2
                                        active:scale-[0.98] cursor-pointer"
-                        >
-                            로그인
-                        </button>
+                            >
+                                로그인
+                            </button>
+                        )}
                     </form>
 
-                        {/* 3. 회원가입 및 비밀번호 찾기 */}
+                        {/* 3. 회원가입 및 아이디, 비밀번호 찾기 */}
                         <div className="flex items-center justify-center gap-4 pt-1">
-                            <button type="button" className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:underline transition-colors cursor-pointer">
-                                비밀번호 찾기
+                            <button type="button"
+                                    onClick={() => navigate('/web/account-recovery')}
+                                    className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:underline transition-colors cursor-pointer">
+                                아이디 / 비밀번호 찾기
                             </button>
                             <span className="w-[1px] h-3 bg-slate-300 dark:bg-slate-600"></span>
                             <button
                                 type="button"
+                                onClick={() => navigate('/web/signup')}
                                 className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:underline transition-colors cursor-pointer"
                             >
                                 회원가입
@@ -172,6 +229,7 @@ const Login = () => {
                     <div className="flex flex-col gap-3">
                         {/* 카카오 로그인 (브랜드 컬러 유지) */}
                         <AuthSocialButton
+                            onClick={() => handleSocialLogin("kakao")}
                             background="bg-[#FEE500]"
                             textColor="text-black/90"
                             text="Kakao"
@@ -184,6 +242,7 @@ const Login = () => {
 
                         {/* 네이버 로그인 (브랜드 컬러 유지) */}
                         <AuthSocialButton
+                            onClick={() => handleSocialLogin("naver")}
                             background="bg-[#03C75A]"
                             textColor="text-white"
                             text="Naver"
@@ -196,6 +255,7 @@ const Login = () => {
 
                         {/* 구글 로그인 (다크모드 대응) */}
                         <AuthSocialButton
+                            onClick={() => handleSocialLogin("google")}
                             background="bg-white dark:bg-slate-800"
                             textColor="text-gray-700 dark:text-gray-200"
                             border="border border-gray-300 dark:border-gray-600"
@@ -203,11 +263,11 @@ const Login = () => {
                             text="Google"
                             icon={
                                 <svg viewBox="0 0 48 48" className="w-full h-full">
-                                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                                    <path fill="none" d="M0 0h48v48H0z"/>
+                                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                                    <path fill="none" d="M0 0h48v48H0z" />
                                 </svg>
                             }
                         />

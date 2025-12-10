@@ -1,12 +1,49 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, Body
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
-from database import get_db
+from database import get_db, SessionLocal
 from datetime import datetime, timedelta
-from models import Product, Member, Order, Seat
+from models import Product, Member, Order, Seat, MileageHistory
 from utils.auth_utils import get_cookies_info
+from typing import Optional
+from apscheduler.schedulers.background import BackgroundScheduler
+
 
 router = APIRouter(prefix="/api/web", tags=["웹사이트 관리"])
+
+# 좌석 상태 초기화 스케줄러
+def reset_seat_status():
+    db: Session = SessionLocal()
+    try:
+        now = datetime.now().date()
+        print("[스케줄러] 좌석 초기화 작업 시작")
+    
+        expired_seats = (
+            db.query(Order.fixed_seat_id).filter(Order.period_end_date < now).filter(Order.fixed_seat_id.isnot(None)).distinct().all()
+        )
+
+        expired_idx = [s[0] for s in expired_seats]
+
+        if expired_idx:
+            updated = db.query(Seat).filter(Seat.seat_id.in_(expired_idx)).filter(Seat.is_status == False).update({"is_status": True}, synchronize_session=False)
+            db.commit()
+
+            if updated > 0:
+                print("기간이 만료된 좌석이 발견되어 사용가능 처리했습니다. 좌석 ID :", expired_idx)
+            else:
+                print("사용 중인 좌석 중 기간만료된 좌석이 없습니다.")
+
+    except Exception as e:
+        db.rollback()
+        print("좌석 상태 업데이트 중 오류 발생 :", str(e))
+
+    finally:
+        db.close()
+
+def start_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(reset_seat_status, 'cron', hour=0, minute=0)
+    scheduler.start()
 
 # ===== 로그인 사용자 정보 가져오기 =====
 @router.get("/me")
@@ -31,7 +68,6 @@ def getMemberInfo(token = Depends(get_cookies_info), db: Session = Depends(get_d
 def getSeatStatus(db: Session = Depends(get_db)):
     """좌석현황 조회"""
     seat = db.query(Seat).order_by(Seat.seat_id).all()
-
     return seat
 
 # 좌석별 종료시간 조회
@@ -59,48 +95,68 @@ def getTicketList(db: Session = Depends(get_db)):
 
 # ===== 결제 관련 =====
 @router.post("/payments")
-def getPaymentPage(ticketData: dict, user: dict, db: Session = Depends(get_db)):
-    """사용자가 이용권 선택 후 결제한 내역을 받아오는 로직"""
+def getPaymentPage(ticketData: dict = Body(...), user: dict = Body(...), SelectSeat: Optional[dict] = Body(None), db: Session = Depends(get_db), token = Depends(get_cookies_info)):
+    """사용자가 이용권 선택 후 결제내역 받아오는 로직"""
 
     ticket = ticketData
-    phone = f"{user['phone1']}-{user['phone2']}-{user['phone3']}"
-    
-    chkMember = db.query(Member).filter(Member.name == user["name"]).filter(Member.phone == phone).first()
-    guest = db.query(Member.member_id).filter(Member.name == "비회원").scalar()
+    useMileage = ticket["price"] - ticket["total_amount"]
 
-    # now = datetime.now()
-
-    # if ticket["type"] == "시간제":
-    #     end_time = now + timedelta(hours=int(ticket["value"]))
-    #     print(end_time)
-    # else:
-    #     end_time = now + timedelta(days=int(ticket["value"]))
-    #     print(end_time)
-
-    # formatted_start_time = now.strftime("%Y-%m-%d %H:%M")
-    # formatted_end_time = end_time.strftime("%Y-%m-%d %H:%M")
-
-
-    if chkMember:
-        member_id = chkMember.member_id
-        buyer_phone = chkMember.phone
-    else:
-        member_id = guest
-        buyer_phone = phone
-
+    id = token["member_id"]
+    member = db.query(Member).filter(Member.member_id == id).first()
 
     order = Order(
-            member_id = member_id,
+            member_id = member.member_id,
             product_id = ticket["product_id"],
-            buyer_phone = phone,
-            total_price = ticket["total_amount"],
-            payment_amount = ticket["total_amount"] - ticket["discount_amount"],
-            # period_start_date = formatted_start_time,
-            # period_end_date = formatted_end_time
+            buyer_phone = user["phone"],
+            payment_amount = ticket["total_amount"]
         )
     
-    # db.add(order)
-    # db.commit()
-    # db.refresh(order)
+    # 기간제 이용권일 때만 좌석 + 날짜 정보 추가
+    if SelectSeat is not None:
+        now = datetime.now()
 
-    # if order.member_id != guest:
+        # 기존 이용권 기간 만료 여부 확인
+        latest_order = (db.query(Order.period_end_date).filter(Order.member_id == id).filter(Order.period_end_date != None).order_by(Order.order_id.desc()).first())
+        latest_expiration_date = latest_order[0] if latest_order else None
+        if latest_expiration_date and latest_expiration_date.date() > now.date() :
+            raise HTTPException(status_code=400, detail="이용권 기간이 남아있는 상태에서는 새로운 기간제 이용권을 구매할 수 없습니다.")
+        
+        order.period_start_date = now.date()
+        order.period_end_date = (now + timedelta(days=ticket["value"])).date()
+        order.fixed_seat_id = SelectSeat["seat_id"]
+
+        # 좌석 사용불가 처리
+        seat = db.query(Seat).filter(Seat.seat_id == order.fixed_seat_id).first()
+        seat.is_status = False
+        db.add(seat)
+    else:
+        member.saved_time_minute += ticket["value"] * 60
+    
+    db.add(order)
+    db.flush()
+
+    # 마일리지 사용했을 경우
+    if useMileage > 0:
+        db.add(MileageHistory(
+            member_id = order.member_id,
+            amount = useMileage,
+            type = "use"
+        ))
+        # 사용자의 총 마일리지에서 사용한 만큼 차감
+        member.total_mileage -= useMileage
+
+    # 마일리지 적립 (적립률 1%)
+    if order.payment_amount > 0:
+        earnPoint = int(order.payment_amount * 0.01)
+        db.add(MileageHistory(
+                member_id = order.member_id,
+                amount = earnPoint,
+                type = "earn"
+            ))
+        # 사용자의 총 마일리지에서 적립된 마일리지 추가
+        member.total_mileage += earnPoint
+
+    db.commit()
+    db.refresh(order)
+
+    return order

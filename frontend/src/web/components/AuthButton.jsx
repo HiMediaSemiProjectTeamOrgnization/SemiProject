@@ -1,8 +1,9 @@
 // 재사용 가능한 소셜 로그인 버튼 컴포넌트
-export const AuthSocialButton = ({ background, textColor, border, icon, text, hoverEffect }) => {
+export const AuthSocialButton = ({ background, textColor, border, icon, text, hoverEffect, onClick }) => {
     return (
         <button
             type="button"
+            onClick={onClick}
             className={`
                 relative flex items-center justify-center
                 w-full h-12 rounded-xl
