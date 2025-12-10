@@ -11,6 +11,7 @@ import Signup from './web/pages/Signup.jsx';
 import Login from './web/pages/Login.jsx';
 import GoogleOnBoarding from './web/pages/GoogleOnBoarding.jsx';
 import AccountRecovery from './web/pages/AccountRecovery.jsx';
+import Planner from './web/pages/Planner.jsx';
 
 const router = createBrowserRouter([
     {
@@ -44,6 +45,10 @@ const router = createBrowserRouter([
             {
                 path: 'seat',
                 element: <SeatStatus />
+            },
+            {
+                path: 'planner',
+                element: <Planner />
             },
         ],
     },

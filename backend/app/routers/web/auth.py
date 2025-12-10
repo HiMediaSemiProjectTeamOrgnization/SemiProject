@@ -906,16 +906,14 @@ def get_cookies(
     member: dict = Depends(get_cookies_info),
     db: Session = Depends(get_db)
 ):
-    if not member:
-        return None
+    try:
+        mem_db = db.query(Member).filter(Member.member_id == member.get("member_id")).first()
 
-    mem_db = db.query(Member).filter(Member.member_id == member.get("member_id")).first()
-
-    # DB에 회원정보가 없다면 쿠키 삭제
-    if not mem_db:
+    except Exception as e:
+        # DB에 회원정보가 없다면 쿠키 삭제
         response.delete_cookie("access_token")
         response.delete_cookie("refresh_token")
-        return None
+        raise HTTPException(status_code=401, detail=f"unauthorized: {e}")
 
     return {
         **member,
