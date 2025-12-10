@@ -19,7 +19,7 @@ from utils.auth_utils import (
     send_password
 )
 
-router = APIRouter(prefix="/api/auth", tags=["Auth"])
+router = APIRouter(prefix="/api/web/auth", tags=["Auth"])
 
 load_dotenv()
 
