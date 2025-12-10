@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger, Text, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import JSONB
 from database import Base
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -65,6 +66,9 @@ class Member(Base):
     orders = relationship("Order", back_populates="member")
     seat_usages = relationship("SeatUsage", back_populates="member", cascade="all, delete")
     mileage_history = relationship("MileageHistory", back_populates="member", cascade="all, delete")
+    user_todos = relationship("UserTODO", back_populates="member", cascade="all, delete")
+    ai_chat_logs = relationship("AIChatLog", back_populates="member", cascade="all, delete")
+    study_plans = relationship("StudyPlan", back_populates="member", cascade="all, delete")
 
 # ----------------------------------------------------------------------------------------------------------------------
 # TOKENS
@@ -113,6 +117,7 @@ class SeatUsage(Base):
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"), nullable=True)
     check_in_time = Column(DateTime, server_default=func.now())
     check_out_time = Column(DateTime, nullable=True)
+    is_attended = Column(Boolean, server_default="false")
     ticket_expired_time = Column(DateTime, nullable=True)
 
     order = relationship("Order", back_populates="seat_usage")
@@ -132,3 +137,81 @@ class MileageHistory(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     member = relationship("Member", back_populates="mileage_history")
+
+# ----------------------------------------------------------------------------------------------------------------------
+# TODOS
+# ----------------------------------------------------------------------------------------------------------------------
+class TODO(Base):
+    __tablename__ = "todos"
+
+    todo_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    todo_type = Column(String(20))
+    todo_title = Column(String(100))
+    todo_content = Column(Text)
+    todo_value = Column(Integer)
+    betting_mileage = Column(Integer)
+    payback_mileage_percent = Column(Integer)
+    is_exposed = Column(Boolean, server_default="true")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    user_todos = relationship("UserTODO", back_populates="todos", cascade="all, delete")
+
+# ----------------------------------------------------------------------------------------------------------------------
+# USER_TODOS
+# ----------------------------------------------------------------------------------------------------------------------
+class UserTODO(Base):
+    __tablename__ = "user_todos"
+
+    user_todo_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="SET NULL"), nullable=True)
+    todo_id = Column(BigInteger, ForeignKey("todos.todo_id", ondelete="SET NULL"), nullable=True)
+    is_achieved = Column(Boolean, server_default="false")
+    started_at = Column(DateTime, server_default=func.now())
+    achieved_at = Column(DateTime)
+
+    member = relationship("Member", back_populates="user_todos")
+    todo = relationship("TODO", back_populates="user_todos")
+
+# ----------------------------------------------------------------------------------------------------------------------
+# AI CHAT LOGS
+# ----------------------------------------------------------------------------------------------------------------------
+class AIChatLog(Base):
+    """
+    AI 튜터와의 채팅 기록을 저장하는 테이블
+    """
+    __tablename__ = "ai_chat_logs"
+
+    log_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    member = relationship("Member", back_populates="ai_chat_logs")
+
+# ----------------------------------------------------------------------------------------------------------------------
+# STUDY PLANS
+# ----------------------------------------------------------------------------------------------------------------------
+class StudyPlan(Base):
+    """
+    AI가 생성해준 일일 학습 플래너 데이터
+    """
+    __tablename__ = "study_plans"
+
+    plan_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
+
+    # target_date: 계획이 적용되는 날짜 (예: 2024-05-20) - 달력 조회용
+    target_date = Column(Date, nullable=False)
+
+    # raw_input: 사용자가 입력했던 요구사항 원문 (예: "수학 3시간 집중하고 싶어")
+    original_prompt = Column(Text, nullable=True)
+
+    # plan_data: LLM이 생성한 JSON 구조체 (PostgreSQL JSONB 타입 사용)
+    # 예: {"schedule": [{"time": "09:00", "task": "Math", "type": "study"}, ...]}
+    plan_data = Column(JSONB, nullable=False)
+
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    member = relationship("Member", back_populates="study_plans")
