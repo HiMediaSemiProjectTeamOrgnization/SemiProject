@@ -11,6 +11,7 @@ import Signup from './web/pages/Signup.jsx';
 import Login from './web/pages/Login.jsx';
 import GoogleOnBoarding from './web/pages/GoogleOnBoarding.jsx';
 import AccountRecovery from './web/pages/AccountRecovery.jsx';
+import AdminMain from './web/pages/AdminMain.jsx';
 
 const router = createBrowserRouter([
     {
@@ -63,6 +64,10 @@ const router = createBrowserRouter([
         path: '/web/account-recovery',
         element: <AccountRecovery />,
     },
+    {
+        path: '/admin',
+        element: <AdminMain />
+    }
 ]);
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -92,7 +97,7 @@ function Home() {
                     <p className="text-gray-500">고객이 집에서 예약할 때 쓰는 PC/모바일 웹입니다.</p>
                 </Link>
                 {/* 카드 4: 관리자 페이지 */}
-                <Link to='/test' className="group block p-10 bg-slate-800 rounded-2xl shadow-md border border-gray-700 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <Link to='/admin' className="group block p-10 bg-slate-800 rounded-2xl shadow-md border border-gray-700 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                     <h2 className="text-2xl font-bold text-white mb-2">⚙️ 관리자 페이지</h2>
                     <p className="text-slate-400">매장 현황 관리 및 매출 통계 시스템입니다.</p>
                 </Link>
