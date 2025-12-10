@@ -13,7 +13,10 @@ from utils.auth_utils import (
     password_encode, password_decode, revoke_existing_token, revoke_existing_token_by_id, set_token_cookies,
     get_cookies_info, encode_temp_signup_token, decode_temp_signup_token, verify_token, encode_google_temp_token,
     decode_google_temp_token, generate_temp_password, encode_account_recovery_temp_token, get_code_hash,
-    decode_account_recovery_temp_token, decrypt_data
+    decode_account_recovery_temp_token, decrypt_data, encode_phone_token, decode_phone_token, encode_email_token,
+    decode_email_token, encode_email_verified_token, decode_email_verified_token, encode_phone_verified_token,
+    decode_phone_verified_token, encode_google_onboarding_phone_token, decode_google_onboarding_phone_token,
+    send_password
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -39,8 +42,26 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 def signup(
     member_data: MemberSignup,
     response: Response,
+    phone_verified_token: str = Cookie(None),
+    email_verified_token: str = Cookie(None),
     db: Session = Depends(get_db)
 ):
+    # 휴대폰 인증 쿠키 가져오기
+    phone_payload = decode_phone_verified_token(phone_verified_token)
+    response.delete_cookie("phone_verified_token")
+
+    # 휴대폰번호 인증여부 확인
+    if not member_data.phone == phone_payload:
+        raise HTTPException(status_code=401, detail="not verified")
+
+    # 이메일 인증 쿠키 가져오기
+    email_payload = decode_email_verified_token(email_verified_token)
+    response.delete_cookie("email_verified_token")
+
+    # 이메일 인증여부 확인
+    if not member_data.email == email_payload:
+        raise HTTPException(status_code=401, detail="not verified")
+
     # 아이디로 회원 조회
     id_exists = db.query(Member).filter(Member.login_id == member_data.login_id).first()
     if id_exists:
@@ -98,18 +119,87 @@ def check_id(
 
     return Response(status_code=204)
 
-""" 휴대폰 중복 체크 """
-@router.post("/signup/check-phone")
+""" 휴대폰 중복 체크 및 번호 인증 보내기"""
+@router.post("/signup/check-phone", status_code=204)
 def check_phone(
+    response: Response,
     phone: str = Body(..., embed=True),
     db: Session = Depends(get_db)
 ):
     # 휴대폰 번호로 회원 조회
     member = db.query(Member).filter(Member.phone == phone).first()
     if member:
-        raise HTTPException(status_code=400, detail="already exists phone")
+        raise HTTPException(status_code=409, detail="already exists phone")
 
-    return Response(status_code=204)
+    encode_phone_token(response, phone)
+
+    return
+
+""" 휴대폰 번호 인증 검사 """
+@router.post("/signup/check-verify-phone", status_code=204)
+def check_verify_phone(
+    response: Response,
+    input_code: str = Body(..., embed=True),
+    phone_token: str = Cookie(None),
+):
+    # 입력한 코드가 없거나 토큰 없을때
+    if not input_code or not phone_token:
+        raise HTTPException(status_code=404, detail="code or token not exists")
+
+    # 입력 코드 해싱
+    hashed_input_code = get_code_hash(input_code)
+
+    # jwt 해독
+    payload = decode_phone_token(phone_token)
+    phone = payload.get("phone")
+
+    if payload.get("code") == hashed_input_code:
+        response.delete_cookie("phone_token")
+        encode_phone_verified_token(response, phone)
+        return
+    else:
+        raise HTTPException(status_code=400, detail="expired cookie")
+
+""" 이메일 중복 체크 및 번호 인증 보내기"""
+@router.post("/signup/check-email", status_code=204)
+async def check_email(
+    response: Response,
+    email: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    # 이메일로 회원 조회
+    member = db.query(Member).filter(Member.email == email).first()
+    if member:
+        raise HTTPException(status_code=409, detail="already exists email")
+
+    await encode_email_token(response, email)
+
+    return
+
+""" 이메일 번호 인증 검사 """
+@router.post("/signup/check-verify-email", status_code=204)
+def check_verify_email(
+    response: Response,
+    input_code: str = Body(..., embed=True),
+    email_token: str = Cookie(None),
+):
+    # 입력한 코드가 없거나 토큰 없을때
+    if not input_code or not email_token:
+        raise HTTPException(status_code=404, detail="code or token not exists")
+
+    # 입력 코드 해싱
+    hashed_input_code = get_code_hash(input_code)
+
+    # jwt 해독
+    payload = decode_email_token(email_token)
+    email = payload.get("email")
+
+    if payload.get("code") == hashed_input_code:
+        response.delete_cookie("email_token")
+        encode_email_verified_token(response, email)
+        return
+    else:
+        raise HTTPException(status_code=400, detail="expired cookie")
 
 """ 일반 로그인 """
 @router.post("/login")
@@ -738,7 +828,6 @@ def google_onboarding(
 """ 구글 추가정보 검증 토큰 가져오기 """
 @router.post("/google/onboarding/invalid-access")
 def google_onboarding_invalid_access(
-    response: Response,
     temp_google_check: str = Cookie(None)
 ):
     if not temp_google_check:
@@ -752,6 +841,45 @@ def google_onboarding_invalid_access(
         raise HTTPException(status_code=403, detail="invalid check")
     except Exception:
         raise HTTPException(status_code=403, detail="token error")
+
+""" 휴대폰 중복 체크 및 번호 인증 보내기"""
+@router.post("/google/onboarding/check-phone", status_code=204)
+def google_onboarding_check_phone(
+    response: Response,
+    phone: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    # 휴대폰 번호로 회원 조회
+    member = db.query(Member).filter(Member.phone == phone).first()
+    if member:
+        raise HTTPException(status_code=409, detail="already exists phone")
+
+    encode_google_onboarding_phone_token(response, phone)
+
+    return
+
+""" 휴대폰 번호 인증 검사 """
+@router.post("/google/onboarding/check-verify-phone", status_code=204)
+def google_onboarding_check_verify_phone(
+    response: Response,
+    input_code: str = Body(..., embed=True),
+    google_phone_token: str = Cookie(None),
+):
+    # 입력한 코드가 없거나 토큰 없을때
+    if not input_code or not google_phone_token:
+        raise HTTPException(status_code=404, detail="code or token not exists")
+
+    # 입력 코드 해싱
+    hashed_input_code = get_code_hash(input_code)
+
+    # jwt 해독
+    payload = decode_google_onboarding_phone_token(google_phone_token)
+
+    if payload.get("code") == hashed_input_code:
+        response.delete_cookie("google_phone_token")
+        return
+    else:
+        raise HTTPException(status_code=400, detail="expired cookie")
 ########################################################################################################################
 # 공통 로직
 ########################################################################################################################
@@ -845,7 +973,7 @@ async def account_recovery_pw(
 
 """ 아이디/비밀번호 찾기 인증번호 입력 검증 """
 @router.post("/account-recovery/code")
-def account_recovery_code(
+async def account_recovery_code(
     response: Response,
     input_code: str = Body(..., embed=True),
     recovery_id: str = Cookie(None),
@@ -883,6 +1011,9 @@ def account_recovery_code(
         if hashed_input_code == payload.get("code"):
             response.delete_cookie("recovery_pw")
 
+            # 이메일 가져오기
+            email = payload.get("email")
+
             # 해싱된 로그인 아이디 가져오기
             encrypted_id = payload.get("login_id")
             login_id = decrypt_data(encrypted_id)
@@ -895,6 +1026,8 @@ def account_recovery_code(
             member.password = password_encode(password)
             db.commit()
             db.refresh(member)
+
+            await send_password(email, password)
 
             return {"password": password, "recovery_type": "pw"}
 

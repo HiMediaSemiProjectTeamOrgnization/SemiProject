@@ -356,7 +356,7 @@ const AccountRecovery = () => {
 
                                     <div className="p-6 bg-slate-100 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 w-full select-all">
                                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-2 font-medium">
-                                            {activeTab === 'find_id' ? '회원님의 아이디' : '임시 비밀번호'}
+                                            {activeTab === 'find_id' ? '회원님의 아이디' : ''}
                                         </p>
                                         <p className="text-2xl font-black text-slate-900 dark:text-blue-400 tracking-tight break-all">
                                             {resultData}
@@ -365,7 +365,8 @@ const AccountRecovery = () => {
 
                                     {activeTab === 'find_pw' && (
                                         <p className="text-xs text-red-500 font-medium">
-                                            * 보안을 위해 로그인 후 반드시 비밀번호를 변경해 주세요.
+                                            * 보안을 위해 로그인 후 반드시 비밀번호를 변경해 주세요. <br/>
+                                            * 해당 이메일로도 비밀번호를 발송했습니다.
                                         </p>
                                     )}
                                 </div>

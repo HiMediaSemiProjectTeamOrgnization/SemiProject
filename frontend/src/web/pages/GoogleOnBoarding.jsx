@@ -4,12 +4,22 @@ import { authApi } from '../../utils/authApi.js';
 
 const GoogleOnBoarding = () => {
     const navigate = useNavigate();
+
+    // 1. 기존 데이터 State
     const [phoneNumber, setPhoneNumber] = useState('');
     const [birthday, setBirthday] = useState('');
     const [pincode, setPincode] = useState('');
     const [birthError, setBirthError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
+
+    // 2. [추가됨] 휴대폰 인증 관련 State
+    const [authCode, setAuthCode] = useState('');        // 입력한 인증코드
+    const [timer, setTimer] = useState(300);             // 타이머 (5분)
+    const [isCodeSent, setIsCodeSent] = useState(false); // 인증번호 발송 여부
+    const [isPhoneVerified, setIsPhoneVerified] = useState(false); // 최종 인증 완료 여부
+    const [phoneMessage, setPhoneMessage] = useState(''); // 안내 메시지
+    const [isPhoneError, setIsPhoneError] = useState(false); // 에러 상태(빨간색/파란색)
 
     // 구글 소셜 로그인 외 클라이언트 접근 차단
     useEffect(() => {
@@ -29,13 +39,99 @@ const GoogleOnBoarding = () => {
         void checkClient();
     }, [navigate]);
 
-    if (isChecking) {
-        return <div className="flex justify-center items-center h-screen">권한 확인 중...</div>;
-    }
+    // 3. [추가됨] 타이머 로직
+    useEffect(() => {
+        let interval;
+        // 인증번호가 발송되었고, 타이머가 남아있고, 아직 인증완료 전이라면 타이머 가동
+        if (isCodeSent && timer > 0 && !isPhoneVerified) {
+            interval = setInterval(() => {
+                setTimer((prev) => prev - 1);
+            }, 1000);
+        } else if (timer === 0 && isCodeSent && !isPhoneVerified) {
+            // 시간 초과 시
+            setIsCodeSent(false);
+            setPhoneMessage('인증 시간이 만료되었습니다. 다시 시도해주세요.');
+            setIsPhoneError(true);
+        }
+        return () => clearInterval(interval);
+    }, [isCodeSent, timer, isPhoneVerified]);
 
-    // 추가 정보 폼 제출 이벤트
+    // 시간 포맷팅 함수 (MM:SS)
+    const formatTime = (seconds) => {
+        const min = Math.floor(seconds / 60);
+        const sec = seconds % 60;
+        return `${min}:${sec < 10 ? `0${sec}` : sec}`;
+    };
+
+    // 4. [추가됨] 휴대폰 인증 요청 핸들러
+    const handleRequestVerification = async () => {
+        if (phoneNumber.length < 12) {
+            setPhoneMessage('휴대폰 번호를 올바르게 입력해주세요.');
+            setIsPhoneError(true);
+            return;
+        }
+
+        try {
+            // 중복 체크 및 인증번호 발송 API 호출
+            // (authApi 수정사항 반영: 객체가 아닌 값만 전달)
+            const result = await authApi.onBoardCheckPhone(phoneNumber);
+
+            if (result.status === 200 || result.status === 204) {
+                setIsCodeSent(true);
+                setTimer(300); // 5분 리셋
+                setIsPhoneVerified(false);
+                setPhoneMessage(`인증번호가 발송되었습니다. (남은 시간: ${formatTime(300)})`);
+                setIsPhoneError(false);
+            }
+        } catch (error) {
+            setIsCodeSent(false);
+            if (error.response && error.response.status === 409) {
+                setPhoneMessage('이미 가입된 휴대폰 번호입니다.');
+                setIsPhoneError(true);
+            } else if (error.response && error.response.status === 400) {
+                setPhoneMessage('이미 사용 중인 번호입니다.');
+                setIsPhoneError(true);
+            } else {
+                setPhoneMessage('서버 통신 오류가 발생했습니다.');
+                setIsPhoneError(true);
+            }
+        }
+    };
+
+    // 5. [추가됨] 인증번호 확인 핸들러
+    const handleVerifyCode = async () => {
+        if (!authCode) return;
+
+        try {
+            // 인증번호 확인 API 호출
+            // (authApi 수정사항 반영: 객체가 아닌 값만 전달)
+            const res = await authApi.onBoardCheckVerifyPhone(authCode);
+
+            if (res.status === 204) {
+                setIsPhoneVerified(true);
+                setIsCodeSent(false); // 타이머 정지
+                setPhoneMessage('인증이 완료되었습니다.');
+                setIsPhoneError(false);
+            }
+        } catch (error) {
+            console.error(error);
+            setPhoneMessage('인증번호가 일치하지 않거나 만료되었습니다.');
+            setIsPhoneError(true);
+        }
+    };
+
+    // 6. [수정됨] 추가 정보 폼 제출 이벤트
     const handleSetupSubmit = async (e) => {
         e.preventDefault();
+
+        // 휴대폰 인증 여부 확인
+        if (!isPhoneVerified) {
+            setPhoneMessage('휴대폰 인증을 완료해주세요!');
+            setIsPhoneError(true);
+            alert("휴대폰 인증이 완료되지 않았습니다.");
+            return;
+        }
+
         setIsLoading(true);
 
         const data = {
@@ -43,30 +139,33 @@ const GoogleOnBoarding = () => {
             "birthday": birthday,
             "pin_code": pincode
         };
+
         try {
             const result = await authApi.onBoarding(data);
 
-            if (result.status !== 200) {
+            if (result.status === 200 || result.status === 204) {
                 navigate('/web');
             }
         } catch (error) {
             if (error.response) {
                 if (error.response.status === 400) {
-                    alert('이미 가입된 휴대폰 번호입니다')
+                    alert('이미 가입된 휴대폰 번호입니다');
+                } else {
+                    alert(`오류 발생: ${error.response.status}`);
                 }
+            } else {
+                alert('서버 통신 실패');
             }
         } finally {
             setIsLoading(false);
         }
     };
 
-    // 휴대폰 번호 자동 하이픈 핸들러
+    // 7. [수정됨] 휴대폰 번호 입력 및 상태 초기화 핸들러
     const handlePhoneInput = (e) => {
-        // 1. 숫자만 남기고 다 제거 (문자열, 기존 하이픈 등)
         const rawValue = e.target.value.replace(/[^0-9]/g, '');
         let formatted = '';
 
-        // 2. 길이에 따라 포맷팅 (010-1234-5678 기준)
         if (rawValue.length < 4) {
             formatted = rawValue;
         } else if (rawValue.length < 8) {
@@ -75,40 +174,39 @@ const GoogleOnBoarding = () => {
             formatted = `${rawValue.slice(0, 3)}-${rawValue.slice(3, 7)}-${rawValue.slice(7, 11)}`;
         }
 
-        // 3. 상태 업데이트
         setPhoneNumber(formatted);
+
+        // ★★★ 번호 수정 시 인증 상태 리셋 (사용자 실수 방지)
+        if (isCodeSent || isPhoneVerified) {
+            setIsCodeSent(false);
+            setIsPhoneVerified(false);
+            setTimer(300);
+            setAuthCode("");
+            setPhoneMessage("");
+            setIsPhoneError(false);
+        }
     };
 
-    // [핸들러 함수] 생년월일 입력 및 검증 로직
+    // 생년월일 입력 및 검증 로직
     const handleBirthChange = (e) => {
-        const val = e.target.value.replace(/[^0-9]/g, ""); // 숫자만 남기기
-
-        // 1. 일단 입력값 업데이트 (사용자가 타이핑은 할 수 있게)
+        const val = e.target.value.replace(/[^0-9]/g, "");
         setBirthday(val);
-        setBirthError(''); // 에러 초기화
+        setBirthError('');
 
-        // 2. 8자리가 되었을 때 정밀 검증 시작
         if (val.length === 8) {
             const year = parseInt(val.substring(0, 4));
             const month = parseInt(val.substring(4, 6));
             const day = parseInt(val.substring(6, 8));
-
             const currentYear = new Date().getFullYear();
 
-            // [검증 1] 연도 범위: 1900년 ~ 현재 연도
             if (year < 1900 || year > currentYear - 16) {
                 setBirthError(`${year}년은 올바르지 않습니다. (1900~${currentYear - 16})`);
                 return;
             }
-
-            // [검증 2] 월 범위: 01 ~ 12
             if (month < 1 || month > 12) {
                 setBirthError('월은 1월부터 12월까지만 가능합니다.');
                 return;
             }
-
-            // [검증 3] 일 유효성 (실제로 존재하는 날짜인지 체크 - 예: 2월 30일 방지)
-            // new Date(년, 월-1, 일) -> 월은 0부터 시작하므로 -1
             const date = new Date(year, month - 1, day);
             if (
                 date.getFullYear() !== year ||
@@ -120,38 +218,35 @@ const GoogleOnBoarding = () => {
         }
     };
 
+    if (isChecking) {
+        return <div className="flex justify-center items-center h-screen">권한 확인 중...</div>;
+    }
+
     return (
-        // [전체 컨테이너]
-        // light: 부드러운 화이트 블루 배경
-        // dark: 깊은 밤하늘색 배경 (slate-950)
         <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-[#f0f4f8] dark:bg-slate-950 transition-colors duration-500 font-sans">
 
-            {/* [배경 데코레이션] Mica Effect & Aurora */}
+            {/* 배경 데코레이션 */}
             <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden">
-                {/* 상단 원: 다크모드 시 색상을 조금 더 진하게 조정 */}
                 <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px]
                         bg-blue-400/20 dark:bg-blue-600/10
                         rounded-full blur-[100px] animate-pulse" />
-                {/* 하단 원 */}
                 <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px]
                         bg-purple-400/20 dark:bg-indigo-600/10
                         rounded-full blur-[80px]" />
             </div>
 
-            {/* [메인 카드] Glassmorphism 적용 */}
+            {/* 메인 카드 */}
             <div className="relative z-10 w-full max-w-[420px] p-8 mx-4">
-
-                {/* 유리 패널 레이어 */}
+                {/* 유리 패널 */}
                 <div className="absolute inset-0
                         bg-white/60 dark:bg-slate-900/50
                         backdrop-blur-2xl rounded-2xl
                         shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)]
                         border border-white/60 dark:border-white/10 transition-colors duration-300"></div>
 
-                {/* 컨텐츠 레이어 */}
+                {/* 컨텐츠 */}
                 <div className="relative z-20 flex flex-col gap-6">
 
-                    {/* 2. 헤더 텍스트 */}
                     <div className="space-y-2 text-center mt-2">
                         <h2 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
                             추가 정보 입력
@@ -162,10 +257,9 @@ const GoogleOnBoarding = () => {
                         </p>
                     </div>
 
-                    {/* 3. 입력 폼 영역 */}
                     <form className="space-y-5 mt-2" onSubmit={handleSetupSubmit}>
 
-                        {/* 휴대폰 번호 입력 */}
+                        {/* 휴대폰 번호 입력 및 인증 */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
                                 휴대폰 번호
@@ -175,53 +269,121 @@ const GoogleOnBoarding = () => {
                                 text-slate-400 dark:text-slate-500
                                 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400
                                 transition-colors duration-200">
+                                    {/* 아이콘이 들어갈 자리 */}
                                 </div>
                                 <input
                                     type="text"
                                     required
-                                    placeholder="휴대폰번호 (010-1234-5678)"
+                                    placeholder="휴대폰번호"
                                     value={phoneNumber}
-                                    pattern="010-[0-9]{4}-[0-9]{4}"
-                                    title="휴대폰번호 (010-1234-5678)"
                                     maxLength="13"
                                     onChange={handlePhoneInput}
-                                    className="w-full h-12 pl-12 pr-4
-                             bg-white/50 dark:bg-slate-950/50
-                             border border-slate-200/80 dark:border-slate-700/80
-                             rounded-xl text-sm outline-none
-                             text-slate-800 dark:text-slate-200
-                             focus:bg-white dark:focus:bg-slate-900
-                             focus:border-blue-500/50 dark:focus:border-blue-400/50
-                             focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
-                             transition-all duration-200
-                             placeholder:text-slate-400 dark:placeholder:text-slate-600
-                             hover:bg-white/80 dark:hover:bg-slate-900/80"
+                                    disabled={isPhoneVerified} // 인증 완료되면 수정 불가
+                                    className={`w-full h-12 pl-12 pr-24 
+                                        bg-white/50 dark:bg-slate-950/50
+                                        border rounded-xl text-sm outline-none
+                                        text-slate-800 dark:text-slate-200
+                                        focus:bg-white dark:focus:bg-slate-900
+                                        focus:border-blue-500/50 dark:focus:border-blue-400/50
+                                        transition-all duration-200
+                                        placeholder:text-slate-400 dark:placeholder:text-slate-600
+                                        ${isPhoneVerified ? 'bg-slate-100 dark:bg-slate-800 text-slate-500' : ''}
+                                        ${isPhoneError ? 'border-red-500' : 'border-slate-200/80 dark:border-slate-700/80'}
+                                    `}
                                 />
+
+                                {/* 인증요청/완료 버튼 */}
+                                <div className="absolute right-1.5 top-1.5 bottom-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={handleRequestVerification}
+                                        disabled={isPhoneVerified || isCodeSent}
+                                        className={`h-full px-3 rounded-lg text-xs font-semibold transition-all duration-200
+                                            ${isPhoneVerified
+                                            ? 'bg-green-500 text-white cursor-default'
+                                            : isCodeSent
+                                                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                                : 'bg-slate-900 dark:bg-blue-600 text-white hover:bg-slate-800 dark:hover:bg-blue-500 cursor-pointer'
+                                        }
+                                        `}
+                                    >
+                                        {isPhoneVerified ? '인증완료' : isCodeSent ? '발송됨' : '인증요청'}
+                                    </button>
+                                </div>
                             </div>
+
+                            {/* 상태 메시지 및 타이머 */}
+                            {phoneMessage && (
+                                <p className={`text-xs ml-1 font-medium ${isPhoneError ? 'text-red-500' : 'text-blue-500'}`}>
+                                    {isCodeSent && !isPhoneVerified ? (
+                                        <span className="text-red-500 animate-pulse">
+                                            남은 시간: {formatTime(timer)}
+                                        </span>
+                                    ) : (
+                                        phoneMessage
+                                    )}
+                                </p>
+                            )}
+
+                            {/* [추가] 인증번호 입력란 (발송됨 상태일 때만 표시) */}
+                            {isCodeSent && !isPhoneVerified && (
+                                <div className="flex gap-2 mt-2 animate-fadeIn">
+                                    <input
+                                        type="text"
+                                        placeholder="인증번호 입력"
+                                        maxLength="6"
+                                        value={authCode}
+                                        // ★ 입력값 강제 대문자 변환
+                                        onChange={(e) => setAuthCode(e.target.value.toUpperCase())}
+                                        // ★ uppercase 클래스로 시각적 대문자 적용
+                                        className="flex-1 h-12 px-4 pl-12
+                                                uppercase
+                                                bg-white/50 dark:bg-slate-950/50
+                                                border border-slate-200/80 dark:border-slate-700/80
+                                                rounded-xl text-sm outline-none
+                                                text-slate-800 dark:text-slate-200
+                                                focus:bg-white dark:focus:bg-slate-900
+                                                focus:border-blue-500/50 dark:focus:border-blue-400/50
+                                                focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
+                                                transition-all duration-200
+                                                placeholder:text-slate-400 dark:placeholder:text-slate-600
+                                                placeholder:normal-case
+                                                hover:bg-white/80 dark:hover:bg-slate-900/80"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleVerifyCode}
+                                        className="h-12 px-5
+                                                bg-slate-900 hover:bg-slate-800
+                                                dark:bg-blue-600 dark:hover:bg-blue-500
+                                                text-white rounded-xl text-sm font-bold
+                                                transition-all duration-200 cursor-pointer
+                                                shadow-md"
+                                    >
+                                        확인
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
+                        {/* 생년월일 입력 */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
                                 생년월일
                             </label>
                             <div className="group relative">
                                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400...">
-                                    {/* 아이콘이 있다면 유지 */}
+                                    {/* 아이콘 */}
                                 </div>
                                 <input
                                     type="text"
                                     inputMode="numeric"
-                                    // 정규식 설명:
-                                    // (19|20)\d{2} : 19xx 또는 20xx 년도
-                                    // (0[1-9]|1[0-2]) : 01~09 또는 10~12 월
-                                    // (0[1-9]|[12][0-9]|3[01]) : 01~09, 10~29, 30~31 일
                                     pattern="^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])$"
                                     required
                                     placeholder="생년월일 (19990101)"
                                     title="생년월일 (19990101)"
                                     maxLength="8"
                                     value={birthday}
-                                    // ▼▼▼ 핸들러 교체 ▼▼▼
                                     onChange={handleBirthChange}
                                     className={`w-full h-12 pl-12 pr-4
                                  bg-white/50 dark:bg-slate-950/50
@@ -230,15 +392,12 @@ const GoogleOnBoarding = () => {
                                  transition-all duration-200
                                  placeholder:text-slate-400 dark:placeholder:text-slate-600
                                  hover:bg-white/80 dark:hover:bg-slate-900/80
-                                 /* 에러가 있으면 테두리를 빨간색으로 변경하는 조건부 스타일 */
                                  ${birthError
                                         ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10'
                                         : 'border-slate-200/80 dark:border-slate-700/80 focus:border-blue-500/50 dark:focus:border-blue-400/50 focus:ring-blue-500/10'
                                     }`}
                                 />
                             </div>
-
-                            {/* ▼▼▼ 에러 메시지 표시 영역 추가 ▼▼▼ */}
                             {birthError && (
                                 <p className="text-xs text-red-500 ml-1 font-medium animate-pulse">
                                     {birthError}
@@ -278,14 +437,12 @@ const GoogleOnBoarding = () => {
                              transition-all duration-200
                              placeholder:text-slate-400 dark:placeholder:text-slate-600
                              hover:bg-white/80 dark:hover:bg-slate-900/80
-
-                             /* 달력 아이콘 색상 조정 (브라우저 기본 스타일) */
                              dark:[color-scheme:dark]"
                                 />
                             </div>
                         </div>
 
-                        {/* 4. 제출 버튼 */}
+                        {/* 제출 버튼 */}
                         {isLoading ? (
                             <div>제출 중...</div>
                         ) : (
