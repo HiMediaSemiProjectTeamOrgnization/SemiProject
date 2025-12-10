@@ -828,7 +828,6 @@ def google_onboarding(
 """ 구글 추가정보 검증 토큰 가져오기 """
 @router.post("/google/onboarding/invalid-access")
 def google_onboarding_invalid_access(
-    response: Response,
     temp_google_check: str = Cookie(None)
 ):
     if not temp_google_check:
