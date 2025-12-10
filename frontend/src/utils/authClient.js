@@ -36,7 +36,7 @@ authClient.interceptors.response.use(
 
             if (status === 401) {
                 console.log('login session expired, return to main page');
-                window.location.href = '/web/login';
+                window.location.href = '/web/auth/login';
             }
 
             if (status === 403) {
