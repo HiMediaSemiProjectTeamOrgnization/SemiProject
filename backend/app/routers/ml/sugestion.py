@@ -10,7 +10,6 @@ from datetime import datetime
 
 router = APIRouter(prefix="/ai", tags=["AI services"])
 
-
 @router.post("/seat")
 def seat_suggestion(member_id : int = Body(...),
                     db : Session = Depends(get_db)) :

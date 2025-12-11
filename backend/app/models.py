@@ -28,15 +28,12 @@ class Seat(Base):
     seat_id = Column(BigInteger, primary_key=True, autoincrement=True)
     type = Column(String(10), nullable=False)
     is_status = Column(Boolean, server_default="true")
-<<<<<<< Updated upstream
     near_window = Column(Boolean)
     corner_seat = Column(Boolean)
     aisle_seat = Column(Boolean)
     isolated = Column(Boolean)
     near_beverage_table = Column(Boolean)
     is_center = Column(Boolean)
-=======
->>>>>>> Stashed changes
 
     seat_usages = relationship("SeatUsage", back_populates="seat")
 
@@ -50,11 +47,7 @@ class Member(Base):
     login_id = Column(String(50), unique=True, nullable=True)
     password = Column(String(255), nullable=True)
     phone = Column(String(20), unique=True)
-<<<<<<< Updated upstream
     email = Column(String(100))
-=======
-    email = Column(String(100), unique=True)
->>>>>>> Stashed changes
     birthday = Column(String(20), nullable=True)
     pin_code = Column(Integer, nullable=True)
     social_type = Column(String(20), nullable=True)
@@ -178,7 +171,7 @@ class UserTODO(Base):
     achieved_at = Column(DateTime)
 
     member = relationship("Member", back_populates="user_todos")
-    todo = relationship("TODO", back_populates="user_todos")
+    todos = relationship("TODO", back_populates="user_todos")
 
 # ----------------------------------------------------------------------------------------------------------------------
 # AI CHAT LOGS

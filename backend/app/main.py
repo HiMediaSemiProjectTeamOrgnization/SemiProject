@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from database import create_tables
 from routers.kiosk import kiosk
 from routers.web import auth, ticket
-from routers.ml import detect
+from routers.ml import detect, statics
 
 @asynccontextmanager
 async def lifespan(life_app: FastAPI):
@@ -24,6 +24,7 @@ app.include_router(auth.router)
 app.include_router(kiosk.router)
 app.include_router(ticket.router)
 app.include_router(detect.router)
+app.include_router(statics.router)
 
 app.add_middleware(
     CORSMiddleware,
