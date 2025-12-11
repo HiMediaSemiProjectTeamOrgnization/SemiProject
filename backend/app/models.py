@@ -168,10 +168,10 @@ class UserTODO(Base):
     todo_id = Column(BigInteger, ForeignKey("todos.todo_id", ondelete="SET NULL"), nullable=True)
     is_achieved = Column(Boolean, server_default="false")
     started_at = Column(DateTime, server_default=func.now())
-    achieved_at = Column(DateTime)
+    achieved_at = Column(DateTime, onupdate=func.now())
 
     member = relationship("Member", back_populates="user_todos")
-    todo = relationship("TODO", back_populates="user_todos")
+    todos = relationship("TODO", back_populates="user_todos")
 
 # ----------------------------------------------------------------------------------------------------------------------
 # AI CHAT LOGS

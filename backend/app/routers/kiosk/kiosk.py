@@ -221,7 +221,13 @@ def list_seats(db: Session = Depends(get_db)):
 
         seat_data = {
             "seat_id": s.seat_id,
-            "type": seat_type_str, 
+            "type": seat_type_str,
+            "near_window": s.near_window,             # 창가
+            "corner_seat": s.corner_seat,             # 구석
+            "aisle_seat": s.aisle_seat,               # 통로
+            "isolated": s.isolated,                   # 1인석(독립석)
+            "near_beverage_table": s.near_beverage_table, # 음료대 근처
+            "is_center": s.is_center,                 # 중앙 
             "is_status": s.is_status,
             "user_name": None,
             "remaining_time": None,

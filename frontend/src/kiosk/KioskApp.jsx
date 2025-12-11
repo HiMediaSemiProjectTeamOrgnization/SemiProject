@@ -10,7 +10,7 @@ import KioskSeatStatus from "./screens/KioskSeatStatus";
 
 import KioskCheckIn from "./components/KioskCheckIn";
 import KioskCheckOut from "./components/KioskCheckOut";
-import KioskAlertModal from "./components/KioskAlertModal"; // [추가] 모달 import
+import KioskAlertModal from "./components/KioskAlertModal"; 
 
 function KioskApp() {
     const [currentPage, setCurrentPage] = useState("home");
@@ -22,14 +22,13 @@ function KioskApp() {
     const [memberInfo, setMemberInfo] = useState(null);
     const [paymentResult, setPaymentResult] = useState(null);
 
-    // [추가] 모달 상태 관리
+    // 모달 상태 관리
     const [modal, setModal] = useState({ isOpen: false, title: "", message: "", type: "warning", onOk: null });
 
     const closeModal = () => {
         setModal(prev => ({ ...prev, isOpen: false }));
         if (modal.onOk) {
             modal.onOk();
-            // onOk 실행 후 초기화 (재실행 방지)
             setModal(prev => ({ ...prev, onOk: null }));
         }
     };
@@ -84,7 +83,6 @@ function KioskApp() {
                 setPaymentResult(resultData);
                 setCurrentPage("seat-status");
             } else {
-                // [수정] alert -> setModal
                 setModal({
                     isOpen: true,
                     title: "오류",
@@ -101,7 +99,6 @@ function KioskApp() {
         if (selectedSeat && resultData) {
             await handlePurchaseCheckIn(resultData.order_id, phoneNumber, selectedSeat);
         } else {
-            // [수정] alert -> setModal
             setModal({
                 isOpen: true,
                 title: "오류",
@@ -128,7 +125,6 @@ function KioskApp() {
             
             const data = await res.json();
             
-            // [수정] alert -> setModal (성공)
             setModal({
                 isOpen: true,
                 title: "구매 및 입실 완료",
@@ -137,7 +133,6 @@ function KioskApp() {
                 onOk: goToHome
             });
         } catch (e) {
-            // [수정] alert -> setModal (실패)
             setModal({
                 isOpen: true,
                 title: "입실 처리 실패",
@@ -183,7 +178,13 @@ function KioskApp() {
             mode="purchase"
         />
     );
-    else if (currentPage === "seat-status-view") content = <KioskSeatStatus onBack={goToHome} excludePeriodType={false} />;
+    else if (currentPage === "seat-status-view") content = (
+        <KioskSeatStatus 
+            onBack={goToHome} 
+            excludePeriodType={false} 
+            isViewOnly={true} 
+        />
+    );
     else content = (
         <div className="min-h-screen bg-slate-900 flex flex-col select-none overflow-hidden font-sans text-white">
             <KioskHeader backButton={false} />
@@ -259,7 +260,6 @@ function KioskApp() {
     return (
         <>
             {content}
-            {/* [추가] 모달 컴포넌트 렌더링 */}
             <KioskAlertModal 
                 isOpen={modal.isOpen}
                 onClose={closeModal}
