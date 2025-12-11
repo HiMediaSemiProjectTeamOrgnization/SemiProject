@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -65,6 +65,7 @@ class Member(Base):
     orders = relationship("Order", back_populates="member")
     seat_usages = relationship("SeatUsage", back_populates="member", cascade="all, delete")
     mileage_history = relationship("MileageHistory", back_populates="member", cascade="all, delete")
+    user_todos = relationship("UserTODO", back_populates="member", cascade="all, delete")
 
 # ----------------------------------------------------------------------------------------------------------------------
 # TOKENS
@@ -113,6 +114,7 @@ class SeatUsage(Base):
     member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"), nullable=True)
     check_in_time = Column(DateTime, server_default=func.now())
     check_out_time = Column(DateTime, nullable=True)
+    is_attended = Column(Boolean, server_default="false")
     ticket_expired_time = Column(DateTime, nullable=True)
 
     order = relationship("Order", back_populates="seat_usage")
@@ -132,3 +134,38 @@ class MileageHistory(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     member = relationship("Member", back_populates="mileage_history")
+
+# ----------------------------------------------------------------------------------------------------------------------
+# TODOS
+# ----------------------------------------------------------------------------------------------------------------------
+class TODO(Base):
+    __tablename__ = "todos"
+
+    todo_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    todo_type = Column(String(20))
+    todo_title = Column(String(100))
+    todo_content = Column(Text)
+    todo_value = Column(Integer)
+    betting_mileage = Column(Integer)
+    payback_mileage_percent = Column(Integer)
+    is_exposed = Column(Boolean, server_default="true")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    user_todos = relationship("UserTODO", back_populates="todo", cascade="all, delete")
+
+# ----------------------------------------------------------------------------------------------------------------------
+# USER_TODOS
+# ----------------------------------------------------------------------------------------------------------------------
+class UserTODO(Base):
+    __tablename__ = "user_todos"
+
+    user_todo_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="SET NULL"), nullable=True)
+    todo_id = Column(BigInteger, ForeignKey("todos.todo_id", ondelete="SET NULL"), nullable=True)
+    is_achieved = Column(Boolean, server_default="false")
+    started_at = Column(DateTime, server_default=func.now())
+    achieved_at = Column(DateTime, onupdate=func.now())
+
+    member = relationship("Member", back_populates="user_todos")
+    todo = relationship("TODO", back_populates="user_todos")
