@@ -147,7 +147,7 @@ const WebLayout = () => {
                                 </button>
 
                                 {/* ▼ [추가된 코드] AI 학습 도우미 (이용권 구매 왼쪽) ▼ */}
-                                <Link to="/web/planner" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
+                                <Link to="/web/plan" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
                                     <span>🤖</span> AI 학습 도우미
                                 </Link>
                                 {/* ▲ [추가된 코드] 끝 ▲ */}
@@ -204,7 +204,7 @@ const WebLayout = () => {
 
                                     {/* ▼ [추가된 코드] 모바일: AI 학습 도우미 ▼ */}
                                     <Link
-                                        to="/web/planner"
+                                        to="/web/plan"
                                         onClick={() => setIsMenuOpen(false)}
                                         className="block w-full p-3 text-center bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold rounded-xl hover:bg-blue-200 transition-colors"
                                     >

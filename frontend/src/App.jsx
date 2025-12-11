@@ -47,7 +47,7 @@ const router = createBrowserRouter([
                 element: <SeatStatus />
             },
             {
-                path: 'planner',
+                path: 'plan',
                 element: <Planner />
             },
         ],
