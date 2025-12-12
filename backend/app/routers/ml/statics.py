@@ -27,9 +27,7 @@ def classify_seat_type(seat) :
         return "중앙"
     return "일반석"
 
-# 리턴 서브 메시지 맵
 
- 
 """좌석 통계 API"""
 @router.get("/seats")
 def seat_statistics(request : Request, member_id : int, 
