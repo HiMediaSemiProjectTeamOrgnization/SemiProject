@@ -7,19 +7,13 @@ class BaseSchema(BaseModel):
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Web Auth
+# === 마이페이지 ===
 class ModifyEmail(BaseSchema):
     email: str
-    currentEmail: str
-
+class CheckOrModifyPw(BaseSchema):
+    password: str
 class ModifyPin(BaseSchema):
     pin: int
-    currentPin: int
-
-class ModifyPw(BaseSchema):
-    password: str
-    currentPassword: str
-
-
 # === 사용자가 선택한 todo 정보 insert 요청 스키마 ===
 class TodoSelectReq(BaseSchema):
     todo_id : int
