@@ -4,7 +4,7 @@ import { MdTrendingUp } from "react-icons/md";
 
 export default function FocusAnalysis() {
     return (
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-md p-6 transition-colors">
+        <div className="bg-white dark:bg-slate-900/50 rounded-2xl shadow-md p-6 transition-colors">
             {/* Header */}
             <div className="flex items-center gap-2 mb-6">
                 <BsLightningChargeFill className="text-purple-500 dark:text-purple-300 text-lg" />

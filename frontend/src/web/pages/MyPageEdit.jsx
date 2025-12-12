@@ -1,30 +1,56 @@
-import React, { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaEnvelope, FaKey, FaLock, FaArrowLeft } from "react-icons/fa";
+import MyPageCheckPw from "./MyPageCheckPw";
 
 export default function MyPageEdit() {
     const navigate = useNavigate();
 
-    const [currentEmail, setCurrentEmail] = useState("");
+    const [user, setUser] = useState({});
+
     const [newEmail, setNewEmail] = useState("");
-    const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
-    const [currentPin, setCurrentPin] = useState("");
     const [newPin, setNewPin] = useState("");
     const [confirmPin, setConfirmPin] = useState("");
+
+    const [canModify, setCanModify] = useState(false);
 
     const loginCheck = async () => {
         const res = await fetch(`/api/web/me`, { credentials: 'include' });
         if (!res.ok) {
-            navigate("/web/login");
-            return;
+            return navigate("/web/login");
+        } else {
+            const data = await res.json();
+            setUser({
+                name: data.name,
+                email: data.email,
+                time: data.total_mileage
+            });
         }
     };
 
     useEffect(() => {
         loginCheck();
     }, []);
+
+    // 비밀번호 확인 페이지에서 스크롤 잠금처리 
+    useEffect(() => {
+        window.scrollTo(0, 0);
+
+        if (!canModify) {
+            // 비밀번호 확인 모달이 떠 있는 상태 → 스크롤 막기
+            document.body.style.overflow = "hidden";
+        } else {
+            // 모달이 사라짐 → 스크롤 다시 활성화
+            document.body.style.overflow = "auto";
+        }
+
+        // 혹시 언마운트될 경우 대비
+        return () => {
+            document.body.style.overflow = "auto";
+        };
+    }, [canModify]);
+
 
     // 이메일 변경
     const handleEmailSubmit = async (e) => {
@@ -33,25 +59,22 @@ export default function MyPageEdit() {
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
         // 검증
-        // 1-1. 현재 이메일 미입력
-        if (!currentEmail) return alert("현재 이메일을 입력하세요.");
-        // 1-2. 변경할 이메일 미입력
+        // 1-1. 변경할 이메일 미입력
         if (!newEmail) return alert("변경하실 이메일을 입력하세요.");
-        // 1-3. 이메일 유효성 검사 탈락
+        // 1-2. 이메일 유효성 검사 탈락
         if (!emailRegex.test(newEmail)) return alert("유효한 이메일 주소를 입력하세요.");
-        // 1-4. 이미 사용중인 이메일(현재 이메일로 변경시도)
-        if (currentEmail === newEmail) return alert("현재 이메일과 동일한 이메일로 변경할 수 없습니다.");
 
         try {
             const res = await fetch("/api/web/mypage/modify/email", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: newEmail, currentEmail: currentEmail })
+                body: JSON.stringify({ email: newEmail })
             });
 
             if (res.ok) {
                 const req = await res.json();
                 alert(req.message);
+                setNewEmail("");
             } else {
                 const errReq = await res.json();
                 alert(errReq.detail);
@@ -61,11 +84,6 @@ export default function MyPageEdit() {
             console.log(err);
         }
     };
-
-    // 현재 이메일 제어
-    const handleCurrentEmailChange = (e) => {
-        setCurrentEmail(e.target.value);
-    }
 
     // 변경할 이메일 제어
     const handleEmailChange = (e) => {
@@ -77,25 +95,23 @@ export default function MyPageEdit() {
         e.preventDefault();
 
         // 검증
-        // 1-1. 현재 비밀번호 미입력 
-        if (!currentPassword) return alert("현재 비밀번호를 입력하세요.");
-        // 1-2. 변경할 비밀번호 미입력
+        // 1-1. 변경할 비밀번호 미입력
         if (!newPassword) return alert("변경하실 비밀번호를 입력하세요.");
-        // 1-3. 변경할 비밀번호 확인 미입력 또는 변경할 비밀번호와 미일치
+        // 1-2. 변경할 비밀번호 확인 미입력 또는 변경할 비밀번호와 미일치
         if (newPassword != confirmPassword) return alert("비밀번호와 비밀번호 확인의 값이 일치하지 않습니다.");
-        // 1-4. 이미 사용중인 비밀번호(현재 비밀번호로 변경 시도)
-        if (currentPassword === newPassword) return alert("현재 비밀번호와 동일한 비밀번호로 변경할 수 없습니다.");
 
         try {
             const res = await fetch("/api/web/mypage/modify/password", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ password: newPassword, currentPassword: currentPassword })
+                body: JSON.stringify({ password: newPassword })
             });
 
             if (res.ok) {
                 const req = await res.json();
                 alert(req.message);
+                setNewPassword("");
+                setConfirmPassword("");
             } else {
                 const errReq = await res.json();
                 alert(errReq.detail);
@@ -105,11 +121,6 @@ export default function MyPageEdit() {
             console.log(err);
         }
     };
-
-    // 현재 비밀번호 제어
-    const handleCurrentPasswordChange = (e) => {
-        setCurrentPassword(e.target.value);
-    }
 
     // 변경할 비밀번호 제어
     const handlePasswordChange = (e) => {
@@ -125,10 +136,8 @@ export default function MyPageEdit() {
     const handlePinSubmit = async (e) => {
         e.preventDefault();
 
-        if (!currentPin) return alert("현재 핀코드를 입력하세요.");
         if (!newPin) return alert("변경하실 핀코드를 입력하세요.");
         if (newPin != confirmPin) return alert("핀코드와 핀코드 확인의 값이 일치하지 않습니다.");
-        if (currentPin == newPin) return alert("현재 핀코드와 동일한 핀코드로 변경할 수 없습니다.");
 
         try {
             const res = await fetch("/api/web/mypage/modify/pin", {
@@ -140,7 +149,6 @@ export default function MyPageEdit() {
             if (res.ok) {
                 const req = await res.json();
                 alert(req.message);
-                setCurrentPin("");
                 setNewPin("");
                 setConfirmPin("");
             } else {
@@ -153,11 +161,6 @@ export default function MyPageEdit() {
         }
     };
 
-    // 현재 핀코드 제어
-    const handleCurrentPinChange = (e) => {
-        setCurrentPin(e.target.value);
-    }
-
     // 변경할 핀코드 제어
     const handlePinChange = (e) => {
         setNewPin(e.target.value);
@@ -168,18 +171,10 @@ export default function MyPageEdit() {
         setConfirmPin(e.target.value);
     }
 
-    const InputCard = ({ title, icon: Icon, children }) => (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-gray-300 dark:border-gray-700 p-6 transition-colors">
-            <div className="flex items-center gap-2 mb-4">
-                <Icon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-200">{title}</h3>
-            </div>
-            {children}
-        </div>
-    );
 
     return (
-        <div className="p-4 space-y-8 bg-[#f0f4f8] dark:bg-slate-900 dark:text-gray-200 transition-colors">
+        <div className="p-4 space-y-8 bg-[#f0f4f8] dark:bg-slate-900/50 dark:text-gray-200 transition-colors">
+            {!canModify && <MyPageCheckPw setCanModify={setCanModify} userName={user.name} />}
 
             {/* Page Title */}
             <div>
@@ -191,17 +186,34 @@ export default function MyPageEdit() {
                 </p>
             </div>
 
-            {/* 이메일 변경 */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6 space-y-4 border border-gray-200 dark:border-gray-700">
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">현재 이메일</p>
-                <input
-                    type="email"
-                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 
-                       text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    value={currentEmail}
-                    onChange={handleCurrentEmailChange}
-                />
+            <div className="bg-white dark:bg-slate-900/50 rounded-2xl shadow-md mb-4 p-6 transition-colors">
+                <div className="space-y-2">
 
+                    {/* 제목 영역 */}
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <p className="text-gray-500 dark:text-gray-400 text-sm">이름</p>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 transition">
+                                {user.name}
+                            </h3>
+                        </div>
+
+                        <div className="text-right">
+                            <p className="text-gray-500 dark:text-gray-400 text-sm">보유 시간</p>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 transition">
+                                {user.time}분
+                            </h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900/50 rounded-2xl shadow-md p-6 space-y-4 border border-gray-200 dark:border-gray-700">
+                <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100
+               flex items-center gap-2 mb-4">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400"></span>
+                    이메일 변경
+                </h1>
                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">변경할 이메일</p>
                 <input
                     type="email"
@@ -218,20 +230,13 @@ export default function MyPageEdit() {
                 >
                     이메일 변경
                 </button>
-            </div>
 
-            {/* 비밀번호 변경 */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6 space-y-4 border border-gray-200 dark:border-gray-700">
 
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">현재 비밀번호</p>
-                <input
-                    type="password"
-                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 
-                       text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    value={currentPassword}
-                    onChange={handleCurrentPasswordChange}
-                />
-
+                <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100
+               flex items-center gap-2 mb-4">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400"></span>
+                    비밀번호 변경
+                </h1>
                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">변경할 비밀번호</p>
                 <input
                     type="password"
@@ -257,22 +262,12 @@ export default function MyPageEdit() {
                 >
                     비밀번호 변경
                 </button>
-            </div>
 
-            {/* 핀코드 변경 */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6 space-y-4 border border-gray-200 dark:border-gray-700">
-
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">현재 핀코드 입력</p>
-                <input
-                    type="text"
-                    maxLength={4}
-                    inputMode="numeric"
-                    pattern="\d*"
-                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 
-                       text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    value={currentPin}
-                    onChange={handleCurrentPinChange}
-                />
+                <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100
+               flex items-center gap-2 mb-4">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400"></span>
+                    핀코드 변경
+                </h1>
 
                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">변경할 핀코드</p>
                 <input

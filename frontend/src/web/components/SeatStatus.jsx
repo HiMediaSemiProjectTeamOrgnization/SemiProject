@@ -1,12 +1,24 @@
 import { useEffect, useState } from "react";
+import { PiChairBold } from "react-icons/pi";
+import { FaDoorOpen } from "react-icons/fa";
 import SeatBox from "./SeatBox";
-import SeatModal from "./SeatModal"; // SeatModal이 있다고 가정합니다.
 
-function SeatStatus() {
+const FLOOR_PLAN = [
+    [1, 0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 0, 51, 52],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 53, 54],
+    [3, 0, 31, 32, 33, 34, 35, 0, 41, 42, 43, 44, 45, 55, 56],
+    [4, 0, 36, 37, 38, 39, 40, 0, 46, 47, 48, 49, 50, 57, 58],
+    [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59, 60],
+    [6, 0, 61, 62, 63, 64, 65, 0, 71, 72, 73, 74, 75, 0, 0],
+    [7, 0, 66, 67, 68, 69, 70, 0, 76, 77, 78, 79, 80, 0, 91],
+    [8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 92],
+    [9, 0, 11, 12, 13, 14, 15, 0, 81, 82, 83, 84, 85, 0, 93],
+    [10, 0, 16, 17, 18, 19, 20, 0, 86, 87, 88, 89, 90, 0, 94],
+    [0, 0, 0, 0, 0, 0, 0, -1, 95, 96, 97, 98, 99, 100, 0],
+];
+
+export default function SeatStatus() {
     const [seats, setSeats] = useState([]);
-    const [activeTab, setActiveTab] = useState("daily");
-    const [modalOpen, setModalOpen] = useState(false);
-    const [selectedSeat, setSelectedSeat] = useState(null);
 
     useEffect(() => {
         const fetchSeats = async () => {
@@ -23,166 +35,106 @@ function SeatStatus() {
         fetchSeats();
     }, []);
 
-    const filteredSeats = seats.filter(seat => {
-        if (activeTab === "daily") return seat.type === "free";
-        if (activeTab === "period") return seat.type === "fix";
-        return true;
-    });
+    const getSeat = (id) => seats.find((s) => s.seat_id === id);
 
-    const handleTabChange = (tab) => {
-        setActiveTab(tab);
-    };
-
-    const handleSeatClick = (seat) => {
-        // 이미 사용 중인 좌석(is_status가 false)은 클릭 시 모달이 뜨는 로직으로 예상하여 수정
-        if (!seat.is_status) {
-            getSeatEndTime(seat);
+    const renderSeat = (seatId) => {
+        if (seatId === -1) {
+            return (
+                <div className="w-full h-full flex flex-col items-center justify-center">
+                    <FaDoorOpen className="w-7 h-7 text-slate-400 opacity-70" />
+                </div>
+            );
         }
-    };
 
-    const getSeatEndTime = async (seat) => {
-        try {
-            const res = await fetch(`/api/web/seat/endtime/${seat.seat_id}`);
-            const data = await res.json();
+        if (seatId === 0) return <div />;
 
-            const endTime = data.end_time
-                ? new Date(data.end_time).toLocaleString("ko-KR")
-                : null;
+        const seat = getSeat(seatId);
+        if (!seat) return <div className="rounded-md bg-[#1C2437]" />;
 
-            setSelectedSeat({ seat_id: seat.seat_id, end_time: endTime });
-            setModalOpen(true);
-        } catch (err) {
-            console.error(err);
-        }
+        return (
+            <SeatBox
+                key={seat.seat_id}
+                seat={seat}
+                isViewOnly={true}
+            />
+        );
     };
 
     return (
-        <div className="flex-1 flex flex-col px-4 pb-4 container mx-auto max-w-6xl h-full">
+        <div className="flex-1 flex flex-col px-4 pb-4 container mx-auto max-w-6xl h-full
+                        bg-[#f0f4f8] dark:bg-slate-900 
+                        text-gray-900 dark:text-white transition-colors">
 
-            {/* 전체 배경 및 텍스트 색상 설정 */}
-            <main className="flex-1 flex flex-col px-4 pb-4 w-full h-full 
-                            bg-[#f0f4f8] dark:bg-slate-900 
-                            text-gray-900 dark:text-white transition-colors">
-
-                {/* 헤더 */}
-                <div className="flex justify-between items-end mb-4 shrink-0 px-2">
-                    <div>
-                        <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-                            좌석 현황
-                        </h2>
-                        <p className="text-gray-600 dark:text-slate-400 text-sm mt-1">
-                            실시간 좌석 사용 현황을 확인하고 좌석을 선택하세요.
-                        </p>
-                    </div>
-
-                    {/* 탭 */}
-                    <div className="flex bg-slate-200/90 dark:bg-slate-800/90 p-1 rounded-xl 
-                                    border border-slate-300 dark:border-slate-700 backdrop-blur">
-                        <TabButton
-                            isActive={activeTab === "daily"}
-                            onClick={() => handleTabChange("daily")}
-                            label="자유석 (Daily)"
-                            color="emerald"
-                        />
-                        <TabButton
-                            isActive={activeTab === "period"}
-                            onClick={() => handleTabChange("period")}
-                            label="기간제석 (Period)"
-                            color="violet"
-                        />
-                    </div>
+            {/* 헤더 */}
+            <div className="flex justify-between items-end mb-4 shrink-0 px-2">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white flex items-center gap-2">
+                        <PiChairBold className="text-[26px] text-violet-300" />
+                        좌석 현황
+                    </h2>
+                    <p className="text-gray-600 dark:text-slate-400 text-sm mt-1">
+                        실시간 좌석 사용 현황을 확인하고 좌석을 선택하세요.
+                    </p>
                 </div>
 
-                {/* 좌석 박스 (그리드 컨테이너) */}
-                <div className="flex-1 
-                                bg-gray-100 dark:bg-slate-800/50 
-                                rounded-3xl 
-                                border border-gray-200 dark:border-slate-700 
-                                p-6 
-                                backdrop-blur-sm 
-                                shadow-inner dark:shadow-none 
-                                relative 
-                                overflow-hidden 
-                                flex flex-col">
-
-                    {filteredSeats.length === 0 && (
-                        <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-slate-500">
-                            좌석 데이터가 없습니다.
-                        </div>
-                    )}
-
-                    {/* 좌석 그리드 */}
-                    <div className="grid grid-cols-6 gap-3 w-full h-full content-start overflow-y-auto no-scrollbar">
-                        {filteredSeats.map((seat) => (
-                            <SeatBox
-                                key={seat.seat_id}
-                                seat={seat}
-                                tabType={activeTab}
-                                onClick={() => handleSeatClick(seat)}
-                                disableHover={true}
-                                hideSelectText={true}
-                                disableSelection={true}
-                            />
-                        ))}
+                <div className="flex items-center gap-4 
+                                bg-white/70 dark:bg-[#1C2437]/80 
+                                border border-gray-300 dark:border-[#2A3347] 
+                                rounded-full px-6 py-2 shadow-md">
+                    <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-[#a8c7ff]"></div>
+                        <span className="text-sm text-gray-700 dark:text-[#E9F0FF]">자유석</span>
                     </div>
 
-                    {/* Legend */}
-                    <div className="mt-5 pt-3 
-                                    border-t border-gray-300 dark:border-slate-700 
-                                    flex justify-center gap-6 text-xs 
-                                    text-gray-600 dark:text-slate-400 shrink-0">
-                        <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded bg-${activeTab === "period" ? "violet" : "emerald"}-500`}></div>
-                            선택 가능
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded 
-                                            bg-slate-300 dark:bg-slate-700 
-                                            border border-slate-400 dark:border-slate-600"></div>
-                            사용 중
-                        </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-[#c0b6ff]"></div>
+                        <span className="text-sm text-gray-700 dark:text-[#F0F6FF]">고정석</span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-[#383e55]"></div>
+                        <span className="text-sm text-gray-600 dark:text-[#8E97A8]">사용중</span>
                     </div>
                 </div>
-                
-                {/* 모달 (자리 정보 확인용) */}
-                {/* SeatModal은 따로 제공되지 않았으므로 렌더링만 추가합니다 */}
-                {modalOpen && selectedSeat && (
-                    <SeatModal 
-                        seatId={selectedSeat.seat_id} 
-                        endTime={selectedSeat.end_time} 
-                        onClose={() => setModalOpen(false)} 
-                    />
+            </div>
+
+            {/* 좌석 박스 */}
+            <div className="flex-1 
+                            bg-gray-100 dark:bg-slate-800/40 
+                            rounded-3xl 
+                            border border-gray-200 dark:border-slate-700 
+                            p-6 
+                            backdrop-blur-sm 
+                            shadow-inner dark:shadow-none 
+                            relative 
+                            overflow-hidden 
+                            flex flex-col">
+
+                {seats.length === 0 && (
+                    <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-slate-500">
+                        좌석 데이터가 없습니다.
+                    </div>
                 )}
-            </main>
+
+                {/* 좌석 그리드 */}
+                {seats.length > 0 && (
+                    <div className="flex-1 overflow-hidden relative">
+                        <div
+                            className="w-full h-full grid rounded-2xl border border-[#2A3347] p-3 shadow-lg shadow-black/20"
+                            style={{
+                                gridTemplateColumns: `repeat(${FLOOR_PLAN[0].length}, 1fr)`,
+                                gridTemplateRows: `repeat(${FLOOR_PLAN.length}, 1fr)`,
+                                gap: "6px",
+                            }}
+                        >
+                            {FLOOR_PLAN.map((row, r) =>
+                                row.map((id, c) => <div key={`${r}-${c}`}>{renderSeat(id)}</div>)
+                            )}
+                        </div>
+                    </div>
+                )}
+
+            </div>
         </div>
     );
 }
-
-function TabButton({ isActive, onClick, label, color }) {
-    // 탭 버튼의 Light/Dark 모드 스타일을 명확하게 분리
-    
-    // 활성화된 탭 스타일 (Light & Dark)
-    const activeClass =
-        color === "violet"
-            ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30 dark:shadow-violet-900/40"
-            : "bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 dark:shadow-emerald-900/40";
-
-    // 비활성화된 탭 스타일 (Light & Dark)
-    const inactiveClass =
-        "text-slate-600 dark:text-slate-400 " + // 기본 텍스트 색상
-        "hover:text-gray-800 dark:hover:text-white " + // 호버 시 텍스트 색상
-        "hover:bg-slate-300/50 dark:hover:bg-slate-700/70 transition"; // 호버 시 배경색
-
-    return (
-        <button
-            onClick={onClick}
-            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all duration-200 ${
-                isActive ? activeClass : inactiveClass
-            }`}
-        >
-            {label}
-        </button>
-    );
-}
-
-export default SeatStatus;

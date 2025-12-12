@@ -9,25 +9,15 @@ import TodoModal from "../components/TodoModal";
 function MyPage() {
     const location = useLocation();
     const navigate = useNavigate();
-    const [user, setUser] = useState({});
-    const [todo, setTodo] = useState({});
 
+    const [todo, setTodo] = useState({});
     const [todoList, setTodoList] = useState([]);
     const [showTodoModal, setShowTodoModal] = useState(false);
 
-    const getUserData = async () => {
+    const loginCheck = async () => {
         const res = await fetch(`/api/web/mypage`, { credentials: 'include' });
         if (res.ok) {
             const data = await res.json();
-            // setUser({
-            //     "name": data.user.name,
-            //     "email": data.user.email,
-            //     "password": data.user.password,
-            //     "phone": data.user.phone,
-            //     "mileage": data.user.total_mileage,
-            //     "save_time": data.user.saved_time_minute
-            // });
-
             if (data.todo) {
                 setTodo({
                     "name": data.todo.todo_name,
@@ -48,13 +38,28 @@ function MyPage() {
     };
 
     useEffect(() => {
-        getUserData();
+        loginCheck();
     }, []);
+
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+
+        if (showTodoModal) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "auto";
+        }
+
+        return () => {
+            document.body.style.overflow = "auto";
+        };
+    }, [showTodoModal]);
 
     return (
         <div className="p-4 space-y-8 bg-[#f0f4f8] dark:bg-slate-900 text-blue-1000 dark:text-blue-300 transition-colors">
 
-            {showTodoModal && (
+            {showTodoModal && todoList.length > 0 && (
                 <TodoModal
                     isOpen={showTodoModal}
                     onClose={() => setShowTodoModal(false)}
@@ -72,7 +77,6 @@ function MyPage() {
 
             {!showTodoModal && (
                 <TodoProgress todo={todo.name} goalMinutes={todo.target_value} totalMinutes={todo.current_value} />
-
             )}
 
             {/* Background Section */}
