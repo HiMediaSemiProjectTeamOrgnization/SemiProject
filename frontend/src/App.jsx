@@ -61,11 +61,12 @@ const router = createBrowserRouter([
             {
                 path: 'mypage/order',
                 element: <MyPageOrder />
-            }
+            },
+            {
                 path: 'plan',
                 element: <Planner />
-            },
-        ],
+            }
+        ]
     },
     {
         path: '/web/signup',
