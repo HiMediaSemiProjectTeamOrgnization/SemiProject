@@ -10,6 +10,7 @@ const WebLayout = () => {
     const [pinInput, setPinInput] = useState('');
     const [isPinSubmitting, setIsPinSubmitting] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
     // 페이지 로드시 내 정보 쿠키 가져오기
     useEffect(() => {
@@ -64,6 +65,25 @@ const WebLayout = () => {
         }
     };
 
+    const loadMyPage = () => {
+        navigate('/web/mypage');
+    }
+
+    // 마이페이지로 이동
+    const LoadMyPage = () => {
+        navigate('/web/mypage');
+    }
+
+    // 내 정보수정 페이지로 이동
+    const LoadModify = () => {
+        navigate("/web/mypage/edit");
+    };
+
+    // 주문목록 페이지로 이동
+    const LoadOrderList = () => {
+        navigate("/web/mypage/order");
+    }
+
     return (
         // [전체 컨테이너] 배경색 및 폰트 설정
         <div className="min-h-screen w-full flex flex-col relative bg-[#f0f4f8] dark:bg-slate-900 text-blue-1000 dark:text-blue-300">
@@ -81,7 +101,7 @@ const WebLayout = () => {
                                 핀번호 설정
                             </h2>
                             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-                                서비스 이용을 위해<br/>숫자 4자리를 설정해주세요.
+                                서비스 이용을 위해<br />숫자 4자리를 설정해주세요.
                             </p>
 
                             <form onSubmit={handlePinSubmit} className="space-y-5">
@@ -142,9 +162,60 @@ const WebLayout = () => {
                             <div className="text-slate-400 animate-pulse">확인 중...</div>
                         ) : member ? (
                             <>
+                                <div className="relative profile-menu-wrapper">
+                                    {/* 이름 버튼 */}
+                                    <button
+                                        onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                                        className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors"
+                                    >
+                                        <span className="font-bold">{member.name}</span>님
+                                    </button>
+
+                                    {/* 드롭다운 메뉴 */}
+                                    {isProfileMenuOpen && (
+                                        <ul
+                                            className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2 text-sm animate-in fade-in slide-in-from-top-2"
+                                        >
+                                            <li
+                                                onClick={() => {
+                                                    LoadMyPage();
+                                                    setIsProfileMenuOpen(false);
+                                                }}
+                                                className="px-4 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition"
+                                            >
+                                                학습데이터 확인
+                                            </li>
+                                            <li
+                                                onClick={() => {
+                                                    LoadModify();
+                                                    setIsProfileMenuOpen(false);
+                                                }}
+                                                className="px-4 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition"
+                                            >
+                                                정보 수정
+                                            </li>
+                                            <li
+                                                onClick={() => {
+                                                    LoadOrderList();
+                                                    setIsProfileMenuOpen(false);
+                                                }}
+                                                className="px-4 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition"
+                                            >
+                                                주문 목록 보기
+                                            </li>
+                                        </ul>
+                                    )}
+                                </div>
                                 <button className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors cursor-pointer">
                                     <span className="font-bold">{member.name}</span>님
                                 </button>
+
+                                {/* ▼ [추가된 코드] AI 학습 도우미 (이용권 구매 왼쪽) ▼ */}
+                                <Link to="/web/plan" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
+                                    <span>🤖</span> AI 학습 도우미
+                                </Link>
+                                {/* ▲ [추가된 코드] 끝 ▲ */}
+
                                 <Link to="/web/ticket" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
                                     이용권 구매
                                 </Link>
@@ -153,9 +224,8 @@ const WebLayout = () => {
                                 </button>
                             </>
                         ) : (
-                            <Link to="/web/login" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
-                                로그인
-                            </Link>
+                            // ... (로그인 버튼 기존 유지)
+                            <Link to="/web/login" className="...">로그인</Link>
                         )}
                     </div>
 
@@ -190,13 +260,23 @@ const WebLayout = () => {
                                 <div className="text-center text-slate-400 py-2">로딩 중...</div>
                             ) : member ? (
                                 <>
-                                    {/* 모바일: 사용자 정보 */}
+                                    {/* 모바일: 사용자 정보 (기존 유지) */}
                                     <div className="p-3 bg-white/50 dark:bg-slate-800/50 rounded-xl text-center mb-2">
                                         <span className="text-slate-800 dark:text-white font-bold">{member.name}</span>
                                         <span className="text-slate-500 dark:text-slate-400 text-sm">님 환영합니다</span>
                                     </div>
 
-                                    {/* 모바일: 이용권 구매 */}
+                                    {/* ▼ [추가된 코드] 모바일: AI 학습 도우미 ▼ */}
+                                    <Link
+                                        to="/web/plan"
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className="block w-full p-3 text-center bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold rounded-xl hover:bg-blue-200 transition-colors"
+                                    >
+                                        🤖 AI 학습 도우미
+                                    </Link>
+                                    {/* ▲ [추가된 코드] 끝 ▲ */}
+
+                                    {/* 모바일: 이용권 구매 (기존 유지) */}
                                     <Link
                                         to="/web/ticket"
                                         onClick={() => setIsMenuOpen(false)}
@@ -205,11 +285,8 @@ const WebLayout = () => {
                                         이용권 구매
                                     </Link>
 
-                                    {/* 모바일: 로그아웃 */}
-                                    <button
-                                        onClick={handleLogoutSubmit}
-                                        className="block w-full p-3 text-center bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-300 transition-colors"
-                                    >
+                                    {/* 모바일: 로그아웃 (기존 유지) */}
+                                    <button onClick={handleLogoutSubmit} className="...">
                                         로그아웃
                                     </button>
                                 </>
