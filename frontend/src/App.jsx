@@ -11,6 +11,9 @@ import Signup from './web/pages/Signup.jsx';
 import Login from './web/pages/Login.jsx';
 import GoogleOnBoarding from './web/pages/GoogleOnBoarding.jsx';
 import AccountRecovery from './web/pages/AccountRecovery.jsx';
+import MyPage from './web/pages/MyPage.jsx';
+import MyPageEdit from './web/pages/MyPageEdit.jsx';
+import MyPageOrder from './web/pages/MyPageOrder.jsx';
 import Planner from './web/pages/Planner.jsx';
 
 const router = createBrowserRouter([
@@ -47,6 +50,17 @@ const router = createBrowserRouter([
                 element: <SeatStatus />
             },
             {
+                path: 'mypage',
+                element: <MyPage />
+            },
+            {
+                path: 'mypage/edit',
+                element: <MyPageEdit />
+            },
+            {
+                path: 'mypage/order',
+                element: <MyPageOrder />
+            }
                 path: 'plan',
                 element: <Planner />
             },
