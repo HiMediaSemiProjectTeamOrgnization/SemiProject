@@ -4,11 +4,19 @@ import KioskPhoneInput from "../screens/KioskPhoneInput";
 import KioskPinInput from "../screens/KioskPinInput";
 import KioskAlertModal from "./KioskAlertModal";
 
+// 시간 포맷팅 헬퍼 함수
+const formatTime = (minutes) => {
+    if (minutes === undefined || minutes === null) return "-";
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    
+    if (h > 0) return `${h}시간 ${m}분`;
+    return `${m}분`;
+};
+
 function KioskCheckOut({ onHome }) {
     const [step, setStep] = useState("seat"); 
     const [selectedSeat, setSelectedSeat] = useState(null);
-    
-    // 로딩 상태 (좌석 촬영 및 AI 분석 대기용)
     const [isLoading, setIsLoading] = useState(false);
 
     // 모달 상태
@@ -19,8 +27,8 @@ function KioskCheckOut({ onHome }) {
         type: "warning", 
         imageUrl: null, 
         onOk: null,
-        confirmText: null, // 강제 퇴실 버튼 텍스트
-        onConfirm: null    // 강제 퇴실 실행 함수
+        confirmText: null, 
+        onConfirm: null    
     });
 
     const closeModal = () => {
@@ -33,11 +41,6 @@ function KioskCheckOut({ onHome }) {
         setStep("auth");
     };
 
-    /**
-     * 퇴실 요청 함수
-     * @param {string|number} authData - 전화번호(string) 또는 PIN(number)
-     * @param {boolean} forceCheckOut - 강제 퇴실 여부 (true면 짐 감지 무시)
-     */
     const handleCheckOutComplete = async (authData, forceCheckOut = false) => {
         if (!selectedSeat) {
             setModal({
@@ -50,14 +53,13 @@ function KioskCheckOut({ onHome }) {
             return;
         }
 
-        // 1. 로딩 시작
         setIsLoading(true);
 
         const payload = {
             seat_id: selectedSeat.seat_id,
             phone: typeof authData === 'string' ? authData : null, 
             pin: typeof authData === 'number' ? authData : null,
-            force: forceCheckOut // [핵심] 강제 퇴실 여부 전송
+            force: forceCheckOut 
         };
 
         try {
@@ -67,44 +69,58 @@ function KioskCheckOut({ onHome }) {
                 body: JSON.stringify(payload)
             });
 
-            // 2. 응답 처리 (실패 시)
             if (!res.ok) {
                 const errData = await res.json();
                 
-                // [CASE 1] 짐 감지 에러 (code가 DETECTED)
                 if (errData.detail && typeof errData.detail === "object" && errData.detail.code === "DETECTED") {
                      setModal({
                         isOpen: true,
                         title: "짐이 감지되었습니다",
-                        message: errData.detail.message + "\n\n그래도 퇴실하시겠습니까?", // 안내 메시지 추가
-                        imageUrl: errData.detail.image_url, // 감지된 사진 URL
+                        message: errData.detail.message + "\n\n그래도 퇴실하시겠습니까?",
+                        imageUrl: errData.detail.image_url, 
                         type: "error",
-                        
-                        // [핵심] '확인했습니다' 버튼 설정
                         confirmText: "확인했습니다 (퇴실하기)",
                         onConfirm: () => {
-                            // 버튼 클릭 시 force=true로 다시 요청
                             handleCheckOutComplete(authData, true);
                         }
                     });
-                    setIsLoading(false); // 여기서 리턴하므로 로딩 수동 종료
+                    setIsLoading(false); 
                     return; 
                 }
 
-                // [CASE 2] 일반 에러
                 throw new Error(errData.detail || "퇴실 처리에 실패했습니다.");
             }
 
-            // 3. 성공 시 처리
             const data = await res.json();
             
+            // ------------------------------------------------------------------
+            // [수정] 출석 여부에 따른 메시지 분기 처리
+            // ------------------------------------------------------------------
+            let resultMessage = `이용 시간: ${formatTime(data.time_used_minutes)}\n잔여 시간: ${formatTime(data.remaining_time_minutes)}`;
+
+            // 1. 이번에 새로 출석 인정된 경우
+            if (data.is_attended) {
+                const today = new Date().toLocaleDateString('ko-KR', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+                resultMessage += `\n\n📅 ${today} 출석 완료!`;
+            } 
+            // 2. 이미 출석 기록이 있는 경우 (1시간 이상 이용했으나 중복인 경우)
+            else if (data.already_attended) {
+                resultMessage += `\n\n✅ 이미 출석되었습니다.`;
+            }
+
+            resultMessage += `\n안녕히 가세요!`;
+
             setModal({
                 isOpen: true,
                 title: "퇴실 완료",
-                message: `이용 시간: ${data.time_used_minutes}분\n잔여 시간: ${data.remaining_time_minutes}분\n안녕히 가세요!`,
+                message: resultMessage,
                 type: "success",
                 onOk: onHome,
-                onConfirm: null // 성공 시에는 확인 버튼 하나만
+                onConfirm: null 
             });
 
         } catch (e) {
@@ -117,14 +133,12 @@ function KioskCheckOut({ onHome }) {
                 onConfirm: null
             });
         } finally {
-            // 4. 로딩 종료 (성공이든 실패든 무조건 실행, 위에서 return한 경우 제외)
             setIsLoading(false);
         }
     };
 
     return (
         <>
-            {/* 로딩 오버레이: AI 분석 중일 때 화면을 막음 */}
             {isLoading && (
                 <div style={{
                     position: "fixed",
@@ -173,7 +187,6 @@ function KioskCheckOut({ onHome }) {
                 )
             )}
 
-            {/* 모달 컴포넌트 */}
             <KioskAlertModal 
                 isOpen={modal.isOpen}
                 onClose={closeModal}
@@ -181,8 +194,8 @@ function KioskCheckOut({ onHome }) {
                 message={modal.message}
                 type={modal.type}
                 imageUrl={modal.imageUrl}
-                onConfirm={modal.onConfirm}     // 강제 퇴실 함수 전달
-                confirmText={modal.confirmText} // 버튼 텍스트 전달
+                onConfirm={modal.onConfirm}     
+                confirmText={modal.confirmText} 
             />
         </>
     );
