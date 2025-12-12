@@ -142,6 +142,11 @@ def getPaymentPage(ticketData: dict = Body(...), user: dict = Body(...), SelectS
             amount = useMileage,
             type = "use"
         ))
+
+        # 사용 가능한 마일리지보다 사용한 마일리지가 더 클 때 -> 데이터 변조 방지
+        if member.total_mileage < useMileage:
+            raise HTTPException(status_code=400, detail="사용 가능한 마일리지가 부족합니다.")
+        
         # 사용자의 총 마일리지에서 사용한 만큼 차감
         member.total_mileage -= useMileage
 
