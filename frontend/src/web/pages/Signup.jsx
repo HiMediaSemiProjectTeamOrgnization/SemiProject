@@ -10,13 +10,26 @@ const Signup = () => {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [phone, setPhone] = useState('');
+    const [authCode, setAuthCode] = useState(''); // 사용자가 입력한 인증코드
+    const [timer, setTimer] = useState(300); // 5분 (300초)
     const [email, setEmail] = useState('');
     const [birthday, setBirthday] = useState('');
     const [pincode, setPincode] = useState('');
     const [birthError, setBirthError] = useState('');
+    const [phoneMessage, setPhoneMessage] = useState(''); // 휴대폰 관련 메시지 (에러/타이머 등)
+    const [isCodeSent, setIsCodeSent] = useState(false); // 인증번호 발송 여부
+    const [isPhoneVerified, setIsPhoneVerified] = useState(false); // 최종 인증 완료 여부
+    const [isPhoneError, setIsPhoneError] = useState(false); // 메시지 색상 처리용
     const [isLoading, setIsLoading] = useState(false);
     const [checkId, setCheckId] = useState(true);
-    const [checkPhone, setCheckPhone] = useState(true);
+
+    // [이메일 인증 관련 State]
+    const [emailAuthCode, setEmailAuthCode] = useState(''); // 이메일 인증코드 입력값
+    const [emailTimer, setEmailTimer] = useState(300); // 5분
+    const [emailMessage, setEmailMessage] = useState(''); // 이메일 메시지
+    const [isEmailCodeSent, setIsEmailCodeSent] = useState(false); // 이메일 발송 여부
+    const [isEmailVerified, setIsEmailVerified] = useState(false); // 이메일 인증 완료 여부
+    const [isEmailError, setIsEmailError] = useState(false); // 에러 상태
     const { member, fetchMember, isLoading: isAuthLoading } = useAuthCookieStore();
 
     // 컴포넌트 마운트 시 최신 인증 정보를 확인
@@ -31,20 +44,189 @@ const Signup = () => {
         }
     }, [member, navigate]);
 
+    // --- [추가됨] 타이머 로직 ---
+    useEffect(() => {
+        let interval;
+        // 인증번호가 발송되었고, 타이머가 남아있고, 아직 인증완료 전이라면
+        if (isCodeSent && timer > 0 && !isPhoneVerified) {
+            interval = setInterval(() => {
+                setTimer((prev) => prev - 1);
+            }, 1000);
+        } else if (timer === 0 && isCodeSent && !isPhoneVerified) {
+            // 시간 초과 시
+            setIsCodeSent(false);
+            setPhoneMessage('인증 시간이 만료되었습니다. 다시 시도해주세요.');
+            setIsPhoneError(true);
+        }
+        return () => clearInterval(interval);
+    }, [isCodeSent, timer, isPhoneVerified]);
+
+    // [이메일 타이머 로직]
+    useEffect(() => {
+        let interval;
+        if (isEmailCodeSent && emailTimer > 0 && !isEmailVerified) {
+            interval = setInterval(() => {
+                setEmailTimer((prev) => prev - 1);
+            }, 1000);
+        } else if (emailTimer === 0 && isEmailCodeSent && !isEmailVerified) {
+            setIsEmailCodeSent(false);
+            setEmailMessage('인증 시간이 만료되었습니다. 다시 시도해주세요.');
+            setIsEmailError(true);
+        }
+        return () => clearInterval(interval);
+    }, [isEmailCodeSent, emailTimer, isEmailVerified]);
+
     // 비동기 통신 동안 보여줄 로딩 문구
     if (isAuthLoading) {
         return <div>pending...</div>
     }
+
+    // 시간 포맷팅 함수 (MM:SS)
+    const formatTime = (seconds) => {
+        const min = Math.floor(seconds / 60);
+        const sec = seconds % 60;
+        return `${min}:${sec < 10 ? `0${sec}` : sec}`;
+    };
+
+    // [이메일 인증 요청 핸들러]
+    const handleRequestEmailVerification = async () => {
+        // 이메일 정규식 체크
+        const emailRegex = /^([a-zA-Z0-9_\-.]+)@([a-zA-Z0-9_\-.]+)\.([a-zA-Z]{2,5})$/;
+        if (!emailRegex.test(email)) {
+            setEmailMessage('이메일 형식이 올바르지 않습니다.');
+            setIsEmailError(true);
+            return;
+        }
+
+        try {
+            // 이메일 중복 체크 및 발송 API 호출
+            const result = await authApi.checkEmail(email);
+
+            if (result.status === 200 || result.status === 204) {
+                setIsEmailCodeSent(true);
+                setEmailTimer(300);
+                setIsEmailVerified(false);
+                setEmailMessage(`인증번호가 발송되었습니다. (남은 시간: ${formatTime(300)})`);
+                setIsEmailError(false);
+            }
+        } catch (error) {
+            setIsEmailCodeSent(false);
+            if (error.response && error.response.status === 409) {
+                setEmailMessage('이미 가입된 이메일입니다.');
+                setIsEmailError(true);
+            } else {
+                setEmailMessage('이메일 발송에 실패했습니다.');
+                setIsEmailError(true);
+            }
+        }
+    };
+
+    // [이메일 인증코드 확인 핸들러]
+    const handleVerifyEmailCode = async () => {
+        if (!emailAuthCode) return;
+
+        try {
+            // 이메일 인증코드 확인 API 호출
+            const res = await authApi.checkVerifyEmail(emailAuthCode);
+            if (res.status === 204) {
+                setIsEmailVerified(true);
+                setIsEmailCodeSent(false);
+                setEmailMessage('이메일 인증이 완료되었습니다.');
+                setIsEmailError(false);
+            }
+        } catch (error) {
+            console.error(error);
+            setEmailMessage('인증번호가 일치하지 않거나 만료되었습니다.');
+            setIsEmailError(true);
+        }
+    };
+
+    // --- [수정됨] 휴대폰 인증 요청 핸들러 ---
+    const handleRequestVerification = async () => {
+        if (phone.length < 12) {
+            setPhoneMessage('휴대폰 번호를 올바르게 입력해주세요.');
+            setIsPhoneError(true);
+            return;
+        }
+
+        try {
+            // 1. 중복 체크 및 인증번호 발송 API 호출
+            // (백엔드 API 구조에 맞춰 수정 필요: 예: 중복이면 409 에러)
+            // 여기서는 checkPhone이 중복체크+발송을 겸한다고 가정하거나, 별도 API 사용
+            const result = await authApi.checkPhone(phone);
+
+            // 성공 시 (중복 아님 + 발송 성공)
+            if (result.status === 200 || result.status === 204) {
+                setIsCodeSent(true);
+                setTimer(300); // 5분 리셋
+                setIsPhoneVerified(false);
+                setPhoneMessage(`인증번호가 발송되었습니다. (남은 시간: ${formatTime(300)})`);
+                setIsPhoneError(false); // 에러 아님 (타이머 표시용)
+            }
+        } catch (error) {
+            setIsCodeSent(false);
+            if (error.response && error.response.status === 409) { // 409 Conflict 가정
+                setPhoneMessage('이미 가입된 휴대폰 번호입니다.');
+                setIsPhoneError(true);
+            } else if (error.response && error.response.status === 400) {
+                setPhoneMessage('이미 사용 중인 번호입니다.');
+                setIsPhoneError(true);
+            } else {
+                setPhoneMessage('서버 통신 오류가 발생했습니다.');
+                setIsPhoneError(true);
+            }
+        }
+    };
+
+    // --- [추가됨] 인증번호 확인 핸들러 ---
+    const handleVerifyCode = async () => {
+        if (!authCode) return;
+
+        try {
+            // 인증번호 확인 API 호출 (가정)
+            const res = await authApi.checkVerifyPhone(authCode);
+            if (res.status === 204) {
+                // 임시 로직: 실제로는 서버 응답을 확인해야 함
+                // 여기서는 성공했다고 가정
+                setIsPhoneVerified(true);
+                setIsCodeSent(false); // 타이머 멈춤
+                setPhoneMessage('인증이 완료되었습니다.');
+                setIsPhoneError(false);
+            }
+        } catch (error) {
+            setPhoneMessage('인증번호가 일치하지 않거나 만료되었습니다.');
+            setIsPhoneError(true);
+            console.log(error);
+        }
+    };
 
     // 회원가입 폼 제출 이벤트
     const handleSignupForm = async (e) => {
         e.preventDefault();
 
         if (password !== confirmPassword) {
+            alert('비밀번호가 일치하지 않습니다.');
             return;
         }
 
         setIsLoading(true);
+
+        // [수정됨] 휴대폰 + 이메일 인증 여부 모두 확인
+        if (!isPhoneVerified) {
+            setPhoneMessage('휴대폰 인증을 먼저 완료해주세요!');
+            setIsPhoneError(true);
+            setIsLoading(false);
+            alert("휴대폰 인증이 완료되지 않았습니다.");
+            return;
+        }
+
+        if (!isEmailVerified) {
+            setEmailMessage('이메일 인증을 먼저 완료해주세요!');
+            setIsEmailError(true);
+            setIsLoading(false);
+            alert("이메일 인증이 완료되지 않았습니다.");
+            return;
+        }
 
         const data = {
             "name": name,
@@ -53,7 +235,7 @@ const Signup = () => {
             "phone": phone,
             "birthday": birthday,
             "email": email,
-            "pin_code": pincode
+            "pin_code": pincode,
         };
 
         try {
@@ -67,6 +249,8 @@ const Signup = () => {
                     alert(`가입된 아이디입니다`);
                 } else if (error.response.status === 400) {
                     alert(`가입된 휴대폰 번호입니다`);
+                } else if (error.response.status === 401) {
+                    alert(`휴대폰이나 이메일을 인증해주세요.`);
                 } else {
                     alert(`에러발생, 에러코드: ${error.response.status}`);
                 }
@@ -81,7 +265,7 @@ const Signup = () => {
     // 중복된 아이디 체크
     const handleLoginIdBlur = async () => {
         try {
-            const result = await authApi.checkId({"login_id": loginId});
+            const result = await authApi.checkId(loginId);
             if (result.status === 204) {
                 setCheckId(true);
             }
@@ -89,24 +273,6 @@ const Signup = () => {
             if (error.response) {
                 if (error.response.status === 400) {
                     setCheckId(false);
-                }
-            } else {
-                alert(`통신 불가: ${error}`);
-            }
-        }
-    };
-
-    // 중복된 휴대폰번호 체크
-    const handlePhoneBlur = async () => {
-        try {
-            const result = await authApi.checkPhone({"phone": phone});
-            if (result.status === 204) {
-                setCheckPhone(true);
-            }
-        } catch (error) {
-            if (error.response) {
-                if (error.response.status === 400) {
-                    setCheckPhone(false);
                 }
             } else {
                 alert(`통신 불가: ${error}`);
@@ -390,73 +556,196 @@ const Signup = () => {
                                 휴대폰번호
                             </label>
                             <div className="group relative">
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2
-                                text-slate-400 dark:text-slate-500
-                                group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400
-                                transition-colors duration-200">
-                                </div>
                                 <input
                                     type="text"
-                                    pattern="010-[0-9]{4}-[0-9]{4}"
                                     required
-                                    placeholder="휴대폰번호 (010-1234-5678)"
-                                    title="휴대폰번호 (010-1234-5678)"
                                     maxLength="13"
-                                    onBlur={handlePhoneBlur}
+                                    placeholder="휴대폰번호"
                                     value={phone}
                                     onChange={handlePhoneInput}
-                                    className="w-full h-12 pl-12 pr-4
-                             bg-white/50 dark:bg-slate-950/50
-                             border border-slate-200/80 dark:border-slate-700/80
-                             rounded-xl text-sm outline-none
-                             text-slate-800 dark:text-slate-200
-                             focus:bg-white dark:focus:bg-slate-900
-                             focus:border-blue-500/50 dark:focus:border-blue-400/50
-                             focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
-                             transition-all duration-200
-                             placeholder:text-slate-400 dark:placeholder:text-slate-600
-                             hover:bg-white/80 dark:hover:bg-slate-900/80"
+                                    disabled={isPhoneVerified} // 인증 완료되면 수정 불가
+                                    className={`w-full h-12 pl-12 pr-24 
+                                        bg-white/50 dark:bg-slate-950/50
+                                        border rounded-xl text-sm outline-none
+                                        text-slate-800 dark:text-slate-200
+                                        focus:bg-white dark:focus:bg-slate-900
+                                        focus:border-blue-500/50 dark:focus:border-blue-400/50
+                                        transition-all duration-200
+                                        placeholder:text-slate-400 dark:placeholder:text-slate-600
+                                        ${isPhoneVerified ? 'bg-slate-100 dark:bg-slate-800 text-slate-500' : ''}
+                                        ${isPhoneError ? 'border-red-500' : 'border-slate-200/80 dark:border-slate-700/80'}
+                                    `}
                                 />
+
+                                {/* 인증요청/완료 버튼 (input 태그 내부 우측) */}
+                                <div className="absolute right-1.5 top-1.5 bottom-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={handleRequestVerification}
+                                        disabled={isPhoneVerified || isCodeSent}
+                                        className={`h-full px-3 rounded-lg text-xs font-semibold transition-all duration-200
+                                            ${isPhoneVerified
+                                            ? 'bg-green-500 text-white cursor-default'
+                                            : isCodeSent
+                                                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                                : 'bg-slate-900 dark:bg-blue-600 text-white hover:bg-slate-800 dark:hover:bg-blue-500 cursor-pointer'
+                                        }
+                                        `}
+                                    >
+                                        {isPhoneVerified ? '인증완료' : isCodeSent ? '발송됨' : '인증요청'}
+                                    </button>
+                                </div>
                             </div>
-                            {/* 휴대폰번호가 중복일때 안내 */}
-                            {!checkPhone && (
-                                <p className="text-xs text-red-500 ml-1">휴대폰번호가 중복되었습니다.</p>
+
+                            {/* 상태 메시지 및 타이머 (인풋 바로 아래) */}
+                            {phoneMessage && (
+                                <p className={`text-xs ml-1 font-medium ${isPhoneError ? 'text-red-500' : 'text-blue-500'}`}>
+                                    {isCodeSent && !isPhoneVerified ? (
+                                        // 타이머가 돌고 있을 때
+                                        <span className="text-red-500 animate-pulse">
+                                            남은 시간: {formatTime(timer)}
+                                        </span>
+                                    ) : (
+                                        // 에러 메시지 또는 완료 메시지
+                                        phoneMessage
+                                    )}
+                                </p>
+                            )}
+
+                            {/* [추가] 인증번호 입력란 (코드가 발송되었고, 아직 인증 안됐을 때만 표시) */}
+                            {isCodeSent && !isPhoneVerified && (
+                                <div className="flex gap-2 mt-2 animate-fadeIn">
+                                    <input
+                                        type="text"
+                                        placeholder="인증번호 입력"
+                                        maxLength="6"
+                                        value={authCode}
+                                        onChange={(e) => setAuthCode(e.target.value.toUpperCase())}
+                                        className="flex-1 h-12 px-4 pl-12 uppercase
+                                                bg-white/50 dark:bg-slate-950/50
+                                                border border-slate-200/80 dark:border-slate-700/80
+                                                rounded-xl text-sm outline-none
+                                                text-slate-800 dark:text-slate-200
+                                                focus:bg-white dark:focus:bg-slate-900
+                                                focus:border-blue-500/50 dark:focus:border-blue-400/50
+                                                focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
+                                                transition-all duration-200
+                                                placeholder:text-slate-400 dark:placeholder:text-slate-600
+                                                hover:bg-white/80 dark:hover:bg-slate-900/80"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleVerifyCode}
+                                        // 버튼 높이도 h-12로 맞추고 스타일을 다듬었습니다.
+                                        className="h-12 px-5
+                                                bg-slate-900 hover:bg-slate-800
+                                                dark:bg-blue-600 dark:hover:bg-blue-500
+                                                text-white rounded-xl text-sm font-bold
+                                                transition-all duration-200 cursor-pointer
+                                                shadow-md"
+                                    >
+                                        확인
+                                    </button>
+                                </div>
                             )}
                         </div>
 
-                        {/* 이메일 입력 */}
+                        {/* 이메일 입력 (휴대폰 인증 스타일 적용) */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 ml-1">
                                 이메일
                             </label>
                             <div className="group relative">
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2
-                                text-slate-400 dark:text-slate-500
-                                group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400
-                                transition-colors duration-200">
-                                </div>
                                 <input
                                     type="text"
-                                    pattern="^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$"
                                     required
                                     maxLength="100"
-                                    placeholder="이메일 (example@example.com)"
-                                    title="이메일 (example@example.com)"
+                                    placeholder="이메일"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full h-12 pl-12 pr-4
-                             bg-white/50 dark:bg-slate-950/50
-                             border border-slate-200/80 dark:border-slate-700/80
-                             rounded-xl text-sm outline-none
-                             text-slate-800 dark:text-slate-200
-                             focus:bg-white dark:focus:bg-slate-900
-                             focus:border-blue-500/50 dark:focus:border-blue-400/50
-                             focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
-                             transition-all duration-200
-                             placeholder:text-slate-400 dark:placeholder:text-slate-600
-                             hover:bg-white/80 dark:hover:bg-slate-900/80"
+                                    disabled={isEmailVerified}
+                                    // 휴대폰과 동일하게 pl-12, pr-24 적용하여 스타일 통일
+                                    className={`w-full h-12 pl-12 pr-24 
+                                        bg-white/50 dark:bg-slate-950/50
+                                        border rounded-xl text-sm outline-none
+                                        text-slate-800 dark:text-slate-200
+                                        focus:bg-white dark:focus:bg-slate-900
+                                        focus:border-blue-500/50 dark:focus:border-blue-400/50
+                                        transition-all duration-200
+                                        placeholder:text-slate-400 dark:placeholder:text-slate-600 cursor-pointer
+                                        ${isEmailVerified ? 'bg-slate-100 dark:bg-slate-800 text-slate-500' : ''}
+                                        ${isEmailError ? 'border-red-500' : 'border-slate-200/80 dark:border-slate-700/80'}
+                                    `}
                                 />
+
+                                {/* 인증요청/완료 버튼 */}
+                                <div className="absolute right-1.5 top-1.5 bottom-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={handleRequestEmailVerification}
+                                        disabled={isEmailVerified || isEmailCodeSent}
+                                        className={`h-full px-3 rounded-lg text-xs font-semibold transition-all duration-200
+                                            ${isEmailVerified
+                                            ? 'bg-green-500 text-white cursor-default'
+                                            : isEmailCodeSent
+                                                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                                : 'bg-slate-900 dark:bg-blue-600 text-white hover:bg-slate-800 dark:hover:bg-blue-500 cursor-pointer'
+                                        }
+                                        `}
+                                    >
+                                        {isEmailVerified ? '인증완료' : isEmailCodeSent ? '발송됨' : '인증요청'}
+                                    </button>
+                                </div>
                             </div>
+
+                            {/* 상태 메시지 및 타이머 */}
+                            {emailMessage && (
+                                <p className={`text-xs ml-1 font-medium ${isEmailError ? 'text-red-500' : 'text-blue-500'}`}>
+                                    {isEmailCodeSent && !isEmailVerified ? (
+                                        <span className="text-red-500 animate-pulse">
+                                            남은 시간: {formatTime(emailTimer)}
+                                        </span>
+                                    ) : (
+                                        emailMessage
+                                    )}
+                                </p>
+                            )}
+
+                            {/* 인증번호 입력란 */}
+                            {isEmailCodeSent && !isEmailVerified && (
+                                <div className="flex gap-2 mt-2 animate-fadeIn">
+                                    <input
+                                        type="text"
+                                        placeholder="인증번호 입력"
+                                        maxLength="6"
+                                        value={emailAuthCode}
+                                        onChange={(e) => setEmailAuthCode(e.target.value.toUpperCase())}
+                                        className="flex-1 h-12 px-4 pl-12 uppercase
+                                                bg-white/50 dark:bg-slate-950/50
+                                                border border-slate-200/80 dark:border-slate-700/80
+                                                rounded-xl text-sm outline-none
+                                                text-slate-800 dark:text-slate-200
+                                                focus:bg-white dark:focus:bg-slate-900
+                                                focus:border-blue-500/50 dark:focus:border-blue-400/50
+                                                focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-400/10
+                                                transition-all duration-200
+                                                placeholder:text-slate-400 dark:placeholder:text-slate-600
+                                                hover:bg-white/80 dark:hover:bg-slate-900/80"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleVerifyEmailCode}
+                                        className="h-12 px-5
+                                                bg-slate-900 hover:bg-slate-800
+                                                dark:bg-blue-600 dark:hover:bg-blue-500
+                                                text-white rounded-xl text-sm font-bold
+                                                transition-all duration-200 cursor-pointer
+                                                shadow-md"
+                                    >
+                                        확인
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-1.5">

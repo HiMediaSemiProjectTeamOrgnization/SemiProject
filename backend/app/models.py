@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger, Text
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger, Text, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import JSONB
 from database import Base
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -27,12 +28,12 @@ class Seat(Base):
     seat_id = Column(BigInteger, primary_key=True, autoincrement=True)
     type = Column(String(10), nullable=False)
     is_status = Column(Boolean, server_default="true")
-    near_window = Column(Boolean)
-    corner_seat = Column(Boolean)
-    aisle_seat = Column(Boolean)
-    isolated = Column(Boolean)
-    near_beverage_table = Column(Boolean)
-    is_center = Column(Boolean)
+    near_window = Column(Boolean, server_default="false")
+    corner_seat = Column(Boolean, server_default="false")
+    aisle_seat = Column(Boolean, server_default="false")
+    isolated = Column(Boolean, server_default="false")
+    near_beverage_table = Column(Boolean, server_default="false")
+    is_center = Column(Boolean, server_default="false")
 
     seat_usages = relationship("SeatUsage", back_populates="seat")
 
@@ -66,6 +67,8 @@ class Member(Base):
     seat_usages = relationship("SeatUsage", back_populates="member", cascade="all, delete")
     mileage_history = relationship("MileageHistory", back_populates="member", cascade="all, delete")
     user_todos = relationship("UserTODO", back_populates="member", cascade="all, delete")
+    ai_chat_logs = relationship("AIChatLog", back_populates="member", cascade="all, delete")
+    study_plans = relationship("StudyPlan", back_populates="member", cascade="all, delete")
 
 # ----------------------------------------------------------------------------------------------------------------------
 # TOKENS
@@ -152,7 +155,7 @@ class TODO(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    user_todos = relationship("UserTODO", back_populates="todo", cascade="all, delete")
+    user_todos = relationship("UserTODO", back_populates="todos", cascade="all, delete")
 
 # ----------------------------------------------------------------------------------------------------------------------
 # USER_TODOS
@@ -168,4 +171,37 @@ class UserTODO(Base):
     achieved_at = Column(DateTime, onupdate=func.now())
 
     member = relationship("Member", back_populates="user_todos")
-    todo = relationship("TODO", back_populates="user_todos")
+    todos = relationship("TODO", back_populates="user_todos")
+
+# ----------------------------------------------------------------------------------------------------------------------
+# AI CHAT LOGS
+# ----------------------------------------------------------------------------------------------------------------------
+# AI 튜터와의 채팅 기록을 저장하는 테이블
+class AIChatLog(Base):
+    __tablename__ = "ai_chat_logs"
+
+    ai_chat_logs_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
+    chat_prompt = Column(Text)
+    message = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+
+    member = relationship("Member", back_populates="ai_chat_logs")
+
+# ----------------------------------------------------------------------------------------------------------------------
+# STUDY PLANS
+# ----------------------------------------------------------------------------------------------------------------------
+# AI가 생성해준 일일 학습 플래너 데이터
+class StudyPlan(Base):
+    __tablename__ = "study_plans"
+
+    study_plan_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
+    target_date = Column(Date) # target_date: 계획이 적용되는 날짜 (예: 2024-05-20) - 달력 조회용
+    study_prompt = Column(Text) # raw_input: 사용자가 입력했던 요구사항 원문 (예: "수학 3시간 집중하고 싶어")
+    plan_data = Column(JSONB) # plan_data: LLM이 생성한 JSON 구조체 (PostgreSQL JSONB 타입 사용)
+                                             # 예: {"schedule": [{"time": "09:00", "task": "Math", "type": "study"}, ...]}
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    member = relationship("Member", back_populates="study_plans")

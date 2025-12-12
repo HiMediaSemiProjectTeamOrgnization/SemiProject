@@ -9,7 +9,7 @@ export const useAuthCookieStore = create((set) => ({
     fetchMember: async () => {
         set({ isLoading: true });
         try {
-            const response = await axios.post('/api/auth/cookies');
+            const response = await axios.post('/api/web/auth/cookies');
             set({ member: response.data });
         } catch (error) {
             set({ error: error });

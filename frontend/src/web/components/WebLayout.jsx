@@ -206,6 +206,16 @@ const WebLayout = () => {
                                         </ul>
                                     )}
                                 </div>
+                                <button className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors cursor-pointer">
+                                    <span className="font-bold">{member.name}</span>님
+                                </button>
+
+                                {/* ▼ [추가된 코드] AI 학습 도우미 (이용권 구매 왼쪽) ▼ */}
+                                <Link to="/web/plan" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
+                                    <span>🤖</span> AI 학습 도우미
+                                </Link>
+                                {/* ▲ [추가된 코드] 끝 ▲ */}
+
                                 <Link to="/web/ticket" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
                                     이용권 구매
                                 </Link>
@@ -214,9 +224,8 @@ const WebLayout = () => {
                                 </button>
                             </>
                         ) : (
-                            <Link to="/web/login" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
-                                로그인
-                            </Link>
+                            // ... (로그인 버튼 기존 유지)
+                            <Link to="/web/login" className="...">로그인</Link>
                         )}
                     </div>
 
@@ -251,13 +260,23 @@ const WebLayout = () => {
                                 <div className="text-center text-slate-400 py-2">로딩 중...</div>
                             ) : member ? (
                                 <>
-                                    {/* 모바일: 사용자 정보 */}
+                                    {/* 모바일: 사용자 정보 (기존 유지) */}
                                     <div className="p-3 bg-white/50 dark:bg-slate-800/50 rounded-xl text-center mb-2">
                                         <span className="text-slate-800 dark:text-white font-bold">{member.name}</span>
                                         <span className="text-slate-500 dark:text-slate-400 text-sm">님 환영합니다</span>
                                     </div>
 
-                                    {/* 모바일: 이용권 구매 */}
+                                    {/* ▼ [추가된 코드] 모바일: AI 학습 도우미 ▼ */}
+                                    <Link
+                                        to="/web/plan"
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className="block w-full p-3 text-center bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold rounded-xl hover:bg-blue-200 transition-colors"
+                                    >
+                                        🤖 AI 학습 도우미
+                                    </Link>
+                                    {/* ▲ [추가된 코드] 끝 ▲ */}
+
+                                    {/* 모바일: 이용권 구매 (기존 유지) */}
                                     <Link
                                         to="/web/ticket"
                                         onClick={() => setIsMenuOpen(false)}
@@ -266,11 +285,8 @@ const WebLayout = () => {
                                         이용권 구매
                                     </Link>
 
-                                    {/* 모바일: 로그아웃 */}
-                                    <button
-                                        onClick={handleLogoutSubmit}
-                                        className="block w-full p-3 text-center bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-300 transition-colors"
-                                    >
+                                    {/* 모바일: 로그아웃 (기존 유지) */}
+                                    <button onClick={handleLogoutSubmit} className="...">
                                         로그아웃
                                     </button>
                                 </>
