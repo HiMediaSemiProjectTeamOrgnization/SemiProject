@@ -223,16 +223,17 @@ def list_seats(db: Session = Depends(get_db)):
         seat_data = {
             "seat_id": s.seat_id,
             "type": seat_type_str,
-            "near_window": s.near_window,             # 창가
-            "corner_seat": s.corner_seat,             # 구석
-            "aisle_seat": s.aisle_seat,               # 통로
-            "isolated": s.isolated,                   # 1인석(독립석)
-            "near_beverage_table": s.near_beverage_table, # 음료대 근처
-            "is_center": s.is_center,                 # 중앙 
+            "near_window": s.near_window,
+            "corner_seat": s.corner_seat,
+            "aisle_seat": s.aisle_seat,
+            "isolated": s.isolated,
+            "near_beverage_table": s.near_beverage_table,
+            "is_center": s.is_center,
             "is_status": s.is_status,
             "user_name": None,
             "remaining_time": None,
-            "role": None # [추가] 사용자 역할 (member/guest)
+            "ticket_expired_time": None,  # [수정 1] 초기값 필드 추가
+            "role": None
         }
 
         if not s.is_status:
@@ -245,9 +246,12 @@ def list_seats(db: Session = Depends(get_db)):
                 member = db.query(Member).filter(Member.member_id == active_usage.member_id).first()
                 if member:
                     seat_data["user_name"] = member.name
-                    seat_data["role"] = member.role # [추가] role 저장
+                    seat_data["role"] = member.role
                 
                 if active_usage.ticket_expired_time:
+                    # [수정 2] 만료 시간 데이터를 응답에 포함
+                    seat_data["ticket_expired_time"] = active_usage.ticket_expired_time
+                    
                     remain_delta = active_usage.ticket_expired_time - now
                     minutes = int(remain_delta.total_seconds() / 60)
                     seat_data["remaining_time"] = max(minutes, 0)
