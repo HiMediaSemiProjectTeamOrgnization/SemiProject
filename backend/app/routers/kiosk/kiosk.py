@@ -6,6 +6,7 @@ from schemas import PinAuthRequest # 추가
 from datetime import datetime, timedelta # timedelta 추가
 from typing import Optional
 from routers.ml.detect import capture_predict
+from sqlalchemy import cast, Date # 날짜 비교를 위해 추가
 
 router = APIRouter(prefix="/api/kiosk")
 
@@ -221,7 +222,13 @@ def list_seats(db: Session = Depends(get_db)):
 
         seat_data = {
             "seat_id": s.seat_id,
-            "type": seat_type_str, 
+            "type": seat_type_str,
+            "near_window": s.near_window,             # 창가
+            "corner_seat": s.corner_seat,             # 구석
+            "aisle_seat": s.aisle_seat,               # 통로
+            "isolated": s.isolated,                   # 1인석(독립석)
+            "near_beverage_table": s.near_beverage_table, # 음료대 근처
+            "is_center": s.is_center,                 # 중앙 
             "is_status": s.is_status,
             "user_name": None,
             "remaining_time": None,
@@ -250,7 +257,7 @@ def list_seats(db: Session = Depends(get_db)):
     return results
 
 # ------------------------
-# 5) 입실 (수정됨: 회원은 주문 조회 없이 시간 차감)
+# 5) 입실 (수정: 출석 로직 제거 -> 순수 입실 처리)
 # ------------------------
 @router.post("/check-in")
 def check_in(
@@ -265,66 +272,53 @@ def check_in(
         clean_phone = phone.replace("-", "")
         if clean_phone != phone:
             member = db.query(Member).filter(Member.phone == clean_phone).first()
-
     if not member:
         member = get_or_create_guest(db)
-        
+    
     member_id_to_use = member.member_id
 
-    # 1-1. 중복 입실 방지 (회원만)
+    # 중복 입실 방지
     if member.role != "guest":
-        active_usage = db.query(SeatUsage).filter(
-            SeatUsage.member_id == member_id_to_use,
-            SeatUsage.check_out_time == None
-        ).first()
-
+        active_usage = db.query(SeatUsage).filter(SeatUsage.member_id == member_id_to_use, SeatUsage.check_out_time == None).first()
         if active_usage:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"이미 좌석({active_usage.seat_id}번)을 사용 중입니다.\n퇴실 후 다시 시도해주세요."
-            )
+            raise HTTPException(status_code=400, detail="이미 입실 중입니다.")
 
     # 2. 좌석 조회
     seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
-    if not seat:
-        raise HTTPException(status_code=404, detail="좌석 정보가 없습니다.")
-    
-    if not seat.is_status:
-        raise HTTPException(status_code=400, detail="이미 사용 중인 좌석입니다.")
+    if not seat: raise HTTPException(status_code=404, detail="좌석 정보 없음")
+    if not seat.is_status: raise HTTPException(status_code=400, detail="이미 사용 중인 좌석")
 
-    # 3. 시간 계산 및 유효성 검사
+    # 3. 만료 시간 설정
     expired_time = None
     now = datetime.now()
     
-    # [CASE 1] 회원
     if member.role != "guest":
-        if member.saved_time_minute <= 0:
-            raise HTTPException(status_code=400, detail="잔여 이용권 시간이 없습니다.")
-        
-        expired_time = now + timedelta(minutes=member.saved_time_minute)
+        if seat.type == "fix":
+            active_period_order = db.query(Order).join(Product).filter(
+                Order.member_id == member.member_id,
+                Order.period_end_date > now,
+                Product.type == '기간제'
+            ).order_by(Order.period_end_date.desc()).first()
 
-    # [CASE 2] 비회원
+            if not active_period_order:
+                raise HTTPException(status_code=400, detail="유효한 기간제 이용권이 없습니다.")
+            expired_time = active_period_order.period_end_date
+        else:
+            if member.saved_time_minute <= 0:
+                raise HTTPException(status_code=400, detail="시간제 이용권(잔여 시간)이 부족합니다.")
+            expired_time = now + timedelta(minutes=member.saved_time_minute)
     else:
-        if not order_id:
-             raise HTTPException(status_code=400, detail="비회원은 주문 정보가 필요합니다.")
-
+        if not order_id: raise HTTPException(status_code=400, detail="주문 정보 필요")
         order = db.query(Order).filter(Order.order_id == order_id).first()
-        if not order:
-            raise HTTPException(status_code=404, detail="주문 정보가 없습니다.")
-            
+        if not order: raise HTTPException(status_code=404, detail="주문 정보 없음")
         product = db.query(Product).filter(Product.product_id == order.product_id).first()
-        if not product:
-            raise HTTPException(status_code=404, detail="상품 정보 없음")
-
-        # [수정] product.value는 '시간' 단위이므로 60을 곱해 '분'으로 변환해야 함
         ticket_duration_minutes = product.value * 60
         expired_time = now + timedelta(minutes=ticket_duration_minutes)
-        
         order.period_start_date = now
         order.period_end_date = expired_time
         db.add(order)
         
-    # 4. SeatUsage 생성
+    # 4. SeatUsage 생성 (is_attended 기본값 False)
     usage = SeatUsage(
         member_id=member_id_to_use,
         seat_id=seat_id,
@@ -334,7 +328,6 @@ def check_in(
     )
     db.add(usage)
     
-    # 5. 좌석 상태 변경
     seat.is_status = False
     db.add(seat)
 
@@ -343,18 +336,21 @@ def check_in(
 
     return {
         "usage_id": usage.usage_id,
-        "seat_id": seat_id,
-        "check_in_time": usage.check_in_time.isoformat(),
-        "ticket_expired_time": usage.ticket_expired_time.isoformat() if usage.ticket_expired_time else None
+        "check_in_time": usage.check_in_time,
+        "seat_id": seat_id,  
+        "ticket_expired_time": usage.ticket_expired_time
     }
 
 
+# ------------------------
+# 6) 퇴실 (수정: 이미 출석한 경우 'already_attended' 플래그 반환)
+# ------------------------
 @router.post("/check-out")
 def check_out(
     seat_id: int = Body(...),
     phone: Optional[str] = Body(None),
     pin: Optional[int] = Body(None),
-    force: bool = Body(False), # [추가] 강제 퇴실 여부 (기본값 False)
+    force: bool = Body(False),
     db: Session = Depends(get_db)
 ):
     now = datetime.now()
@@ -375,66 +371,79 @@ def check_out(
 
     # 3. 본인 확인
     if member.role == "guest":
-        if not phone:
-            raise HTTPException(status_code=400, detail="비회원은 전화번호 입력이 필요합니다.")
-        if not usage.order:
-             raise HTTPException(status_code=400, detail="비회원 주문 정보를 찾을 수 없습니다.")
-        
+        if not phone: raise HTTPException(status_code=400, detail="비회원은 전화번호 입력이 필요합니다.")
+        if not usage.order: raise HTTPException(status_code=400, detail="비회원 주문 정보를 찾을 수 없습니다.")
         input_phone = phone.replace("-", "")
         db_phone = usage.order.buyer_phone.replace("-", "") if usage.order.buyer_phone else ""
-        if input_phone != db_phone:
-            raise HTTPException(status_code=401, detail="전화번호가 일치하지 않습니다.")
+        if input_phone != db_phone: raise HTTPException(status_code=401, detail="전화번호가 일치하지 않습니다.")
     else:
-        if pin is None:
-            raise HTTPException(status_code=400, detail="회원은 PIN 번호 입력이 필요합니다.")
-        if member.pin_code != pin:
-            raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
+        if not force:
+            if pin is None: raise HTTPException(status_code=400, detail="회원은 PIN 번호 입력이 필요합니다.")
+            if member.pin_code != pin: raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
 
-    # =========================================================================
-    # [수정] 3-5. YOLO Object Detection (force가 False일 때만 검사)
-    # =========================================================================
-    if not force: # 강제 퇴실이 아닐 때만 검사
+    # 3-5. YOLO 감지
+    if not force: 
         try:
             is_detected, img_path, classes, msg = capture_predict(seat_id)
-            print(f"좌석 {seat_id} 감지 결과: {is_detected}, 물체: {classes}") 
-
             if is_detected:
                 web_image_url = "/" + img_path.replace("\\", "/")
                 detected_items = ", ".join(classes)
-                
                 raise HTTPException(
                     status_code=400, 
                     detail={
                         "code": "DETECTED",
-                        "message": f"좌석에 짐({detected_items})이 감지되었습니다.\n놓고 가는 물건이 없는지 사진을 확인해주세요.",
+                        "message": f"좌석에 짐({detected_items})이 감지되었습니다.",
                         "image_url": web_image_url
                     }
                 )
         except Exception as e:
-            if isinstance(e, HTTPException):
-                raise e
+            if isinstance(e, HTTPException): raise e
             print(f"[Warning] YOLO Error: {e}")
-    # =========================================================================
 
     # 4. 시간 계산
     time_used = now - usage.check_in_time
     time_used_minutes = int(time_used.total_seconds() / 60)
     
-    # 5. 정산
+    seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
+    
+    # [추가] 이미 출석했는지 여부를 담을 변수
+    already_attended = False
+
+    # 5. 정산 및 출석 체크
     if member.role != "guest":
-        member.saved_time_minute -= time_used_minutes
-        if member.saved_time_minute < 0:
-            member.saved_time_minute = 0 
+        # 이용 시간이 60분 이상일 때만 출석 체크 시도
+        if time_used_minutes >= 0:
+            check_in_date = usage.check_in_time.date()
+            
+            # 오늘 날짜로 이미 출석 인정된 기록이 있는지 확인
+            existing_attendance = db.query(SeatUsage).filter(
+                SeatUsage.member_id == member.member_id,
+                cast(SeatUsage.check_in_time, Date) == check_in_date,
+                SeatUsage.is_attended == True
+            ).first()
+
+            if not existing_attendance:
+                # 기록 없으면 이번에 출석 인정
+                usage.is_attended = True
+            else:
+                # 기록 있으면 '이미 출석됨' 플래그 설정
+                already_attended = True
+
+        # 시간 차감 (자유석만)
+        if seat and seat.type != "fix":
+            member.saved_time_minute -= time_used_minutes
+            if member.saved_time_minute < 0:
+                member.saved_time_minute = 0 
     
     # 6. 퇴실 처리
     usage.check_out_time = now
     db.add(usage)
 
-    seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
     if seat:
         seat.is_status = True
         db.add(seat)
 
+    db.add(member)
     db.commit()
     db.refresh(usage)
 
@@ -443,5 +452,7 @@ def check_out(
         "seat_id": seat_id,
         "check_out_time": usage.check_out_time.isoformat(),
         "time_used_minutes": time_used_minutes,
-        "remaining_time_minutes": member.saved_time_minute if member.role != "guest" else 0
+        "remaining_time_minutes": member.saved_time_minute if member.role != "guest" else 0,
+        "is_attended": usage.is_attended, # 이번에 출석 인정되었는가? (True/False)
+        "already_attended": already_attended # [추가] 이미 출석 상태였는가? (True/False)
     }

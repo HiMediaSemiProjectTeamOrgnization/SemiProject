@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from vision.camera_initializer import init_camera_system
-from routers import vision_api
+from routers import vision_api, health_api
 
 @asynccontextmanager
 async def lifespan(app : FastAPI):
@@ -31,14 +31,11 @@ app.add_middleware(
 )
 
 app.include_router(vision_api.router)
+app.include_router(health_api.router)
 
 @app.get('/')
 def test() :
     return {"msg" : "jjjjjjj"}
-
-@app.get("/vision")
-def get_state() :
-    return app.state.seat_manager.get_seat_states()
 
 if __name__ == "__main__":
     uvicorn.run(

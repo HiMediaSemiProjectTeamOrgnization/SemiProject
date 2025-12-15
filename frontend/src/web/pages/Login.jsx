@@ -59,7 +59,7 @@ const Login = () => {
 
     // 소셜 로그인 클릭 이벤트
     const handleSocialLogin = (type) => {
-        window.location.href = `/api/auth/${type}/login`;
+        window.location.href = `/api/web/auth/${type}/login`;
     };
 
     return (
