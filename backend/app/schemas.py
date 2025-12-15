@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, date, time
+from typing import Optional, Literal, List
 
 class BaseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -127,3 +127,23 @@ class ProductUpdate(BaseSchema):
 
 class ProductResponse(ProductCreate):
     product_id: int
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ai planner
+# ----------------------------------------------------------------------------------------------------------------------
+# 응답용
+class EventResponse(BaseSchema):
+    event_id: int
+    title: str
+    schedule_date: str      # React는 "YYYY-MM-DD" 문자열을 좋아함 (date 객체 대신)
+    start_time: str     # "09:00"
+    end_time: str       # "10:30"
+    color: str # green, blue, yellow, red
+    description: str
+
+# 통합 응답 포맷
+class AiResponse(BaseSchema):
+    type: Literal["chat", "create", "update", "delete"]
+    message: str # 챗봇의 대답 (말풍선에 들어갈 내용)
+    events: List[EventResponse] = [] # 플래너 조작일 경우에만 데이터가 들어감 (단순 대화면 null or empty list)
+    target_event_id: Optional[int] = None # 수정/삭제 시 대상 ID
