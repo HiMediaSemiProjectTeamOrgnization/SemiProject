@@ -59,24 +59,26 @@ def auto_checkout_job():
 # ---------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("🚀 서버 시작 중...")
     create_tables()
-    
+
+    print("✅ 시스템 및 자동 퇴실 스케줄러가 시작되었습니다.")
     # 스케줄러 시작
     scheduler = BackgroundScheduler()
     scheduler.add_job(auto_checkout_job, 'interval', seconds=30)
     scheduler.start()
-    
-    print("✅ 시스템 및 자동 퇴실 스케줄러가 시작되었습니다.")
-    yield 
-    print("🛑 시스템 종료, 스케줄러 셧다운...")
-    scheduler.shutdown()
-    print("🚀 서버 시작 중...")
+
     model_manager.load_models()
-    print("✅ 서버 시작 완료!\n")
     ticket.start_scheduler()
+
+    print("✅ 서버 시작 완료!\n")
     yield  # 서버 실행 중
     print("\n🛑 서버 종료 중...")
+    print("🛑 시스템 종료, 스케줄러 셧다운...")
+
+    scheduler.shutdown()
     model_manager.unload_models()
+
     print("✅ 서버 종료 완료!")
 
 app = FastAPI(lifespan=lifespan)
@@ -101,4 +103,9 @@ app.add_middleware(
 )
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )

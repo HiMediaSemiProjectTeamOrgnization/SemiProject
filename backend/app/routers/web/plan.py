@@ -426,8 +426,11 @@ async def process_chat_request(
                 result = query.delete(synchronize_session=False)
                 deleted_count += result
 
-            if deleted_count == 0:
-                ai_msg = "삭제할 일정을 찾지 못했습니다."
+            if deleted_count > 0:
+                ai_msg = f"요청하신 대로 총 {deleted_count}개의 일정을 삭제했습니다."
+            else:
+                if not ai_msg:
+                    ai_msg = "조건에 맞는 삭제할 일정을 찾지 못했습니다."
 
         db.add(AIChatLog(member_id=member_id, role="ai", message=ai_msg))
         db.commit()
