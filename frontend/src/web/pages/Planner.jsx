@@ -374,9 +374,15 @@ const Planner = () => {
                                 </div>
                             ))}
                         </div>
-                        <form onSubmit={(e) => { e.preventDefault(); if(!chatInput)return; setMessages([...messages, {id: Date.now(), sender:'user', text:chatInput}]); setChatInput(''); }} className="p-3 bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex gap-2">
-                            <input className="flex-1 px-4 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 border-none outline-none dark:text-white text-sm" placeholder="질문하기..." value={chatInput} onChange={e=>setChatInput(e.target.value)} />
-                            <button className="p-3 bg-indigo-600 text-white rounded-2xl cursor-pointer"><Icons.Send /></button>
+                        <form onSubmit={(e) => { e.preventDefault(); if(!chatInput)return; setMessages([...messages, {id: Date.now(), sender:'user', text:chatInput}]); setChatInput(''); }}
+                              className="p-3 bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex gap-2">
+                            <input className="flex-1 px-4 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 border-none outline-none dark:text-white text-sm"
+                                   placeholder="질문하기..."
+                                   value={chatInput}
+                                   onChange={e=>setChatInput(e.target.value)} />
+                            <button className="p-3 bg-indigo-600 text-white rounded-2xl cursor-pointer">
+                                <Icons.Send />
+                            </button>
                         </form>
                     </div>
                 )}
@@ -390,12 +396,27 @@ const Planner = () => {
                         <div className="px-6 py-6 -mt-12 relative">
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700">
                                 <h3 className="text-2xl font-bold text-slate-800 dark:text-white">{selectedEvent.title}</h3>
-                                <p className="text-slate-500 font-medium mt-2">{selectedEvent.date} <span className="mx-1">|</span> {selectedEvent.start} - {selectedEvent.end}</p>
-                                <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-700 dark:text-slate-300 text-sm min-h-[80px] leading-relaxed">{selectedEvent.description || "내용 없음"}</div>
+                                <p className="text-slate-500 font-medium mt-2">
+                                    {selectedEvent.date}
+                                    <span className="mx-1">|</span> {selectedEvent.start} - {selectedEvent.end}
+                                </p>
+                                <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-700 dark:text-slate-300 text-sm min-h-[80px] leading-relaxed">
+                                    {selectedEvent.description || "내용 없음"}
+                                </div>
                                 <div className="flex gap-3 mt-6">
-                                    <button onClick={() => { setEvents(events.filter(e => e.id !== selectedEvent.id)); setIsDetailModalOpen(false); }} className="p-4 text-red-500 bg-red-50 dark:bg-red-900/20 rounded-2xl hover:bg-red-100 transition cursor-pointer"><Icons.Trash /></button>
-                                    <button onClick={handleEditClick} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold transition shadow-lg shadow-blue-600/20 cursor-pointer">수정하기</button>
-                                    <button onClick={() => setIsDetailModalOpen(false)} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 py-4 rounded-2xl font-bold transition hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer">닫기</button>
+                                    <button onClick={() => { setEvents(events.filter(e => e.id !== selectedEvent.id)); setIsDetailModalOpen(false); }}
+                                            className="p-4 text-red-500 bg-red-50 dark:bg-red-900/20 rounded-2xl hover:bg-red-100 transition cursor-pointer">
+                                        <Icons.Trash />
+                                    </button>
+                                    <button onClick={handleEditClick}
+                                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold transition shadow-lg shadow-blue-600/20 cursor-pointer">
+                                        수정하기
+                                    </button>
+                                    <button
+                                        onClick={() => setIsDetailModalOpen(false)}
+                                        className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 py-4 rounded-2xl font-bold transition hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer">
+                                        닫기
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -412,17 +433,80 @@ const Planner = () => {
                             <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition cursor-pointer"><Icons.X /></button>
                         </div>
                         <form onSubmit={handleSave} className="space-y-6">
-                            <div><label className="block text-sm font-bold text-slate-500 mb-2 ml-1">제목</label><input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl outline-none dark:text-white focus:ring-2 ring-blue-500 transition" placeholder="일정 이름" /></div>
-                            <div className="grid grid-cols-2 gap-6">
-                                <div><label className="block text-sm font-bold text-slate-500 mb-2 ml-1">날짜</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl outline-none dark:text-white focus:ring-2 ring-blue-500 transition" /></div>
-                                <div><label className="block text-sm font-bold text-slate-500 mb-2 ml-1">색상</label><div className="flex gap-3 h-[56px] items-center px-2">{Object.keys(colors).map(c => (<button type="button" key={c} onClick={() => setFormData({...formData, color: c})} className={`w-10 h-10 rounded-full border-[3px] transition-all duration-200 cursor-pointer ${colors[c].split(' ')[0]} ${formData.color === c ? 'border-slate-800 dark:border-white scale-110 ring-2 ring-offset-2 ring-blue-500' : 'border-transparent opacity-50 hover:opacity-100'}`} />))}</div></div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-500 mb-2 ml-1">제목</label>
+                                <input required
+                                       type="text"
+                                       value={formData.title}
+                                       onChange={e => setFormData({...formData, title: e.target.value})}
+                                       className="w-full p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl outline-none dark:text-white focus:ring-2 ring-blue-500 transition"
+                                       placeholder="일정 이름" />
                             </div>
                             <div className="grid grid-cols-2 gap-6">
-                                <div><label className="block text-sm font-bold text-slate-500 mb-2 ml-1">시작 시간</label><div className="flex items-center gap-2 p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 transition focus-within:ring-2 ring-blue-500"><input type="text" maxLength="2" value={formData.startH} onChange={(e) => handleTimeInput('start', 'H', e.target.value)} className="w-full bg-transparent text-center outline-none dark:text-white font-mono text-lg" placeholder="09" /><span className="text-slate-400 font-bold">:</span><input type="text" maxLength="2" value={formData.startM} onChange={(e) => handleTimeInput('start', 'M', e.target.value)} className="w-full bg-transparent text-center outline-none dark:text-white font-mono text-lg" placeholder="00" /></div></div>
-                                <div><label className="block text-sm font-bold text-slate-500 mb-2 ml-1">종료 시간</label><div className="flex items-center gap-2 p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 transition focus-within:ring-2 ring-blue-500"><input type="text" maxLength="2" value={formData.endH} onChange={(e) => handleTimeInput('end', 'H', e.target.value)} className="w-full bg-transparent text-center outline-none dark:text-white font-mono text-lg" placeholder="10" /><span className="text-slate-400 font-bold">:</span><input type="text" maxLength="2" value={formData.endM} onChange={(e) => handleTimeInput('end', 'M', e.target.value)} className="w-full bg-transparent text-center outline-none dark:text-white font-mono text-lg" placeholder="00" /></div></div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-500 mb-2 ml-1">날짜</label>
+                                    <input type="date"
+                                           value={formData.date}
+                                           onChange={e => setFormData({...formData, date: e.target.value})}
+                                           className="w-full p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl outline-none dark:text-white focus:ring-2 ring-blue-500 transition" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-500 mb-2 ml-1">색상</label>
+                                    <div className="flex gap-3 h-[56px] items-center px-2">
+                                        {Object.keys(colors).map(c => (
+                                            <button type="button"
+                                                    key={c} onClick={() => setFormData({...formData, color: c})}
+                                                    className={`w-10 h-10 rounded-full border-[3px] transition-all duration-200 cursor-pointer ${colors[c].split(' ')[0]} ${formData.color === c ? 'border-slate-800 dark:border-white scale-110 ring-2 ring-offset-2 ring-blue-500' : 'border-transparent opacity-50 hover:opacity-100'}`} />
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
-                            <div><label className="block text-sm font-bold text-slate-500 mb-2 ml-1">상세 내용</label><textarea rows="4" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl outline-none dark:text-white focus:ring-2 ring-blue-500 resize-none transition" placeholder="메모를 입력하세요..." /></div>
-                            <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/30 transition-all active:scale-[0.98] text-lg cursor-pointer">저장하기</button>
+                            <div className="grid grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-500 mb-2 ml-1">시작 시간</label>
+                                    <div className="flex items-center gap-2 p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 transition focus-within:ring-2 ring-blue-500">
+                                        <input type="text"
+                                               maxLength="2"
+                                               value={formData.startH}
+                                               onChange={(e) => handleTimeInput('start', 'H', e.target.value)}
+                                               className="w-full bg-transparent text-center outline-none dark:text-white font-mono text-lg"
+                                               placeholder="09" />
+                                        <span className="text-slate-400 font-bold">:</span>
+                                        <input type="text"
+                                               maxLength="2"
+                                               value={formData.startM}
+                                               onChange={(e) => handleTimeInput('start', 'M', e.target.value)}
+                                               className="w-full bg-transparent text-center outline-none dark:text-white font-mono text-lg"
+                                               placeholder="00" />
+                                    </div>
+                                </div>
+                                <div><label className="block text-sm font-bold text-slate-500 mb-2 ml-1">종료 시간</label>
+                                    <div className="flex items-center gap-2 p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 transition focus-within:ring-2 ring-blue-500">
+                                        <input type="text"
+                                               maxLength="2"
+                                               value={formData.endH}
+                                               onChange={(e) => handleTimeInput('end', 'H', e.target.value)}
+                                               className="w-full bg-transparent text-center outline-none dark:text-white font-mono text-lg"
+                                               placeholder="10" />
+                                        <span className="text-slate-400 font-bold">:</span>
+                                        <input type="text"
+                                               maxLength="2"
+                                               value={formData.endM}
+                                               onChange={(e) => handleTimeInput('end', 'M', e.target.value)}
+                                               className="w-full bg-transparent text-center outline-none dark:text-white font-mono text-lg"
+                                               placeholder="00" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-500 mb-2 ml-1">상세 내용</label>
+                                <textarea rows="4"
+                                          value={formData.description}
+                                          onChange={e => setFormData({...formData, description: e.target.value})}
+                                          className="w-full p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl outline-none dark:text-white focus:ring-2 ring-blue-500 resize-none transition"
+                                          placeholder="메모를 입력하세요..." /></div>
+                            <button type="submit"
+                                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/30 transition-all active:scale-[0.98] text-lg cursor-pointer">저장하기</button>
                         </form>
                     </div>
                 </div>
