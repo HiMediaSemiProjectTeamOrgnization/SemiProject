@@ -147,7 +147,7 @@ const WebLayout = () => {
             )}
 
             {/* 헤더 */}
-            <header className="sticky top-0 z-50 w-full border-b border-white/20 dark:border-white/10 bg-[#f0f4f8] dark:bg-slate-900 transition-colors duration-300">
+            <header className="sticky top-0 z-50 w-full border-b border-gray-300/50 dark:border-white/10 bg-[#f0f4f8] dark:bg-slate-900 transition-colors duration-300">
                 <nav className="flex items-center justify-between container mx-auto px-4 h-16">
                     {/* 로고 */}
                     <div className="flex items-center">
@@ -206,10 +206,6 @@ const WebLayout = () => {
                                         </ul>
                                     )}
                                 </div>
-                                <button className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors cursor-pointer">
-                                    <span className="font-bold">{member.name}</span>님
-                                </button>
-
                                 {/* ▼ [추가된 코드] AI 학습 도우미 (이용권 구매 왼쪽) ▼ */}
                                 <Link to="/web/plan" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
                                     <span>🤖</span> AI 학습 도우미
@@ -311,7 +307,7 @@ const WebLayout = () => {
             </main>
 
             {/*  풋터  */}
-            <footer className="relative z-10 w-full border-t border-white/20 dark:border-white/10
+            <footer className="relative z-10 w-full border-t border-gray-300/50 dark:border-white/10
             bg-[#f0f4f8] dark:bg-slate-900
             transition-colors duration-300">
                 <div className="container mx-auto p-6 text-center">
