@@ -43,13 +43,13 @@ def save_base64_image_and_get_path( image_base64 : str,
     return f'{CAPTURE_DIR}/{filename}'
 
 
-@router.get("/checkin")
+@router.post("/checkin")
 def checkin_web_to_camera(request : Request,
                          seat_id : int = Body(...),
                          usage_id : int = Body(...)) :
     """키오스크에서 요청 받은 것을 카메라로 전달"""
     # 1) 카메라로 전달
-    r = requests.post(f"{CAMERA_SERVER}/vision/checkin",
+    r = requests.post(f"{CAMERA_SERVER}/camera/checkin",
                       json={
                           "seat_id" : seat_id,
                           "usage_id" : usage_id
@@ -59,9 +59,9 @@ def checkin_web_to_camera(request : Request,
         return JSONResponse(status_code=502,
                             content={"status" : False,
                                      "message" : "camera server failed",
-                                     "detail" : r.message})
+                                     "detail" : r.text})
     
-    return r
+    return r.json()
 
 @router.post("/checkout")
 def checkout_web_to_camera(request : Request,
@@ -70,7 +70,7 @@ def checkout_web_to_camera(request : Request,
     """키오스크에서 요청 받은 것을 카메라로 전달 후 결과 리턴"""
     
     # 1) 카메라로 전달
-    r = requests.post(f"{CAMERA_SERVER}/vision/checkout",
+    r = requests.post(f"{CAMERA_SERVER}/camera/checkout",
                       json={
                           "seat_id" : seat_id,
                           "usage_id" : usage_id
@@ -79,7 +79,7 @@ def checkout_web_to_camera(request : Request,
         return JSONResponse(status_code=502,
                             content={"status" : False,
                                      "message" : "camera server failed",
-                                     "detail" : r.message})
+                                     "detail" : r.text})
 
     job_id = r.json().get("job_id", usage_id)
 
@@ -87,7 +87,7 @@ def checkout_web_to_camera(request : Request,
     # 결과 가져오는데 시간 1~2초 소요
     for _ in range(6) :
         time.sleep(0.3)
-        rr = requests.get(f"{CAMERA_SERVER}/vision/lost-item/result/{job_id}", timeout=2)
+        rr = requests.get(f"{CAMERA_SERVER}/camera/lost-item/result/{job_id}", timeout=2)
         if rr.status_code != 200 :
             continue
         
@@ -114,7 +114,7 @@ def checkout_web_to_camera(request : Request,
                 image_base64 = result.get("image_base64")
                 img_path = save_base64_image_and_get_path(image_base64,seat_id,usage_id)
                 
-                return JSONResponse(200, content = {
+                return JSONResponse(status_code=200, content = {
                     "detected" : True,
                     "img_path" : img_path,
                     "classes" : result.get("items"),
@@ -141,7 +141,7 @@ def checktime_seat(payload : dict,
             raise HTTPException(status_code=404, detail="SeatUsage not found")
 
         current = seatusage.total_in_time or 0
-        seatusage.total_in_time = seatusage.total_in_time + payload["minutes"]
+        seatusage.total_in_time = current + int(payload["minutes"])
 
         db.commit()
         db.refresh(seatusage)
