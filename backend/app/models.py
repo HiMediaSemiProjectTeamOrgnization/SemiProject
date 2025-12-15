@@ -47,7 +47,7 @@ class Member(Base):
     login_id = Column(String(50), unique=True, nullable=True)
     password = Column(String(255), nullable=True)
     phone = Column(String(20), unique=True)
-    email = Column(String(100), unique=True)
+    email = Column(String(100))
     birthday = Column(String(20), nullable=True)
     pin_code = Column(Integer, nullable=True)
     social_type = Column(String(20), nullable=True)
@@ -119,6 +119,7 @@ class SeatUsage(Base):
     check_out_time = Column(DateTime, nullable=True)
     is_attended = Column(Boolean, server_default="false")
     ticket_expired_time = Column(DateTime, nullable=True)
+    total_in_time = Column(Integer, nullable=True)
 
     order = relationship("Order", back_populates="seat_usage")
     seat = relationship("Seat", back_populates="seat_usages")

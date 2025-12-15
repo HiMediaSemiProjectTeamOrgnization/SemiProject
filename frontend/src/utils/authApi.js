@@ -65,4 +65,11 @@ export const authApi = {
     accountRecoveryCode: async (input_code) => {
         return await authClient.post('/web/auth/account-recovery/code', input_code);
     },
+    // 관리자 로그인
+    adminLogin: async (member_data) => {
+        return await authClient.post('/admin/login', member_data)
+    },
+    adminLogout: async () => {
+        return await authClient.post('/admin/logout');
+    },
 };
