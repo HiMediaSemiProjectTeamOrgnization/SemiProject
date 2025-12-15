@@ -207,11 +207,7 @@ def login(
     response: Response,
     member_data: MemberLogin,
     db: Session = Depends(get_db),
-    refresh_token: str = Cookie(None)
 ):
-    # 기존 DB의 리프레시 토큰들 무효화 (쿠키)
-    revoke_existing_token(db, refresh_token)
-
     if member_data.login_id:
         # 아이디 검증
         member = db.query(Member).filter(Member.login_id == member_data.login_id).first()
@@ -236,9 +232,6 @@ def login(
     # 그외 문제 예외처리
     else:
         raise HTTPException(status_code=401, detail="missing credentials")
-
-    # 기존 DB의 리프레시 토큰들 무효화 (id)
-    revoke_existing_token_by_id(db, member.member_id)
 
     # 토큰 및 쿠키 생성 함수
     set_token_cookies(member.member_id, member.name, db, response)
@@ -273,13 +266,7 @@ def update_pincode(
 ########################################################################################################################
 """ 카카오 로그인 리다이렉트 """
 @router.get("/kakao/login")
-def kakao_login(
-    db: Session = Depends(get_db),
-    refresh_token: str = Cookie(None)
-):
-    # 기존 DB의 리프레시 토큰들 무효화 (쿠키)
-    revoke_existing_token(db, refresh_token)
-
+def kakao_login():
     # 랜덤 state 생성
     state = str(uuid.uuid4())
 
@@ -370,9 +357,6 @@ def kakao_callback(
         # 토큰 및 쿠키 생성 함수
         set_token_cookies(kakao_account.member_id, kakao_account.name, db, response)
 
-        # 기존 DB의 리프레시 토큰들 무효화 (id)
-        revoke_existing_token_by_id(db, kakao_account.member_id)
-
         # 소셜 타입을 카카오 로그인으로 바꾼다
         kakao_account.social_type = "kakao"
         db.commit()
@@ -395,9 +379,6 @@ def kakao_callback(
 
             # 토큰 및 쿠키 생성 함수
             set_token_cookies(existing_member.member_id, existing_member.name, db, response)
-
-            # 기존 DB의 리프레시 토큰들 무효화 (id)
-            revoke_existing_token_by_id(db, existing_member.member_id)
 
             # 소셜 타입을 카카오 로그인으로 바꾼다
             existing_member.social_type = "kakao"
@@ -423,8 +404,6 @@ def kakao_callback(
                 # 토큰 및 쿠키 생성 함수
                 set_token_cookies(member.member_id, member.name, db, response)
 
-                # 기존 DB의 리프레시 토큰들 무효화 (id)
-                revoke_existing_token_by_id(db, member.member_id)
             except Exception as e:
                 raise HTTPException(status_code=401, detail=f"transaction failed: {e}")
 
@@ -434,13 +413,7 @@ def kakao_callback(
 ########################################################################################################################
 """ 네이버 로그인 리다이렉트 """
 @router.get("/naver/login")
-def naver_login(
-    db: Session = Depends(get_db),
-    refresh_token: str = Cookie(None)
-):
-    # 기존 DB의 리프레시 토큰들 무효화 (쿠키)
-    revoke_existing_token(db, refresh_token)
-
+def naver_login():
     # 랜덤 state 생성
     state = str(uuid.uuid4())
 
@@ -530,9 +503,6 @@ def naver_callback(
         # 토큰 및 쿠키 생성 함수
         set_token_cookies(naver_account.member_id, naver_account.name, db, response)
 
-        # 기존 DB의 리프레시 토큰들 무효화 (id)
-        revoke_existing_token_by_id(db, naver_account.member_id)
-
         # 소셜 타입을 네이버 로그인으로 바꾼다
         naver_account.social_type = "naver"
         db.commit()
@@ -553,9 +523,6 @@ def naver_callback(
 
             # 토큰 및 쿠키 생성 함수
             set_token_cookies(existing_member.member_id, existing_member.name, db, response)
-
-            # 기존 DB의 리프레시 토큰들 무효화 (id)
-            revoke_existing_token_by_id(db, existing_member.member_id)
 
             # 소셜 타입을 네이버 로그인으로 바꾼다
             existing_member.social_type = "naver"
@@ -580,8 +547,6 @@ def naver_callback(
                 # 토큰 및 쿠키 생성 함수
                 set_token_cookies(member.member_id, member.name, db, response)
 
-                # 기존 DB의 리프레시 토큰들 무효화 (id)
-                revoke_existing_token_by_id(db, member.member_id)
             except Exception as e:
                 raise HTTPException(status_code=401, detail=f"transaction failed: {e}")
 
@@ -591,13 +556,7 @@ def naver_callback(
 ########################################################################################################################
 """ 구글 로그인 리다이렉트 """
 @router.get("/google/login")
-def google_login(
-    db: Session = Depends(get_db),
-    refresh_token: str = Cookie(None)
-):
-    # 기존 DB의 리프레시 토큰들 무효화 (쿠키)
-    revoke_existing_token(db, refresh_token)
-
+def google_login():
     # 랜덤 state 생성
     state = str(uuid.uuid4())
 
@@ -684,9 +643,6 @@ def google_callback(
         # 토큰 및 쿠키 생성 함수
         set_token_cookies(google_account.member_id, google_account.name, db, response)
 
-        # 기존 DB의 리프레시 토큰들 무효화 (id)
-        revoke_existing_token_by_id(db, google_account.member_id)
-
         # 소셜 타입을 구글 로그인으로 바꾼다
         google_account.social_type = "google"
         db.commit()
@@ -728,9 +684,6 @@ def google_callback(
 
             # 토큰 및 쿠키 생성 함수
             set_token_cookies(existing_member.member_id, existing_member.name, db, response)
-
-            # 기존 DB의 리프레시 토큰들 무효화 (id)
-            revoke_existing_token_by_id(db, existing_member.member_id)
 
             # 소셜 타입을 구글 로그인으로 바꾼다
             existing_member.social_type = "google"
@@ -818,8 +771,6 @@ def google_onboarding(
             # 토큰 및 쿠키 생성 함수
             set_token_cookies(member.member_id, mem_info["google_name"], db, response)
 
-            # 기존 DB의 리프레시 토큰들 무효화 (id)
-            revoke_existing_token_by_id(db, member.member_id)
         except Exception as e:
             raise HTTPException(status_code=401, detail=f"transaction failed: {e}")
 
@@ -888,9 +839,11 @@ def google_onboarding_check_verify_phone(
 def logout(
     response: Response,
     refresh_token: str = Cookie(None),
+    member: dict = Depends(get_cookies_info),
     db: Session = Depends(get_db)
 ):
-    # 서버에 있는 리프레시 토큰 무효화
+    # 리프레시 토큰 무효화
+    revoke_existing_token_by_id(db, member["member_id"])
     revoke_existing_token(db, refresh_token)
 
     # 쿠키 삭제
@@ -906,6 +859,7 @@ def get_cookies(
     member: dict = Depends(get_cookies_info),
     db: Session = Depends(get_db)
 ):
+
     try:
         mem_db = db.query(Member).filter(Member.member_id == member.get("member_id")).first()
 

@@ -3,7 +3,7 @@ import { PiChairBold } from "react-icons/pi";
 import { FaDoorOpen, FaTools } from "react-icons/fa"; // [추가] FaTools 아이콘
 import axios from "axios";
 import KioskHeader from "../components/KioskHeader";
-import KioskAlertModal from "../components/KioskAlertModal";
+import KioskAlertModal from "../components/KioskAlertModal"; // [추가] 모달 컴포넌트
 
 // ... (FLOOR_PLAN 등 기존 상수 유지)
 const FLOOR_PLAN = [
@@ -25,7 +25,7 @@ const KioskSeatStatus = ({
   onSeatSelect,
   isCheckOutMode = false,
   isViewOnly = false,
-  memberInfo = null,
+  memberInfo = null, // [추가] 로그인한 회원 정보
 }) => {
   const [seats, setSeats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,10 +53,12 @@ const KioskSeatStatus = ({
     ].join(":");
   };
 
+  // 서버에서 좌석 정보 가져오기 (백그라운드 실행 시 로딩바 숨김)
   const fetchSeats = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
       const res = await axios.get("/api/kiosk/seats");
+      // 받아온 데이터에 남은 시간 계산하여 저장
       const formatted = res.data.map((s) => ({
         ...s,
         remaining_seconds: calculateRemainingSeconds(s.ticket_expired_time),
@@ -102,6 +104,7 @@ const KioskSeatStatus = ({
       : `${name[0]}*${name[name.length - 1]}`;
   };
 
+  // [추가] 좌석 클릭 핸들러 (권한 검증 로직 포함)
   const handleSeatClick = (seatId) => {
     const seat = getSeat(seatId);
     if (!seat) return;
@@ -226,9 +229,11 @@ const KioskSeatStatus = ({
       if (!isAvailable) {
         base += isSelected
           ? " bg-gradient-to-br from-[#FF5C7A] to-[#FF3F62] text-white ring-2 ring-rose-300 scale-95 shadow-lg"
-          : " bg-[#B94163]/40 text-[#FF8FA5] border border-[#B94163] cursor-pointer " + pressEffect;
+          : " bg-[#B94163]/40 text-[#FF8FA5] border border-[#B94163] cursor-pointer " +
+            pressEffect;
       } else {
-        base += " bg-gradient-to-br from-[#383e55] to-[#2f3446] opacity-40 border border-[#202A3E]";
+        base +=
+          " bg-gradient-to-br from-[#383e55] to-[#2f3446] opacity-40 border border-[#202A3E]";
       }
     } else {
       if (isAvailable) {
@@ -236,11 +241,14 @@ const KioskSeatStatus = ({
           base += " bg-gradient-to-br from-[#4A6DFF] to-[#6A86FF] text-white shadow-lg ring-2 ring-blue-300 scale-95";
         } else {
           base += isFixed
-            ? " bg-gradient-to-br from-[#c0b6ff] to-[#a89af3] text-white border border-[#c0b6ff] cursor-pointer " + pressEffect
-            : " bg-gradient-to-br from-[#a8c7ff] to-[#8bb3ff] text-[#1A2233] border border-[#a8c7ff] cursor-pointer " + pressEffect;
+            ? " bg-gradient-to-br from-[#c0b6ff] to-[#a89af3] text-white border border-[#c0b6ff] cursor-pointer " +
+              pressEffect
+            : " bg-gradient-to-br from-[#a8c7ff] to-[#8bb3ff] text-[#1A2233] border border-[#a8c7ff] cursor-pointer " +
+              pressEffect;
         }
       } else {
-        base += " bg-gradient-to-br from-[#383e55] to-[#2f3446] border border-[#383e55] text-[#8E97A8]";
+        base +=
+          " bg-gradient-to-br from-[#383e55] to-[#2f3446] border border-[#383e55] text-[#8E97A8]";
       }
     }
 
@@ -265,7 +273,7 @@ const KioskSeatStatus = ({
     );
   };
 
-  // ... (나머지 코드 유지)
+  // 타이틀 텍스트 결정 로직
   let titleText = "이용하실 좌석을 선택해주세요";
   if (isCheckOutMode) titleText = "퇴실하실 좌석을 선택해주세요";
   if (isViewOnly) titleText = "좌석 현황";

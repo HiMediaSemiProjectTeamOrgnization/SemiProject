@@ -231,7 +231,7 @@ def list_seats(db: Session = Depends(get_db)):
             "is_status": s.is_status,
             "user_name": None,
             "remaining_time": None,
-            "ticket_expired_time": None,
+            "ticket_expired_time": None,  # [수정 1] 초기값 필드 추가
             "role": None
         }
 
@@ -249,7 +249,9 @@ def list_seats(db: Session = Depends(get_db)):
                     seat_data["role"] = member.role
                 
                 if active_usage.ticket_expired_time:
+                    # [수정 2] 만료 시간 데이터를 응답에 포함
                     seat_data["ticket_expired_time"] = active_usage.ticket_expired_time
+                    
                     remain_delta = active_usage.ticket_expired_time - now
                     minutes = int(remain_delta.total_seconds() / 60)
                     seat_data["remaining_time"] = max(minutes, 0)
