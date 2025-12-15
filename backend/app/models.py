@@ -119,6 +119,7 @@ class SeatUsage(Base):
     check_out_time = Column(DateTime, nullable=True)
     is_attended = Column(Boolean, server_default="false")
     ticket_expired_time = Column(DateTime, nullable=True)
+    total_in_time = Column(Integer, nullable=True)
 
     order = relationship("Order", back_populates="seat_usage")
     seat = relationship("Seat", back_populates="seat_usages")
