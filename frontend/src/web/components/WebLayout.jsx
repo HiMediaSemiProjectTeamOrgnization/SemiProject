@@ -206,10 +206,6 @@ const WebLayout = () => {
                                         </ul>
                                     )}
                                 </div>
-                                <button className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors cursor-pointer">
-                                    <span className="font-bold">{member.name}</span>님
-                                </button>
-
                                 {/* ▼ [추가된 코드] AI 학습 도우미 (이용권 구매 왼쪽) ▼ */}
                                 <Link to="/web/plan" className="px-3 py-1 bg-blue-50 dark:bg-slate-800 rounded-full text-blue-1000 dark:text-blue-300 border border-blue-100 dark:border-slate-700 hover:text-blue-600 transition-colors">
                                     <span>🤖</span> AI 학습 도우미
