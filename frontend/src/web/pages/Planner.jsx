@@ -1,55 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { useAuthCookieStore } from '../../utils/useAuthStores.js';
+import { useAuthCookieStore } from '../../utils/useAuthStores.js'; // 경로 확인 필요
 import { useNavigate } from 'react-router-dom';
-
-// --- 아이콘 컴포넌트 ---
-const Icons = {
-    Plus: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
-    Trash: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
-    X: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>,
-    Robot: () => <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>,
-    Send: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>,
-    ChevronLeft: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>,
-    ChevronRight: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>,
-    Edit: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
-    Calendar: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-};
+import axios from 'axios';
 
 const Planner = () => {
-    const navigate = useNavigate();
-
-    // --- 설정 및 유틸 ---
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     const scrollRef = useRef(null);
-    const TIME_SLOTS = Array.from({ length: 24 }, (_, i) => i);
-    const ROW_HEIGHT = 64;
-
-    const formatDateStr = (dateObj) => {
-        const offset = dateObj.getTimezoneOffset() * 60000;
-        return (new Date(dateObj - offset)).toISOString().slice(0, 10);
-    };
-
-    // [반응형 감지]
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    // --- 가데이터 (Mock Data) ---
-    const [events, setEvents] = useState([
-        { id: 1, title: '환경 생물학', date: '2025-12-15', start: '09:00', end: '10:30', color: 'green', description: 'Ch 3-5 복습' },
-        { id: 2, title: '영상 제작 실습', date: '2025-12-16', start: '14:00', end: '16:00', color: 'blue', description: '시나리오 회의' },
-        { id: 3, title: '창작 글쓰기', date: '2025-12-15', start: '13:00', end: '14:30', color: 'yellow', description: '에세이 초안 작성' },
-        { id: 5, title: '알고리즘 스터디', date: '2025-12-18', start: '20:00', end: '22:00', color: 'blue', description: '백준 문제 풀이' },
-    ]);
-
-    const [attendanceData, setAttendanceData] = useState(['2025-12-14', '2025-12-15']);
-
-    // --- State ---
+    const chatContainerRef = useRef(null); // 채팅 스크롤용 ref
+    const [events, setEvents] = useState([]); // 초기값 빈 배열 (또는 API fetch 필요)
+    const [attendanceData, setAttendanceData] = useState(['2025-12-14', '2025-12-15']); // 가데이터
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -60,8 +22,30 @@ const Planner = () => {
     });
     const [messages, setMessages] = useState([{ id: 1, sender: 'ai', text: '학습 계획을 도와드릴까요?' }]);
     const [chatInput, setChatInput] = useState('');
-
+    const [isAiProcessing, setIsAiProcessing] = useState(false);
+    const navigate = useNavigate();
     const { member, fetchMember, isLoading: isAuthLoading } = useAuthCookieStore();
+    const TIME_SLOTS = Array.from({ length: 24 }, (_, i) => i);
+    const ROW_HEIGHT = 64;
+
+    // --- 아이콘 컴포넌트 ---
+    const Icons = {
+        Plus: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
+        Trash: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+        X: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>,
+        Robot: () => <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>,
+        Send: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>,
+        ChevronLeft: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>,
+        ChevronRight: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>,
+        Edit: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+        Calendar: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+        Loading: () => <svg className="animate-spin w-5 h-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+    };
+
+    const formatDateStr = (dateObj) => {
+        const offset = dateObj.getTimezoneOffset() * 60000;
+        return (new Date(dateObj - offset)).toISOString().slice(0, 10);
+    };
 
     // --- 날짜 계산 헬퍼 ---
     const getWeekDays = (baseDate) => {
@@ -78,7 +62,69 @@ const Planner = () => {
     };
     const weekDays = getWeekDays(currentDate);
 
-    // --- 핸들러 ---
+    // [수정] 일정 가져오기
+    const fetchEvents = async () => {
+        if (!member?.member_id) return;
+        try {
+            const response = await axios.get('/api/web/plan/events', {
+                params: { member_id: member.member_id }
+            });
+            // DB 데이터를 프론트 포맷으로 변환
+            const mappedEvents = response.data.map(ev => ({
+                id: ev.event_id,
+                title: ev.title,
+                date: ev.schedule_date,
+                start: ev.start_time.slice(0, 5),
+                end: ev.end_time.slice(0, 5),
+                color: ev.color || 'blue',
+                description: ev.description
+            }));
+            setEvents(mappedEvents);
+        } catch (error) {
+            console.error("Fetch Events Error:", error);
+        }
+    };
+
+    // [수정] AI 채팅 핸들러 (동기화 로직 강화)
+    const handleSendMessage = async (e) => {
+        e.preventDefault();
+        if (!chatInput.trim() || isAiProcessing) return;
+
+        const userMsg = { id: Date.now(), sender: 'user', text: chatInput };
+        setMessages(prev => [...prev, userMsg]);
+        const currentInput = chatInput;
+        setChatInput('');
+        setIsAiProcessing(true);
+
+        try {
+            if (!member?.member_id) {
+                setMessages(prev => [...prev, { id: Date.now()+1, sender: 'ai', text: '로그인이 필요합니다.' }]);
+                return;
+            }
+
+            const response = await axios.post('/api/web/plan/chat', {
+                member_id: member.member_id,
+                user_input: currentInput
+            });
+
+            const data = response.data;
+            setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: data.message }]);
+
+            // ★ 핵심: AI가 데이터를 건드렸다면(create/update/delete),
+            // 프론트에서 복잡하게 계산하지 말고 DB에서 최신본을 다시 긁어옵니다.
+            if (data.type !== 'chat') {
+                await fetchEvents();
+            }
+
+        } catch (error) {
+            console.error("Chat Error:", error);
+            setMessages(prev => [...prev, { id: Date.now() + 2, sender: 'ai', text: "오류가 발생했습니다." }]);
+        } finally {
+            setIsAiProcessing(false);
+        }
+    };
+
+    // --- 기타 기존 핸들러들 ---
     const handlePrevDate = () => {
         const d = new Date(currentDate);
         d.setDate(d.getDate() - (isMobile ? 1 : 7));
@@ -130,18 +176,59 @@ const Planner = () => {
         setIsEditModalOpen(true);
     };
 
-    const handleSave = (e) => {
+    // [수정] 수동 저장 핸들러 (API 연동)
+    const handleSave = async (e) => {
         e.preventDefault();
+
+        if (!member?.member_id) return;
+
+        // 시간 포맷팅 (HH:MM)
         const startStr = `${formData.startH.padStart(2,'0')}:${formData.startM.padStart(2,'0')}`;
         const endStr = `${formData.endH.padStart(2,'0')}:${formData.endM.padStart(2,'0')}`;
-        const newEvent = {
-            id: selectedEvent ? selectedEvent.id : Date.now(),
-            title: formData.title, date: formData.date, start: startStr, end: endStr,
-            color: formData.color, description: formData.description
+
+        const payload = {
+            member_id: member.member_id,
+            title: formData.title,
+            date: formData.date,
+            start: startStr,
+            end: endStr,
+            color: formData.color,
+            description: formData.description
         };
-        if (selectedEvent) setEvents(events.map(ev => ev.id === selectedEvent.id ? newEvent : ev));
-        else setEvents([...events, newEvent]);
-        setIsEditModalOpen(false);
+
+        try {
+            if (selectedEvent) {
+                // 수정 (Update)
+                await axios.put('/api/web/plan/manual/update', {
+                    ...payload,
+                    event_id: selectedEvent.id
+                });
+            } else {
+                // 생성 (Create)
+                await axios.post('/api/web/plan/manual/create', payload);
+            }
+
+            // 성공 시 모달 닫고 목록 갱신
+            setIsEditModalOpen(false);
+            fetchEvents();
+        } catch (error) {
+            console.error("Save Error:", error);
+            alert("저장에 실패했습니다. (시간 형식을 확인해주세요)");
+        }
+    };
+
+    // [수정] 삭제 핸들러 (API 연동)
+    const handleDelete = async () => {
+        if (!selectedEvent) return;
+
+        try {
+            await axios.delete(`/api/web/plan/manual/delete/${selectedEvent.id}`);
+            setIsDetailModalOpen(false);
+            fetchEvents();
+        } catch (error) {
+            console.error("Delete Error:", error);
+            alert("삭제 중 오류가 발생했습니다.");
+        }
     };
 
     const handleDateChange = (date) => {
@@ -170,10 +257,52 @@ const Planner = () => {
         red: 'bg-[#f43f5e] border border-[#e11d48] text-white shadow-[0_4px_12px_rgba(244,63,94,0.3)]',
     };
 
+    const todayStr = formatDateStr(new Date());
+
+    // 출석 가져오기 함수 추가
+    const fetchAttendance = async () => {
+        if (!member?.member_id) return;
+        try {
+            // 백엔드 API 호출 (가정)
+            const res = await axios.get('/api/web/attendance', {
+                params: { member_id: member.member_id }
+            });
+            // res.data가 ['2025-12-01', '2025-12-02'] 형태라고 가정
+            setAttendanceData(res.data);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    // ▼ [추가] 로그인이 확인되면 일정 로딩 실행
+    useEffect(() => {
+        if (member?.member_id) {
+            fetchEvents();
+            // fetchAttendance();
+        }
+    }, [member]); // member 정보가 바뀌거나 로드되면 실행
+
+    // [반응형 감지]
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // --- 채팅 스크롤 자동 이동 ---
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [messages, isChatOpen]);
+
     useEffect(() => { void fetchMember(); }, [fetchMember]);
     useEffect(() => { if (!member) navigate('/web/login', { replace: true }); }, [member, navigate]);
-    useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 9 * ROW_HEIGHT; }, []);
-    const todayStr = formatDateStr(new Date());
+
+    // 초기 스크롤 위치 (9시)
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = 9 * ROW_HEIGHT;
+    }, []);
 
     if (isAuthLoading) return <div>pending...</div>
 
@@ -181,18 +310,13 @@ const Planner = () => {
         <div className="relative w-full h-[calc(100vh-100px)] flex flex-col font-sans select-none p-2 gap-2">
             <style>{`
                 button { cursor: pointer; }
-                
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
                 .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
                 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #64748b; }
-
-                /* 캘린더 네비게이션(상단 년/월) 강제 여백 확보 */
                 .react-calendar__navigation { margin-bottom: 10px; }
-
-                /* 캘린더 스타일 */
                 .react-calendar { border: none; width: 100%; background: transparent; font-family: inherit; }
                 .react-calendar__navigation button { min-width: 44px; background: none; font-size: 16px; margin-top: 8px; border-radius: 12px; cursor: pointer !important; }
                 .react-calendar__navigation button:enabled:hover { background-color: #f1f5f9; }
@@ -230,12 +354,6 @@ const Planner = () => {
                         <button onClick={() => setIsCalendarOpen(!isCalendarOpen)} className={`p-3 rounded-2xl border transition-all duration-200 flex items-center gap-2 font-bold cursor-pointer ${isCalendarOpen ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg ring-4 ring-indigo-500/20' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
                             <Icons.Calendar />
                         </button>
-
-                        {/* [PC 전용 캘린더 드롭다운]
-                           모바일일 때는 여기서 렌더링하지 않고,
-                           아래 return문 끝부분에서 Portal처럼 별도로 렌더링합니다.
-                           (헤더에 잘리는 문제 해결)
-                        */}
                         {!isMobile && isCalendarOpen && (
                             <div className="absolute top-full right-0 mt-3 w-80 p-4 bg-white/90 dark:bg-slate-900/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95 origin-top-right z-50">
                                 <div className="mb-2 flex gap-2 justify-end text-[10px] font-bold text-slate-500">
@@ -310,7 +428,6 @@ const Planner = () => {
 
             {/* AI Bot Container */}
             <div className={`fixed bottom-17 right-1 z-50 flex flex-col items-end`}>
-
                 {(!isChatOpen || !isMobile) && (
                     <button onClick={() => setIsChatOpen(!isChatOpen)} className="p-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full shadow-2xl transition-transform hover:scale-110 active:scale-95 border-4 border-slate-100 dark:border-slate-800 cursor-pointer relative z-50">
                         {isChatOpen ? <Icons.X /> : <Icons.Robot />}
@@ -325,7 +442,7 @@ const Planner = () => {
                     }`}>
 
                         <div className="p-4 bg-indigo-600 text-white font-bold flex items-center justify-between shrink-0">
-                            <div className="flex items-center gap-2"><Icons.Robot /> AI Helper</div>
+                            <div className="flex items-center gap-2"><Icons.Robot /> AI Planner</div>
                             {isMobile && (
                                 <button onClick={() => setIsChatOpen(false)} className="p-2 bg-white/20 hover:bg-white/30 rounded-full cursor-pointer transition-colors z-[10000]">
                                     <Icons.X />
@@ -333,18 +450,35 @@ const Planner = () => {
                             )}
                         </div>
 
-                        <div className="flex-1 p-4 overflow-y-auto bg-slate-50 dark:bg-slate-900/50 custom-scrollbar">
+                        <div ref={chatContainerRef} className="flex-1 p-4 overflow-y-auto bg-slate-50 dark:bg-slate-900/50 custom-scrollbar">
                             {messages.map(m => (
                                 <div key={m.id} className={`mb-2 flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                                     <span className={`px-4 py-3 rounded-2xl text-sm max-w-[80%] ${m.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-md' : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 rounded-tl-md'}`}>{m.text}</span>
                                 </div>
                             ))}
+                            {isAiProcessing && (
+                                <div className="flex justify-start mb-2">
+                                    <span className="px-4 py-3 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl rounded-tl-md flex items-center gap-2">
+                                        <Icons.Loading />
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">생성 중...</span>
+                                    </span>
+                                </div>
+                            )}
                         </div>
-                        <form onSubmit={(e) => { e.preventDefault(); if(!chatInput)return; setMessages([...messages, {id: Date.now(), sender:'user', text:chatInput}]); setChatInput(''); }}
-                              className="p-3 bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex gap-2 shrink-0">
+                        <form onSubmit={handleSendMessage} className="p-3 bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex gap-2 shrink-0">
                             <input className="flex-1 px-4 py-3 rounded-2xl bg-slate-100 dark:bg-slate-900 border-none outline-none dark:text-white text-sm focus:ring-2 ring-indigo-500/50"
-                                   placeholder="질문하기..." value={chatInput} onChange={e=>setChatInput(e.target.value)} />
-                            <button className="p-3 bg-indigo-600 text-white rounded-2xl cursor-pointer"><Icons.Send /></button>
+                                   placeholder="내일 9시 수학 공부 일정 잡아줘..." value={chatInput} onChange={e=>setChatInput(e.target.value)} disabled={isAiProcessing} />
+                            <button
+                                type="submit"
+                                disabled={isAiProcessing}
+                                className={`p-3 text-white rounded-2xl transition-colors ${
+                                    isAiProcessing
+                                        ? 'bg-slate-400 cursor-not-allowed'  // 대기 중: 회색 배경 + 금지 커서
+                                        : 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer' // 평소: 파란 배경 + 포인터 커서 + 호버 효과
+                                }`}
+                            >
+                                <Icons.Send />
+                            </button>
                         </form>
                         {isMobile && (
                             <button onClick={() => setIsChatOpen(false)} className="w-full py-4 bg-slate-100 dark:bg-slate-900 text-slate-500 font-bold border-t border-slate-200 dark:border-slate-700">
@@ -355,13 +489,10 @@ const Planner = () => {
                 )}
             </div>
 
-            {/* [모바일 전용] 캘린더 모달 (Root Level 배치로 잘림 해결) */}
+            {/* [모바일 전용] 캘린더 모달 */}
             {isMobile && isCalendarOpen && (
                 <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-                    {/* Backdrop */}
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsCalendarOpen(false)}></div>
-
-                    {/* Content */}
                     <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-6 border border-slate-200 dark:border-slate-700 animate-in zoom-in-95">
                         <div className="flex justify-between items-center mb-4">
                             <div className="flex gap-2 text-[10px] font-bold text-slate-500">
@@ -370,12 +501,8 @@ const Planner = () => {
                             </div>
                             <button onClick={() => setIsCalendarOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition"><Icons.X /></button>
                         </div>
-
                         <Calendar onChange={handleDateChange} value={currentDate} calendarType="gregory" formatDay={(l, d) => d.getDate()} formatShortWeekday={(l, d) => ['일','월','화','수','목','금','토'][d.getDay()]} tileContent={tileContent} className="custom-calendar w-full" />
-
-                        <button onClick={() => setIsCalendarOpen(false)} className="w-full mt-6 py-3 bg-indigo-600 text-white font-bold rounded-xl active:scale-95 transition shadow-lg shadow-indigo-200 dark:shadow-none">
-                            확인
-                        </button>
+                        <button onClick={() => setIsCalendarOpen(false)} className="w-full mt-6 py-3 bg-indigo-600 text-white font-bold rounded-xl active:scale-95 transition shadow-lg shadow-indigo-200 dark:shadow-none">확인</button>
                     </div>
                 </div>
             )}
@@ -393,7 +520,7 @@ const Planner = () => {
                                     {selectedEvent.description || "내용 없음"}
                                 </div>
                                 <div className="flex gap-2 md:gap-3 mt-6">
-                                    <button onClick={() => { setEvents(events.filter(e => e.id !== selectedEvent.id)); setIsDetailModalOpen(false); }} className="p-3 md:p-4 text-red-500 bg-red-50 dark:bg-red-900/20 rounded-2xl hover:bg-red-100 transition cursor-pointer"><Icons.Trash /></button>
+                                    <button onClick={handleDelete} className="p-3 md:p-4 text-red-500 bg-red-50 dark:bg-red-900/20 rounded-2xl hover:bg-red-100 transition cursor-pointer"><Icons.Trash /></button>
                                     <button onClick={handleEditClick} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 md:py-4 rounded-2xl font-bold transition shadow-lg shadow-blue-600/20 cursor-pointer">수정하기</button>
                                     <button onClick={() => setIsDetailModalOpen(false)} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 py-3 md:py-4 rounded-2xl font-bold transition hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer">닫기</button>
                                 </div>

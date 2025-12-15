@@ -69,7 +69,6 @@ class Member(Base):
     mileage_history = relationship("MileageHistory", back_populates="member", cascade="all, delete")
     user_todos = relationship("UserTODO", back_populates="member", cascade="all, delete")
     ai_chat_logs = relationship("AIChatLog", back_populates="member", cascade="all, delete")
-    study_plans = relationship("StudyPlan", back_populates="member", cascade="all, delete")
     schedule_events = relationship("ScheduleEvent", back_populates="member", cascade="all, delete")
 
 # ----------------------------------------------------------------------------------------------------------------------
