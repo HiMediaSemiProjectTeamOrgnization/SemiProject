@@ -6,6 +6,8 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from database import create_tables, SessionLocal
 from routers.kiosk import kiosk
+from routers.web import auth, ticket, mypage
+from routers.admin import admin
 from routers.web import auth, ticket
 from routers.ml import detect
 from datetime import datetime
@@ -77,6 +79,8 @@ app.include_router(auth.router)
 app.include_router(kiosk.router)
 app.include_router(ticket.router)
 app.include_router(detect.router)
+app.include_router(mypage.router)
+app.include_router(admin.router)
 
 app.add_middleware(
     CORSMiddleware,
