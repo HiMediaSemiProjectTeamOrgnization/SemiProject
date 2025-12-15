@@ -47,8 +47,8 @@ const SeatUsageChart = () => {
                 </div>
             </div>
 
-            {/* 구역별 리스트 */}
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            {/* 구역별 리스트 (스크롤 제거됨) */}
+            <div className="flex-1 flex flex-col justify-center">
                 <div className="space-y-3">
                     {data.zones.map((zone, index) => (
                         <div key={index} className="group">

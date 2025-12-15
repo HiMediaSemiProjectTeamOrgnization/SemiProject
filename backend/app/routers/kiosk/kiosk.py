@@ -242,6 +242,7 @@ def list_seats(db: Session = Depends(get_db)):
             ).first()
 
             if active_usage:
+                # 사용 중인 경우
                 member = db.query(Member).filter(Member.member_id == active_usage.member_id).first()
                 if member:
                     seat_data["user_name"] = member.name
@@ -254,6 +255,9 @@ def list_seats(db: Session = Depends(get_db)):
                     remain_delta = active_usage.ticket_expired_time - now
                     minutes = int(remain_delta.total_seconds() / 60)
                     seat_data["remaining_time"] = max(minutes, 0)
+            else:
+                # [수정] 사용 중은 아니지만 is_status가 False인 경우 => "점검중"
+                seat_data["user_name"] = "점검중"
         
         results.append(seat_data)
 
