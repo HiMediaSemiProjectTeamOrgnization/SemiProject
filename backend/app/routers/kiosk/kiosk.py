@@ -5,7 +5,6 @@ from models import Member, Product, Order, Seat, SeatUsage, MileageHistory # Mil
 from schemas import PinAuthRequest # 추가
 from datetime import datetime, timedelta # timedelta 추가
 from typing import Optional
-from routers.ml.detect import capture_predict
 from sqlalchemy import cast, Date # 날짜 비교를 위해 추가
 
 router = APIRouter(prefix="/api/kiosk")

@@ -6,7 +6,6 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from database import create_tables
 from routers.kiosk import kiosk
-from routers.web import auth, ticket
 from routers.web import auth, ticket, mypage
 from routers.admin import admin
 from routers.web import auth, ticket
