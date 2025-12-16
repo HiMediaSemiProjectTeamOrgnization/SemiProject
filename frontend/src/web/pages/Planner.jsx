@@ -264,6 +264,7 @@ const Planner = () => {
         try {
             // 백엔드 API 호출 (가정)
             const res = await axios.get('/api/web/plan/check-attended');
+            console.log(res.data);
             setAttendanceData(res.data);
         } catch (err) {
             console.error(err);
