@@ -35,4 +35,5 @@ dependencies = [
     "torch==2.2.2",
     "ultralytics>=8.3.232",
     "uvicorn>=0.38.0",
+    "asyncio>=4.0.0",
 ]
