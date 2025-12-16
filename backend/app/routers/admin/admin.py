@@ -346,6 +346,56 @@ def get_seat_detail_stats(db: Session = Depends(get_db)):
         "seats": seat_list
     }
 
+# [GET] Todo 목록 조회 (참가자 수 포함)
+@router.get("/todos", response_model=List[TodoResponse])
+def get_all_todos(db: Session = Depends(get_db)):
+    """ 
+    전체 TODO 목록 조회 
+    - UserTODO 테이블과 조인하여 현재 참가 중인 인원 수(participant_count)를 함께 반환
+    - 참가자가 없으면 0으로 계산됨
+    """
+    results = db.query(TODO, func.count(UserTODO.user_todo_id).label("participant_count"))\
+        .outerjoin(UserTODO, TODO.todo_id == UserTODO.todo_id)\
+        .group_by(TODO.todo_id)\
+        .order_by(TODO.created_at.desc())\
+        .all()
+    
+    response = []
+    for todo, count in results:
+        todo_dict = {
+            "todo_id": todo.todo_id,
+            "todo_type": todo.todo_type,
+            "todo_title": todo.todo_title,
+            "todo_content": todo.todo_content,
+            "todo_value": todo.todo_value,
+            "betting_mileage": todo.betting_mileage,
+            "payback_mileage_percent": todo.payback_mileage_percent,
+            "is_exposed": todo.is_exposed,
+            "created_at": todo.created_at,
+            "updated_at": todo.updated_at,
+            "participant_count": count or 0
+        }
+        response.append(todo_dict)
+    
+    return response
+
+@router.post("/todos", response_model=TodoResponse)
+def create_todo(todo_data: TodoCreate, db: Session = Depends(get_db)):
+    """ TODO 생성 """
+    new_todo = TODO(
+        todo_type=todo_data.todo_type,
+        todo_title=todo_data.todo_title,
+        todo_content=todo_data.todo_content,
+        todo_value=todo_data.todo_value,
+        betting_mileage=todo_data.betting_mileage,
+        payback_mileage_percent=todo_data.payback_mileage_percent,
+        is_exposed=todo_data.is_exposed
+    )
+    db.add(new_todo)
+    db.commit()
+    db.refresh(new_todo)
+    return new_todo
+
 @router.put("/todos/{todo_id}", response_model=TodoResponse)
 def update_todo(todo_id: int, todo_data: TodoUpdate, db: Session = Depends(get_db)):
     todo = db.query(TODO).filter(TODO.todo_id == todo_id).first()
@@ -575,3 +625,41 @@ def get_member_stats(db: Session = Depends(get_db)):
         "current_users": current_users,
         "non_members": non_members
     }
+
+# [추가] 월별 상품 판매 통계 API
+@router.get("/stats/products")
+def get_product_sales_stats(
+    year: int = Query(..., description="조회할 연도"),
+    month: int = Query(..., description="조회할 월"),
+    db: Session = Depends(get_db)
+):
+    """
+    [GET] 월별 상품 판매 순위 (판매량 기준 내림차순)
+    """
+    stats = (
+        db.query(
+            Product.name,
+            Product.type,
+            func.count(Order.order_id).label("count"),
+            func.sum(Order.payment_amount).label("revenue")
+        )
+        .join(Order, Product.product_id == Order.product_id)
+        .filter(
+            extract('year', Order.created_at) == year,
+            extract('month', Order.created_at) == month
+        )
+        .group_by(Product.product_id, Product.name, Product.type)
+        .order_by(func.count(Order.order_id).desc())
+        .all()
+    )
+
+    return [
+        {
+            "name": name,
+            "type": p_type,
+            "count": count,
+            "revenue": revenue or 0
+        }
+        for name, p_type, count, revenue in stats
+    ]
+
