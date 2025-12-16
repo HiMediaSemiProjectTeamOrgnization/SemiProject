@@ -1,3 +1,5 @@
+// src/kiosk/components/KioskCheckOut.jsx
+
 import { useState } from "react";
 import KioskSeatStatus from "../screens/KioskSeatStatus";
 import KioskPhoneInput from "../screens/KioskPhoneInput";
@@ -94,11 +96,11 @@ function KioskCheckOut({ onHome }) {
             const data = await res.json();
             
             // ------------------------------------------------------------------
-            // [수정] 출석 여부에 따른 메시지 분기 처리
+            // [수정] 결과 메시지 구성 (이용 시간, 출석, Todo 달성도)
             // ------------------------------------------------------------------
             let resultMessage = `이용 시간: ${formatTime(data.time_used_minutes)}\n잔여 시간: ${formatTime(data.remaining_time_minutes)}`;
 
-            // 1. 이번에 새로 출석 인정된 경우
+            // 1. 출석 체크 결과
             if (data.is_attended) {
                 const today = new Date().toLocaleDateString('ko-KR', { 
                     year: 'numeric', 
@@ -106,13 +108,29 @@ function KioskCheckOut({ onHome }) {
                     day: 'numeric' 
                 });
                 resultMessage += `\n\n📅 ${today} 출석 완료!`;
-            } 
-            // 2. 이미 출석 기록이 있는 경우 (1시간 이상 이용했으나 중복인 경우)
-            else if (data.already_attended) {
+            } else if (data.already_attended) {
                 resultMessage += `\n\n✅ 이미 출석되었습니다.`;
             }
 
-            resultMessage += `\n안녕히 가세요!`;
+            // 2. [추가] Todo(목표) 달성 및 진행 현황 표시
+            if (data.todo_results && data.todo_results.length > 0) {
+                resultMessage += `\n\n----------------------------\n🎯 목표 진행 상황`;
+                
+                data.todo_results.forEach(todo => {
+                    const unit = todo.type === 'time' ? '분' : '일';
+                    
+                    if (todo.is_achieved_now) {
+                        // 이번 퇴실로 목표 달성 시
+                        resultMessage += `\n\n🎉 [달성] ${todo.title}\n   💰 보상: ${todo.reward_amount.toLocaleString()} P 지급 완료!`;
+                    } else {
+                        // 진행 중인 목표
+                        const percent = Math.min(100, Math.round((todo.current_value / todo.goal_value) * 100));
+                        resultMessage += `\n\n⏳ ${todo.title}\n   └ 진행률: ${todo.current_value} / ${todo.goal_value}${unit} (${percent}%)`;
+                    }
+                });
+            }
+
+            resultMessage += `\n\n안녕히 가세요!`;
 
             setModal({
                 isOpen: true,
