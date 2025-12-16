@@ -13,7 +13,7 @@ export default function TodoProgress({ todo, totalMinutes, goalMinutes }) {
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md mb-4 p-6 transition-colors">
+        <div className="bg-white dark:bg-slate-900/50 rounded-2xl shadow-md mb-4 p-6 transition-colors">
             <div className="space-y-2">
 
                 {/* 제목 영역 */}
@@ -55,13 +55,13 @@ export default function TodoProgress({ todo, totalMinutes, goalMinutes }) {
                     {/* 상세 텍스트 */}
                     <div className="flex justify-between items-center mt-2 text-sm text-gray-500 dark:text-gray-400">
                         <div>
-                            누적: 
+                            누적:
                             <span className="text-gray-700 dark:text-gray-200 font-medium">
                                 {formatTime(totalMinutes)}
                             </span>
                         </div>
                         <div>
-                            목표: 
+                            목표:
                             <span className="text-gray-700 dark:text-gray-200 font-medium">
                                 {formatTime(goalMinutes)}
                             </span>

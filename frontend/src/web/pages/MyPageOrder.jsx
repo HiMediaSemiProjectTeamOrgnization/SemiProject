@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 
 export default function MyPageOrder() {
@@ -76,7 +76,7 @@ export default function MyPageOrder() {
                                 return (
                                     <li
                                         key={order.order_id}
-                                        className="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl p-5 shadow-sm transition-colors"
+                                        className="relative bg-white dark:bg-slate-900/50 border border-gray-300 dark:border-gray-700 rounded-xl p-5 shadow-sm transition-colors"
                                     >
                                         {/* Status Badge */}
                                         <div className="absolute top-4 left-0 right-0 px-5 flex justify-between items-center">
