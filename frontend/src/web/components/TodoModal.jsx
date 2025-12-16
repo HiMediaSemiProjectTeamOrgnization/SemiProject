@@ -36,7 +36,7 @@ export default function TodoSelectModal({ isOpen, onClose, todoList }) {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-50">
+        <div className="h-screen fixed inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-50">
             <div
                 className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-xl w-11/12 max-w-md"
                 onClick={(e) => e.stopPropagation()}

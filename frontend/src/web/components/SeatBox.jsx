@@ -3,106 +3,110 @@ import { FaChair, FaLock, FaTools, FaUser } from "react-icons/fa";
 function SeatBox({
     seat,
     onClick,
-    tabType = "daily",
     isSelected = false,
-    disableHover = false,
     disableSelection = false,
-    simpleMode = false
+    isViewOnly = false,
+    isCheckOutMode = false
 }) {
 
-    // 기간제: violet, 시간제: emerald
-    const colorTheme = tabType === "period" ? "violet" : "emerald";
+    function formatTime(minutes) {
+        if (minutes === undefined || minutes === null) return "-";
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        if (h > 0) return `${h}시간 ${m}분`;
+        return `${m}분`;
+    }
 
-    /** -----------------------------
-     * 상태 결정 로직
-     * -----------------------------*/
-    const isOccupied = seat.hasOwnProperty('is_occupied') ? seat.is_occupied : (!seat.is_status);
-    const isAvailable = seat.is_status && !isOccupied;
-    const isDisabled = !seat.is_status && !isOccupied;
+    const isAvailable = seat.is_status;
+    const isFixed = seat.type === "기간제" || seat.type === "fix";
 
-    /** -----------------------------
-     * 스타일 정의
-     * -----------------------------*/
-    const availableSeatClass = `
-        bg-white dark:bg-slate-700
-        border border-slate-300 dark:border-slate-600
-        text-slate-700 dark:text-slate-300
-        ${!disableHover ? `
-            hover:bg-slate-50 dark:hover:bg-slate-600 
-            hover:border-${colorTheme}-400 dark:hover:border-${colorTheme}-400 
-            hover:text-${colorTheme}-600 dark:hover:text-${colorTheme}-300
-            hover:shadow-md hover:-translate-y-0.5
-        ` : ""}
-    `;
+    let base = "w-full h-full rounded-md flex flex-col items-center justify-center transition-all duration-150";
 
-    // 사용 중: 진한 배경색
-    const busySeatClass = `
-        bg-slate-600 dark:bg-slate-500
-        border border-slate-500 dark:border-slate-400
-        text-white
-        shadow-inner
-        opacity-100
-    `;
+    /* VIEW ONLY 모드 */
+    if (isViewOnly) {
+        base += isAvailable
+            ? isFixed
+                ? " bg-gradient-to-br from-[#c0b6ff] to-[#a89af3] border border-[#c0b6ff] text-white"
+                : " bg-gradient-to-br from-[#a8c7ff] to-[#8bb3ff] border border-[#a8c7ff] text-[#1A2233]"
+            : " bg-gradient-to-br from-[#383e55] to-[#2f3446] border border-[#383e55] text-white";
 
-    // 점검/불가
-    const disabledSeatClass = `
-        bg-slate-800 dark:bg-slate-900
-        border border-slate-700 dark:border-slate-800
-        text-slate-600 dark:text-slate-700
-        cursor-not-allowed
-    `;
+        return (
+            <div className={base} onClick={() => onClick?.(seat)}>
+                {isAvailable ? (
+                    <span className="text-lg">{seat.seat_id}</span>
+                ) : (
+                    <div className="flex flex-col items-center text-center leading-tight">
+                        <span className="text-xs text-slate-300 dark:text-white">
+                            {seat.seat_id}
+                        </span>
 
-    let cardStyle = isAvailable ? availableSeatClass : (isDisabled ? disabledSeatClass : busySeatClass);
+                        <span className="text-sm font-bold text-white mt-0.5">
+                            {seat.user_name || "사용중"}
+                        </span>
+
+                        {seat.remaining_time > 0 && (
+                            <span className="text-[11px] text-slate-400 dark:text-gray-300 mt-0.5">
+                                {formatTime(seat.remaining_time)}
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    /* CHECKOUT MODE */
+    if (isCheckOutMode) {
+        if (!isAvailable) {
+            base += isSelected
+                ? " bg-gradient-to-br from-[#FF5C7A] to-[#FF3F62] text-white ring-2 ring-rose-300 scale-95 shadow-lg"
+                : " bg-[#B94163]/40 text-white border border-[#B94163] cursor-pointer active:scale-95 active:brightness-110";
+        } else {
+            base += " bg-gradient-to-br from-[#383e55] to-[#2f3446] opacity-40 border border-[#202A3E]";
+        }
+    }
+
+    /* NORMAL MODE */
+    else {
+        if (isAvailable) {
+            if (isSelected && !disableSelection) {
+                base += " bg-gradient-to-br from-[#4A6DFF] to-[#6A86FF] text-white shadow-lg ring-2 ring-blue-300 scale-95";
+            } else if (disableSelection) {
+                base += " bg-gradient-to-br from-[#6B7280] to-[#4B5563] text-gray-300 border border-[#6B7280]";
+            } else {
+                base += isFixed
+                    ? " bg-gradient-to-br from-[#c0b6ff] to-[#a89af3] text-white border border-[#c0b6ff] cursor-pointer active:scale-95 active:brightness-110"
+                    : " bg-gradient-to-br from-[#a8c7ff] to-[#8bb3ff] text-[#1A2233] border border-[#a8c7ff] cursor-pointer active:scale-95 active:brightness-110";
+            }
+        } else {
+            base += " bg-gradient-to-br from-[#383e55] to-[#2f3446] border border-[#383e55] text-white";
+        }
+    }
 
     return (
         <div
-            className="relative rounded-lg transition-all duration-300 aspect-square"
-            onClick={() => onClick?.(seat)}
+            className={base}
+            onClick={() => !disableSelection && onClick?.(seat)}
         >
-            {/* 선택 오버레이 */}
-            {!disableSelection && (
-                <div className={`absolute inset-0 rounded-lg pointer-events-none transition-opacity bg-blue-500/30 ${isSelected ? "opacity-100" : "opacity-0"}`}></div>
-            )}
+            {isAvailable ? (
+                <span className="text-lg">{seat.seat_id}</span>
+            ) : (
+                <div className="flex flex-col items-center text-center leading-tight">
+                    <span className="text-xs text-slate-300 dark:text-white">
+                        {seat.seat_id}
+                    </span>
 
-            <div
-                className={`
-                    relative rounded-lg h-full w-full flex flex-col items-center justify-center overflow-hidden
-                    transition-all duration-200
-                    ${isSelected && !disableSelection ? 'bg-blue-600 border-blue-400 text-white shadow-lg scale-95' : cardStyle}
-                `}
-            >
-                {/* [수정됨] Simple Mode에서도 상태별 UI 분기 */}
-                {isDisabled ? (
-                    // 점검중
-                    <>
-                        <span className="absolute top-1 left-1.5 text-[10px] font-bold opacity-50">{seat.seat_id}</span>
-                        <FaTools className="text-lg opacity-40" />
-                    </>
-                ) : isOccupied ? (
-                    // 사용중: 이름 표시
-                    <>
-                        {/* 좌석 번호: 좌측 상단 작게 */}
-                        <span className="absolute top-1 left-1.5 text-[10px] font-bold opacity-60">
-                            {seat.seat_id}
+                    <span className="text-sm font-bold text-white mt-0.5">
+                        {seat.user_name || "사용중"}
+                    </span>
+
+                    {seat.remaining_time > 0 && (
+                        <span className="text-[11px] text-slate-400 dark:text-gray-300 mt-0.5">
+                            {formatTime(seat.remaining_time)}
                         </span>
-                        
-                        {/* 유저 이름: 중앙 배치 (크기 확보) */}
-                        <div className="flex flex-col items-center justify-center mt-2 w-full px-1">
-                            <span className="text-[11px] font-bold truncate w-full text-center leading-tight">
-                                {seat.user_name || "사용자"}
-                            </span>
-                             {/* 작은 아이콘 장식 (선택사항) */}
-                             {/* <FaUser className="text-[8px] mt-0.5 opacity-50" /> */}
-                        </div>
-                    </>
-                ) : (
-                    // 사용가능: 의자 아이콘 + 큰 번호
-                    <>
-                        <span className="text-lg font-bold leading-none mb-0.5">{seat.seat_id}</span>
-                        <FaChair className={`text-[12px] opacity-40 ${isAvailable ? `group-hover:text-${colorTheme}-500` : ''}`} />
-                    </>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
