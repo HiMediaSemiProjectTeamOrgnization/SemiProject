@@ -113,7 +113,7 @@ class CameraWorker :
         crop = frame[y1:y2, x1:x2]
 
         items = detect_loss_items(self.lost_item_model, crop)
-
+        print(items)
         # 전체 좌표로 역변환
         for item in items:
             bx1, by1, bx2, by2 = item["box"]
@@ -122,7 +122,7 @@ class CameraWorker :
         # 이미지를 외부로 전달하기 위해 base64 encode
         image_base64 = None
         if len(items) > 0 :
-            ok, buf = cv2.imencode(".jpg", frame)
+            ok, buf = cv2.imencode(".jpg", crop)
             if ok :
                 image_base64 = b64encode(buf).decode("utf-8")
 

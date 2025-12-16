@@ -5,10 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from database import create_tables, SessionLocal
+from ai_models.sbert import model_manager
+from database import create_tables
 from routers.kiosk import kiosk
-from routers.web import auth, ticket, mypage
+from routers.web import auth, ticket, mypage, plan
 from routers.admin import admin
-from routers.web import auth, ticket
 from routers.ml import detect
 from datetime import datetime
 from models import SeatUsage, Seat
@@ -58,17 +59,27 @@ def auto_checkout_job():
 # ---------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("🚀 서버 시작 중...")
     create_tables()
-    
+
+    print("✅ 시스템 및 자동 퇴실 스케줄러가 시작되었습니다.")
     # 스케줄러 시작
     scheduler = BackgroundScheduler()
     scheduler.add_job(auto_checkout_job, 'interval', seconds=30)
     scheduler.start()
-    
-    print("✅ 시스템 및 자동 퇴실 스케줄러가 시작되었습니다.")
-    yield 
+
+    model_manager.load_models()
+    ticket.start_scheduler()
+
+    print("✅ 서버 시작 완료!\n")
+    yield  # 서버 실행 중
+    print("\n🛑 서버 종료 중...")
     print("🛑 시스템 종료, 스케줄러 셧다운...")
+
     scheduler.shutdown()
+    model_manager.unload_models()
+
+    print("✅ 서버 종료 완료!")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -81,6 +92,7 @@ app.include_router(ticket.router)
 app.include_router(detect.router)
 app.include_router(mypage.router)
 app.include_router(admin.router)
+app.include_router(plan.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -91,4 +103,9 @@ app.add_middleware(
 )
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )

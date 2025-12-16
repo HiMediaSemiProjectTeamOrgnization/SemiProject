@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger, Text, Date
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger, Text, Date, Time
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
+from pgvector.sqlalchemy import Vector
 from database import Base
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -68,7 +69,7 @@ class Member(Base):
     mileage_history = relationship("MileageHistory", back_populates="member", cascade="all, delete")
     user_todos = relationship("UserTODO", back_populates="member", cascade="all, delete")
     ai_chat_logs = relationship("AIChatLog", back_populates="member", cascade="all, delete")
-    study_plans = relationship("StudyPlan", back_populates="member", cascade="all, delete")
+    schedule_events = relationship("ScheduleEvent", back_populates="member", cascade="all, delete")
 
 # ----------------------------------------------------------------------------------------------------------------------
 # TOKENS
@@ -177,32 +178,35 @@ class UserTODO(Base):
 # ----------------------------------------------------------------------------------------------------------------------
 # AI CHAT LOGS
 # ----------------------------------------------------------------------------------------------------------------------
-# AI 튜터와의 채팅 기록을 저장하는 테이블
 class AIChatLog(Base):
     __tablename__ = "ai_chat_logs"
 
     ai_chat_logs_id = Column(BigInteger, primary_key=True, autoincrement=True)
-    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
-    chat_prompt = Column(Text)
-    message = Column(Text)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(20)) # 'user' 또는 'ai'
+    message = Column(Text)    # 실제 대화 내용
     created_at = Column(DateTime, server_default=func.now())
 
     member = relationship("Member", back_populates="ai_chat_logs")
+    schedule_events = relationship("ScheduleEvent", back_populates="ai_chat_logs")
 
 # ----------------------------------------------------------------------------------------------------------------------
-# STUDY PLANS
+# SCHEDULE EVENTS
 # ----------------------------------------------------------------------------------------------------------------------
-# AI가 생성해준 일일 학습 플래너 데이터
-class StudyPlan(Base):
-    __tablename__ = "study_plans"
+class ScheduleEvent(Base):
+    __tablename__ = "schedule_events"
 
-    study_plan_id = Column(BigInteger, primary_key=True, autoincrement=True)
-    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"))
-    target_date = Column(Date) # target_date: 계획이 적용되는 날짜 (예: 2024-05-20) - 달력 조회용
-    study_prompt = Column(Text) # raw_input: 사용자가 입력했던 요구사항 원문 (예: "수학 3시간 집중하고 싶어")
-    plan_data = Column(JSONB) # plan_data: LLM이 생성한 JSON 구조체 (PostgreSQL JSONB 타입 사용)
-                                             # 예: {"schedule": [{"time": "09:00", "task": "Math", "type": "study"}, ...]}
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    event_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    member_id = Column(BigInteger, ForeignKey("members.member_id", ondelete="CASCADE"), nullable=False)
+    ai_chat_log_id = Column(BigInteger, ForeignKey("ai_chat_logs.ai_chat_logs_id", ondelete="SET NULL"), nullable=True)
+    title = Column(String(255), nullable=False)
+    schedule_date = Column(Date)
+    start_time = Column(Time, nullable=False)
+    end_time = Column(Time, nullable=False)
+    description = Column(Text)
+    color = Column(String(20), default="blue")
+    title_embedding = Column(Vector(768))
+    description_embedding = Column(Vector(768))
 
-    member = relationship("Member", back_populates="study_plans")
+    member = relationship("Member", back_populates="schedule_events")
+    ai_chat_logs = relationship("AIChatLog", back_populates="schedule_events")

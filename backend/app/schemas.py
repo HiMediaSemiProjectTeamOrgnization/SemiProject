@@ -1,25 +1,19 @@
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal, List
 
 class BaseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Web Auth
+# === 마이페이지 ===
 class ModifyEmail(BaseSchema):
     email: str
-    currentEmail: str
-
+class CheckOrModifyPw(BaseSchema):
+    password: str
 class ModifyPin(BaseSchema):
     pin: int
-    currentPin: int
-
-class ModifyPw(BaseSchema):
-    password: str
-    currentPassword: str
-
-
 # === 사용자가 선택한 todo 정보 insert 요청 스키마 ===
 class TodoSelectReq(BaseSchema):
     todo_id : int
@@ -127,3 +121,39 @@ class ProductUpdate(BaseSchema):
 
 class ProductResponse(ProductCreate):
     product_id: int
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ai planner
+# ----------------------------------------------------------------------------------------------------------------------
+# 응답용
+class EventResponse(BaseSchema):
+    event_id: int
+    title: str
+    schedule_date: str      # React는 "YYYY-MM-DD" 문자열을 좋아함 (date 객체 대신)
+    start_time: str     # "09:00"
+    end_time: str       # "10:30"
+    color: str # green, blue, yellow, red
+    description: Optional[str] = None
+
+# 통합 응답 포맷
+class AiResponse(BaseSchema):
+    type: Literal["chat", "create", "update", "delete"]
+    message: str # 챗봇의 대답 (말풍선에 들어갈 내용)
+    events: List[EventResponse] = [] # 플래너 조작일 경우에만 데이터가 들어감 (단순 대화면 null or empty list)
+    target_event_id: Optional[int] = None # 수정/삭제 시 대상 ID
+
+# 입력 포맷
+class ChatRequest(BaseModel):
+    member_id: int
+    user_input: str
+
+# 수동 요청용 스키마 정의
+class ManualEventRequest(BaseModel):
+    event_id: Optional[int] = None
+    member_id: int
+    title: str
+    date: str       # YYYY-MM-DD
+    start: str      # HH:MM
+    end: str        # HH:MM
+    color: str
+    description: str

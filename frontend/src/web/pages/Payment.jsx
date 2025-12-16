@@ -5,6 +5,8 @@ function Payments() {
     const location = useLocation();
     const navigate = useNavigate();
 
+    const [isLoading, setIsLoading] = useState(false);
+
     const { Ticket, SelectSeat } = location.state;
     const [selectedFixedSeat] = useState(!!SelectSeat);
     const [point, setPoint] = useState(0);
@@ -81,22 +83,35 @@ function Payments() {
         const ticketData = { ...ticket, total_amount: totalPrice };
         const resData = { user, ticketData, ...(SelectSeat && { SelectSeat }) };
 
-        const res = await fetch("/api/web/payments", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(resData)
-        });
+        setIsLoading(true);
 
-        if (res.ok) {
-            const result = await res.json();
-            navigate("/web/payment/success", {
-                state: { ticket, seat: SelectSeat, order: result }
-            });
-        } else {
-            const errorData = await res.json();
-            alert(errorData.detail);
-            navigate("/web/ticket");
-        }
+        setTimeout(async () => {
+            try {
+                const res = await fetch("/api/web/payments", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(resData)
+                });
+
+                if (res.ok) {
+                    const result = await res.json();
+                    navigate("/web/payment/success", {
+                        state: { ticket, seat: SelectSeat, order: result }
+                    });
+                } else {
+                    const errorData = await res.json();
+                    alert(errorData.detail);
+                    navigate("/web/ticket");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("결제 요청 중 오류가 발생했습니다.");
+                navigate("/web/ticket");
+            }
+        }, 3000);
+
+
+
     };
 
     return (
@@ -240,7 +255,7 @@ function Payments() {
                     active:scale-95 transition
                 "
             >
-                결제
+                {isLoading ? "결제 처리 중..." : "결제하기"}
             </button>
         </div>
     );

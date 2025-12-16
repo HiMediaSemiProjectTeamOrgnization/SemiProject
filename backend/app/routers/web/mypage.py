@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Product, Member, Order, Seat, MileageHistory, SeatUsage, UserTODO, TODO
 from utils.auth_utils import get_cookies_info, password_encode, password_decode
-from schemas import ModifyEmail, ModifyPin, ModifyPw, TodoSelectReq
+from schemas import ModifyEmail, ModifyPin, TodoSelectReq, CheckOrModifyPw
 from datetime import datetime
 
 router = APIRouter(prefix="/api/web/mypage", tags=["마이페이지"])
@@ -58,6 +58,18 @@ def get_member_info(token = Depends(get_cookies_info), db: Session = Depends(get
     }
 
     return {"user" : user, "todo" : result}
+
+# 비밀번호 확인
+@router.post("/check/password")
+def modify_pw(req: CheckOrModifyPw, db = Depends(get_db), token = Depends(get_cookies_info)):
+    """정보수정 전 비밀번호 확인 로직입니다"""
+
+    member = db.query(Member).filter(Member.member_id == token["member_id"]).first()
+
+    if password_decode(req.password, member.password):
+        return True
+    else:
+        return False
 
 # ===== 주문 내역 조회 =====
 @router.get("/orders")
@@ -115,11 +127,8 @@ def modify_email(input: ModifyEmail, db = Depends(get_db), token = Depends(get_c
 
     member = db.query(Member).filter(Member.member_id == token["member_id"]).first()
 
-    if member.email != input.currentEmail:
-        raise HTTPException(status_code=400, detail="현재 이메일이 일치하지 않습니다.")
-
     if member.email == input.email:
-        raise HTTPException(status_code=400, detail="이미 사용중인 이메일입니다.")
+        raise HTTPException(status_code=400, detail="현재 사용중인 이메일입니다.")
     
     member.email = input.email
     db.commit()
@@ -133,11 +142,9 @@ def modify_pin_code(input: ModifyPin, db = Depends(get_db), token = Depends(get_
 
     member = db.query(Member).filter(Member.member_id == token["member_id"]).first()
 
-    if member.pin_code != input.currentPin:
-        raise HTTPException(status_code=400, detail="현재 사용 중인 핀코드가 일치하지 않습니다.")
 
     if member.pin_code == input.pin:
-        raise HTTPException(status_code=400, detail="이미 사용중인 코드입니다.")
+        raise HTTPException(status_code=400, detail="현재 사용중인 코드입니다.")
     
     member.pin_code = input.pin
     db.commit()
@@ -146,13 +153,13 @@ def modify_pin_code(input: ModifyPin, db = Depends(get_db), token = Depends(get_
 
 # 비밀번호 수정
 @router.post("/modify/password")
-def modify_pw(input: ModifyPw, db = Depends(get_db), token = Depends(get_cookies_info)):
+def modify_pw(input: CheckOrModifyPw, db = Depends(get_db), token = Depends(get_cookies_info)):
     """비밀번호 변경 로직"""
 
     member = db.query(Member).filter(Member.member_id == token["member_id"]).first()
 
     if password_decode(input.password, member.password):
-        raise HTTPException(status_code=400, detail="이미 사용중인 비밀번호입니다.")
+        raise HTTPException(status_code=400, detail="현재 사용중인 비밀번호입니다.")
     
     member.password = password_encode(input.password)
     db.commit()

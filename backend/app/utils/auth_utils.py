@@ -132,18 +132,15 @@ def get_cookies_info(
 
         if not error:
             return mem_info
+        print(f"⚠️ Access Token 만료/유효하지 않음: {error}")
 
     # 엑세스 토큰이 없거나 만료되었을때
     # 리프레시 토큰이 있을때
     if refresh_token:
         mem_info, error = verify_token(refresh_token, "refresh")
 
-        # 리프레시 토큰이 만료되었을때
-        if error == "expired":
-            return None
-
-        # 리프레시 토큰이 유효하지않을때
-        if error == "invalid":
+        # 리프레시 토큰도 만료되었거나 유효하지 않으면 -> 로그인 실패
+        if error or not mem_info:
             return None
 
         # DB에 있는 리프레시 토큰과 일치 여부 검증
