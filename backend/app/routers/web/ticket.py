@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from database import get_db, SessionLocal
 from datetime import datetime, timedelta
-from models import Product, Member, Order, Seat, MileageHistory
+from models import Product, Member, Order, Seat, MileageHistory, SeatUsage
 from utils.auth_utils import get_cookies_info
 from typing import Optional
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -82,8 +82,52 @@ def getMemberInfo(token = Depends(get_cookies_info), db: Session = Depends(get_d
 @router.get("/seat")
 def getSeatStatus(db: Session = Depends(get_db)):
     """좌석현황 조회"""
-    seat = db.query(Seat).order_by(Seat.seat_id).all()
-    return seat
+    seats = db.query(Seat).order_by(Seat.seat_id).all()
+    
+    result = []
+    now = datetime.now()
+
+    for seat in seats:
+        seat_info = {
+            "seat_id": seat.seat_id,
+            "type": seat.type,
+            "is_status": seat.is_status,
+            "near_window": seat.near_window,
+            "corner_seat": seat.corner_seat,
+            "aisle_seat": seat.aisle_seat,
+            "isolated": seat.isolated,
+            "near_beverage_table": seat.near_beverage_table,
+            "is_center": seat.is_center,
+            "user_name": None,
+            "remaining_time": 0
+        }
+
+        if not seat.is_status:
+            usage = db.query(SeatUsage).filter(
+                SeatUsage.seat_id == seat.seat_id,
+                SeatUsage.check_out_time == None
+            ).first()
+
+            if usage:
+                seat_info["user_name"] = "사용중"
+                
+                if usage.ticket_expired_time:
+                    diff = usage.ticket_expired_time - now
+                    if diff.total_seconds() > 0:
+                        seat_info["remaining_time"] = int(diff.total_seconds() / 60)
+            
+            if not seat_info["user_name"]:
+                order = db.query(Order).filter(
+                    Order.fixed_seat_id == seat.seat_id,
+                    Order.period_end_date >= now.date()
+                ).order_by(Order.order_id.desc()).first()
+                
+                if order:
+                    seat_info["user_name"] = "사용중"
+
+        result.append(seat_info)
+
+    return result
 
 # 좌석별 종료시간 조회
 @router.get("/seat/endtime/{id}")
