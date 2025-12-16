@@ -1,7 +1,9 @@
+# app/routers/admin/admin.py
+
 from fastapi import APIRouter, Response, Depends, Cookie, HTTPException, status, Query, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract, distinct, or_
-from typing import List
+from typing import List, Dict, Any
 from datetime import datetime
 
 from database import get_db
@@ -41,6 +43,9 @@ async def logout(response: Response):
     response.delete_cookie(key="access_token")
     return {"message": "로그아웃 되었습니다."}
 
+# ----------------------------------------------------------------------------------------------------------------------
+# STATISTICS (매출 통계)
+# ----------------------------------------------------------------------------------------------------------------------
 """
 [GET] 월별 일간 매출 통계 조회
 Query Parameter: year (YYYY), month (MM)
@@ -71,6 +76,42 @@ def get_daily_sales_stats(
     )
 
     return stats
+
+@router.get("/stats/products")
+def get_product_sales_stats(
+    year: int = Query(..., description="조회할 연도"),
+    month: int = Query(..., description="조회할 월"),
+    db: Session = Depends(get_db)
+):
+    """
+    [GET] 월별 상품 판매 순위 (판매량 기준 내림차순)
+    """
+    stats = (
+        db.query(
+            Product.name,
+            Product.type,
+            func.count(Order.order_id).label("count"),
+            func.sum(Order.payment_amount).label("revenue")
+        )
+        .join(Order, Product.product_id == Order.product_id)
+        .filter(
+            extract('year', Order.created_at) == year,
+            extract('month', Order.created_at) == month
+        )
+        .group_by(Product.product_id, Product.name, Product.type)
+        .order_by(func.count(Order.order_id).desc())
+        .all()
+    )
+
+    return [
+        {
+            "name": name,
+            "type": p_type,
+            "count": count,
+            "revenue": revenue or 0
+        }
+        for name, p_type, count, revenue in stats
+    ]
 
 # ----------------------------------------------------------------------------------------------------------------------
 # MEMBERS MANAGEMENT

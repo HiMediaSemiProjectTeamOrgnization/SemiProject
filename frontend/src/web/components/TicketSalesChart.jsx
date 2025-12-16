@@ -93,7 +93,12 @@ const TicketSalesChart = ({ currentDate }) => {
                                 axisLine={false} 
                                 tickLine={false}
                             />
-                            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#334155', opacity: 0.2 }} />
+                            {/* [수정] cursor={false} 및 isAnimationActive={false} 설정 추가 */}
+                            <Tooltip 
+                                content={<CustomTooltip />} 
+                                cursor={false} 
+                                isAnimationActive={false} 
+                            />
                             <Bar dataKey="count" barSize={20} radius={[0, 4, 4, 0]}>
                                 {data.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[entry.type] || COLORS.default} />
