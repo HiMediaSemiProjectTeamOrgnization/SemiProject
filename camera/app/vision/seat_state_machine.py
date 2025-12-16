@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from vision.schemas.schemas import SeatEvent, SeatEventType
 
 class SeatStateMachine :
-    def __init__(self, seat_id:int, roi : tuple, threshold : int = 3) :
+    def __init__(self, seat_id:int, roi : tuple, threshold : int = 10) :
         """
         :param seat_id: 좌석번호
         :type seat_id: int
