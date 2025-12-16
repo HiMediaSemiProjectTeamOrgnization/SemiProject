@@ -73,59 +73,75 @@ def get_daily_sales_stats(
 
     return stats
 
-@router.get("/stats/members")
-def get_member_stats(db: Session = Depends(get_db)):
-    now = datetime.now()
-    
-    total_members = db.query(Member).filter(
-        Member.is_deleted_at == False,
-        Member.member_id.notin_([1, 2])
-    ).count()
-    
-    new_members = db.query(Member).filter(
-        extract('year', Member.created_at) == now.year,
-        extract('month', Member.created_at) == now.month,
-        Member.is_deleted_at == False,
-        Member.member_id != 1
-    ).count()
-    
-    period_members = db.query(distinct(Order.member_id))\
-        .join(Product, Order.product_id == Product.product_id)\
-        .filter(
-            Order.period_end_date > now,
-            Product.type == '기간제',
-            Order.member_id != 1
-        ).count()
+@router.get("/members", response_model=List[MemberAdminResponse])
+def get_members(
+    search: str = Query(None, description="이름/전화번호 검색"),
+    db: Session = Depends(get_db)
+):
+    usage_subquery = (
+        db.query(
+            SeatUsage.member_id,
+            func.sum(
+                func.extract('epoch', SeatUsage.check_out_time - SeatUsage.check_in_time) / 60
+            ).label("total_usage_minutes")
+        )
+        .filter(SeatUsage.check_out_time != None)
+        .group_by(SeatUsage.member_id)
+        .subquery()
+    )
 
-    time_members = db.query(distinct(Member.member_id))\
-        .join(Order, Member.member_id == Order.member_id)\
-        .join(Product, Order.product_id == Product.product_id)\
-        .filter(
-            Member.saved_time_minute > 0,
-            Product.type == '시간제',        
-            Member.is_deleted_at == False,
-            Member.member_id != 1
-        ).count()
-    
-    current_users = db.query(SeatUsage).filter(
-        SeatUsage.check_out_time == None,
-        SeatUsage.member_id != 1
-    ).count()
+    todo_count_subquery = (
+        db.query(
+            UserTODO.member_id,
+            func.count(UserTODO.user_todo_id).label("active_todo_count")
+        )
+        .filter(UserTODO.is_achieved == False) 
+        .group_by(UserTODO.member_id)
+        .subquery()
+    )
 
-    non_members = db.query(distinct(Order.buyer_phone)).filter(
-        Order.member_id == 2,
-        extract('year', Order.created_at) == now.year,
-        extract('month', Order.created_at) == now.month
-    ).count()
+    query = (
+        db.query(
+            Member, 
+            func.coalesce(usage_subquery.c.total_usage_minutes, 0).label("total_usage_minutes"),
+            func.coalesce(todo_count_subquery.c.active_todo_count, 0).label("active_todo_count") 
+        )
+        .outerjoin(usage_subquery, Member.member_id == usage_subquery.c.member_id)
+        .outerjoin(todo_count_subquery, Member.member_id == todo_count_subquery.c.member_id) 
+        .filter(Member.member_id.notin_([1, 2]))
+    )
+
+    if search:
+        clean_search = search.replace("-", "")
+
+        query = query.filter(
+            or_(
+                Member.name.like(f"%{search}%"),
+                Member.login_id.like(f"%{search}%"),
+                func.replace(Member.phone, '-', '').like(f"%{clean_search}%")
+            )
+        )
     
-    return {
-        "total_members": total_members,
-        "new_members": new_members,
-        "period_members": period_members,
-        "time_members": time_members,
-        "current_users": current_users,
-        "non_members": non_members
-    }
+    results = query.order_by(Member.created_at.desc()).all()
+    
+    response = []
+    for member, usage_min, todo_count in results:
+        response.append(MemberAdminResponse(
+            member_id=member.member_id,
+            name=member.name,
+            login_id=member.login_id,
+            phone=member.phone,
+            email=member.email,
+            birthday=member.birthday,  # [수정] 누락된 birthday 필드 추가
+            saved_time_minute=member.saved_time_minute if member.saved_time_minute is not None else 0, # [수정] None 방지
+            total_mileage=member.total_mileage if member.total_mileage is not None else 0, # [수정] None 방지
+            created_at=member.created_at,
+            is_deleted_at=bool(member.is_deleted_at) if member.is_deleted_at is not None else False, # [수정] None 방지 및 bool 변환
+            total_usage_minutes=int(usage_min) if usage_min else 0,
+            active_todo_count=int(todo_count) if todo_count else 0
+        ))
+        
+    return response
 
 @router.get("/stats/seats")
 def get_seat_stats(db: Session = Depends(get_db)):
@@ -209,7 +225,6 @@ def get_seat_detail_stats(db: Session = Depends(get_db)):
         {"key": "view", "name": "창가석 (View)", "range": range(21, 31)},
         {"key": "island", "name": "중앙석 (Island)", "range": list(range(31, 51)) + list(range(61, 71))}, # 통합
         {"key": "corner", "name": "독립석 (Corner)", "range": range(51, 61)},
-        # {"key": "group", "name": "그룹석 (Group)", "range": range(61, 71)}, # 제거
         {"key": "easy", "name": "음료대석 (Easy)", "range": range(71, 91)},
         {"key": "aisle", "name": "일반석 (Aisle)", "range": range(91, 101)},
     ]
@@ -504,3 +519,59 @@ def update_seat_status(
     db.commit()
     
     return {"message": "좌석 상태가 변경되었습니다."}
+
+@router.get("/stats/members")
+def get_member_stats(db: Session = Depends(get_db)):
+    now = datetime.now()
+    
+    # 전체 회원 수 (관리자, 비회원 제외)
+    total_members = db.query(Member).filter(
+        Member.is_deleted_at == False,
+        Member.member_id.notin_([1, 2])
+    ).count()
+    
+    # 신규 회원 수
+    new_members = db.query(Member).filter(
+        extract('year', Member.created_at) == now.year,
+        extract('month', Member.created_at) == now.month,
+        Member.is_deleted_at == False,
+        Member.member_id.notin_([1, 2])
+    ).count()
+    
+    # 기간제 회원: 현재 유효한 기간제 이용권을 가진 회원
+    period_members = db.query(distinct(Order.member_id))\
+        .join(Product, Order.product_id == Product.product_id)\
+        .filter(
+            Order.period_end_date > now,
+            Product.type == '기간제',
+            Order.member_id.notin_([1, 2])
+        ).count()
+
+    # [수정] 시간제 회원: 남은 시간(saved_time_minute)이 있는 회원 (주문 내역 의존성 제거)
+    time_members = db.query(Member).filter(
+        Member.saved_time_minute > 0,
+        Member.is_deleted_at == False,
+        Member.member_id.notin_([1, 2])
+    ).count()
+    
+    # 실시간 이용자 수
+    current_users = db.query(SeatUsage).filter(
+        SeatUsage.check_out_time == None,
+        SeatUsage.member_id != 1
+    ).count()
+
+    # 비회원(게스트) 이용 건수 (월간)
+    non_members = db.query(distinct(Order.buyer_phone)).filter(
+        Order.member_id == 2,
+        extract('year', Order.created_at) == now.year,
+        extract('month', Order.created_at) == now.month
+    ).count()
+    
+    return {
+        "total_members": total_members,
+        "new_members": new_members,
+        "period_members": period_members,
+        "time_members": time_members,
+        "current_users": current_users,
+        "non_members": non_members
+    }

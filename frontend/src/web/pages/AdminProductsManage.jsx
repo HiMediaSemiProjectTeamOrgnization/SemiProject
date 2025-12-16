@@ -1,10 +1,10 @@
-// src/web/pages/AdminProductsManage.jsx
 import React, { useEffect, useState } from 'react';
 
 const AdminProductsManage = () => {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    // isEditMode는 이제 생성 시 false로만 사용됩니다.
     const [isEditMode, setIsEditMode] = useState(false);
     
     // 폼 데이터 초기값
@@ -37,27 +37,23 @@ const AdminProductsManage = () => {
         fetchProducts();
     }, []);
 
-    // 모달 열기 (생성/수정)
-    const openModal = (product = null) => {
-        if (product) {
-            setIsEditMode(true);
-            setFormData({ ...product });
-        } else {
-            setIsEditMode(false);
-            setFormData(initialFormState);
-        }
+    // 모달 열기 (생성 전용)
+    const openModal = () => {
+        setIsEditMode(false);
+        setFormData(initialFormState);
         setIsModalOpen(true);
     };
 
-    // 저장 (생성/수정)
+    // 저장 (생성)
     const handleSave = async () => {
         if (!formData.name || !formData.type) {
             alert("상품명과 타입을 입력해주세요.");
             return;
         }
 
-        const url = isEditMode ? `/api/admin/products/${formData.product_id}` : '/api/admin/products';
-        const method = isEditMode ? 'PUT' : 'POST';
+        // 생성 모드만 존재하므로 POST 고정
+        const url = '/api/admin/products';
+        const method = 'POST';
 
         try {
             const response = await fetch(url, {
@@ -68,7 +64,7 @@ const AdminProductsManage = () => {
             });
 
             if (response.ok) {
-                alert(isEditMode ? "수정되었습니다." : "생성되었습니다.");
+                alert("생성되었습니다.");
                 setIsModalOpen(false);
                 fetchProducts();
             } else {
@@ -76,6 +72,40 @@ const AdminProductsManage = () => {
             }
         } catch (error) {
             console.error("저장 오류:", error);
+            alert("서버 오류가 발생했습니다.");
+        }
+    };
+
+    // 노출 상태 토글 (수정 버튼 대체 기능)
+    const handleToggleExposure = async (product) => {
+        // 현재 상태의 반대값으로 설정
+        const newStatus = !product.is_exposured;
+        
+        // 기존 데이터 유지하면서 상태만 변경
+        const updateData = {
+            name: product.name,
+            type: product.type,
+            price: product.price,
+            value: product.value,
+            is_exposured: newStatus
+        };
+
+        try {
+            const response = await fetch(`/api/admin/products/${product.product_id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updateData),
+                credentials: "include"
+            });
+
+            if (response.ok) {
+                // 목록 갱신
+                fetchProducts();
+            } else {
+                alert("상태 변경에 실패했습니다.");
+            }
+        } catch (error) {
+            console.error("상태 변경 오류:", error);
             alert("서버 오류가 발생했습니다.");
         }
     };
@@ -115,7 +145,7 @@ const AdminProductsManage = () => {
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-slate-200">이용권 관리</h2>
                 <button 
-                    onClick={() => openModal()}
+                    onClick={openModal}
                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-indigo-900/20"
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
@@ -133,7 +163,7 @@ const AdminProductsManage = () => {
                             <th className="p-4 font-medium w-32">시간/기간</th>
                             <th className="p-4 font-medium w-32">가격</th>
                             <th className="p-4 font-medium w-24 text-center">노출 여부</th>
-                            <th className="p-4 font-medium w-40 text-right">관리</th>
+                            <th className="p-4 font-medium w-48 text-right">관리</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/50 text-slate-300 text-sm">
@@ -162,11 +192,16 @@ const AdminProductsManage = () => {
                                 </td>
                                 <td className="p-4 text-right">
                                     <div className="flex items-center justify-end gap-2">
+                                        {/* 수정 버튼 제거 및 노출 토글 버튼으로 대체 */}
                                         <button 
-                                            onClick={() => openModal(product)}
-                                            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors text-xs font-medium"
+                                            onClick={() => handleToggleExposure(product)}
+                                            className={`px-3 py-1.5 rounded-lg transition-colors text-xs font-medium border ${
+                                                product.is_exposured 
+                                                ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20' 
+                                                : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
+                                            }`}
                                         >
-                                            수정
+                                            {product.is_exposured ? '노출 중지' : '노출 게시'}
                                         </button>
                                         <button 
                                             onClick={() => handleDelete(product.product_id)}
@@ -187,13 +222,13 @@ const AdminProductsManage = () => {
                 </table>
             </div>
 
-            {/* 모달 */}
+            {/* 모달 (생성 전용) */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
                     <div className="bg-[#1e293b] rounded-2xl border border-slate-600 shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
                         <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
                             <h3 className="text-xl font-bold text-white">
-                                {isEditMode ? '이용권 수정' : '새 이용권 만들기'}
+                                새 이용권 만들기
                             </h3>
                             <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -277,7 +312,7 @@ const AdminProductsManage = () => {
                                 onClick={handleSave}
                                 className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-colors font-bold shadow-lg shadow-indigo-900/30"
                             >
-                                {isEditMode ? '수정 저장' : '생성하기'}
+                                생성하기
                             </button>
                         </div>
                     </div>
