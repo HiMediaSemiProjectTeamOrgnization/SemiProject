@@ -45,19 +45,34 @@ def start_scheduler():
     scheduler.add_job(reset_seat_status, 'cron', hour=0, minute=0)
     scheduler.start()
 
-# ===== 로그인 사용자 정보 가져오기 =====
+# ===== 로그인 사용자 정보 가져오기 (수정함) =====
 @router.get("/me")
 def getMemberInfo(token = Depends(get_cookies_info), db: Session = Depends(get_db)):
-    """로그인한 사용자 정보 가져오는 로직"""
-    
+    """로그인한 사용자 정보 및 계정 상태 가져오기"""
+
     id = token["member_id"]
     result = db.query(Member).filter(Member.member_id == id).filter(Member.is_deleted_at == False).first()
 
+    if not result:
+        return None # 또는 404 에러 처리
+
+    # 1. 비밀번호 보유 여부 확인 (NULL이거나 빈 문자열이면 False)
+    has_password = True if result.password else False
+
+    # 2. 소셜 연동 상태 확인 (각 컬럼에 ID가 있으면 연동된 것)
+    social_connected = {
+        "kakao": bool(result.kakao_id),
+        "naver": bool(result.naver_id),
+        "google": bool(result.google_id)
+    }
+
     user = {
-        "email" : result.email,
-        "phone" : result.phone,
-        "name" : result.name,
-        "total_mileage" : result.total_mileage
+        "email": result.email,
+        "phone": result.phone,
+        "name": result.name,
+        "total_mileage": result.total_mileage,
+        "has_password": has_password,
+        "social_connected": social_connected
     }
 
     return user

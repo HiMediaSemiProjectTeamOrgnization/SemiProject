@@ -266,7 +266,7 @@ def update_pincode(
 ########################################################################################################################
 """ 카카오 로그인 리다이렉트 """
 @router.get("/kakao/login")
-def kakao_login():
+def kakao_login(next: str = None):
     # 랜덤 state 생성
     state = str(uuid.uuid4())
 
@@ -289,6 +289,15 @@ def kakao_login():
         max_age=60 * 5
     )
 
+    if next:
+        response.set_cookie(
+            key="next",
+            value=next,
+            httponly=True,
+            samesite="lax",
+            max_age=60 * 5
+        )
+
     return response
 
 """ 카카오 로그인 콜백 """
@@ -296,6 +305,7 @@ def kakao_login():
 def kakao_callback(
     code: str,
     kakao_oauth_state: str = Cookie(None),
+    next: str = Cookie(None),
     db: Session = Depends(get_db)
 ):
     # state가 없을 시
@@ -303,7 +313,11 @@ def kakao_callback(
         raise HTTPException(status_code=401, detail="oauth state not found")
 
     # 리다이렉트 할 URL 주소
-    response = RedirectResponse(url=f"{FRONTEND_URL}/web")
+    if next:
+        response = RedirectResponse(url=f"{FRONTEND_URL}/web/mypage/edit")
+        response.delete_cookie("next")
+    else:
+        response = RedirectResponse(url=f"{FRONTEND_URL}/web")
 
     # 토큰 요청 URL 및 data
     token_url = "https://kauth.kakao.com/oauth/token"
@@ -413,7 +427,7 @@ def kakao_callback(
 ########################################################################################################################
 """ 네이버 로그인 리다이렉트 """
 @router.get("/naver/login")
-def naver_login():
+def naver_login(next: str = None):
     # 랜덤 state 생성
     state = str(uuid.uuid4())
 
@@ -436,6 +450,15 @@ def naver_login():
         max_age=60 * 5
     )
 
+    if next:
+        response.set_cookie(
+            key="next",
+            value=next,
+            httponly=True,
+            samesite="lax",
+            max_age=60 * 5
+        )
+
     return response
 
 """ 네이버 로그인 콜백 """
@@ -443,6 +466,7 @@ def naver_login():
 def naver_callback(
     code: str,
     naver_oauth_state: str = Cookie(None),
+    next: str = Cookie(None),
     db: Session = Depends(get_db)
 ):
     # state가 없을 시
@@ -450,7 +474,11 @@ def naver_callback(
         raise HTTPException(status_code=401, detail="oauth state not found")
 
     # 리다이렉트 할 URL 주소
-    response = RedirectResponse(url=f"{FRONTEND_URL}/web")
+    if next:
+        response = RedirectResponse(url=f"{FRONTEND_URL}/web/mypage/edit")
+        response.delete_cookie("next")
+    else:
+        response = RedirectResponse(url=f"{FRONTEND_URL}/web")
 
     # 토큰 요청 URL 및 data
     token_url = "https://nid.naver.com/oauth2.0/token"
@@ -556,7 +584,7 @@ def naver_callback(
 ########################################################################################################################
 """ 구글 로그인 리다이렉트 """
 @router.get("/google/login")
-def google_login():
+def google_login(next: str = None):
     # 랜덤 state 생성
     state = str(uuid.uuid4())
 
@@ -580,6 +608,15 @@ def google_login():
         max_age=60 * 5
     )
 
+    if next:
+        response.set_cookie(
+            key="next",
+            value=next,
+            httponly=True,
+            samesite="lax",
+            max_age=60 * 5
+        )
+
     return response
 
 """ 구글 로그인 콜백 """
@@ -588,6 +625,7 @@ def google_callback(
     code: str,
     request: Request,
     google_oauth_state: str = Cookie(None),
+    next: str = Cookie(None),
     db: Session = Depends(get_db)
 ):
     # state가 없을 시
@@ -595,7 +633,11 @@ def google_callback(
         raise HTTPException(status_code=401, detail="oauth state not found")
 
     # 리다이렉트 할 URL 주소
-    response = RedirectResponse(url=f"{FRONTEND_URL}/web")
+    if next:
+        response = RedirectResponse(url=f"{FRONTEND_URL}/web/mypage/edit")
+        response.delete_cookie("next")
+    else:
+        response = RedirectResponse(url=f"{FRONTEND_URL}/web")
 
     # 토큰 요청 URL 및 data
     token_url = "https://oauth2.googleapis.com/token"
@@ -656,13 +698,13 @@ def google_callback(
 
         # 엑세스 토큰 검증
         if access_token:
-            mem_info, error = verify_token(db, access_token, "access")
+            mem_info, error = verify_token(access_token, "access")
             if not error:
                 current_member_id = mem_info["member_id"]
 
         # 엑세스 토큰 실패 시, 리프레시 토큰 검증
         if not current_member_id and refresh_token:
-            mem_info, error = verify_token(db, refresh_token, "refresh")
+            mem_info, error = verify_token(refresh_token, "refresh")
             if not error:
                 # DB에서도 유효한지 확인
                 db_token = db.query(Token).filter((Token.token == refresh_token) & (Token.is_revoked == False)).first()

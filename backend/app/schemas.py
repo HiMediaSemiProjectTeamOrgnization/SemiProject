@@ -6,8 +6,8 @@ class BaseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Web Auth
-# === 마이페이지 ===
+# 마이페이지
+# ----------------------------------------------------------------------------------------------------------------------
 class ModifyEmail(BaseSchema):
     email: str
 class CheckOrModifyPw(BaseSchema):
@@ -17,6 +17,9 @@ class ModifyPin(BaseSchema):
 # === 사용자가 선택한 todo 정보 insert 요청 스키마 ===
 class TodoSelectReq(BaseSchema):
     todo_id : int
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Web Auth
 # ----------------------------------------------------------------------------------------------------------------------
 class MemberBase(BaseSchema):
     pass
@@ -142,6 +145,7 @@ class AiResponse(BaseSchema):
     message: str # 챗봇의 대답 (말풍선에 들어갈 내용)
     events: List[EventResponse] = [] # 플래너 조작일 경우에만 데이터가 들어감 (단순 대화면 null or empty list)
     target_event_id: Optional[int] = None # 수정/삭제 시 대상 ID
+    search_results: List[EventResponse] = []
 
 # 입력 포맷
 class ChatRequest(BaseModel):

@@ -7,7 +7,6 @@ import TodoProgress from "../components/TodoProgress";
 import TodoModal from "../components/TodoModal";
 
 function MyPage() {
-    const location = useLocation();
     const navigate = useNavigate();
 
     const [todo, setTodo] = useState({});
