@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 import random
+from typing import Optional
 from database import get_db
 from models import Member, Seat, SeatUsage
 from datetime import datetime, timedelta
@@ -96,6 +97,16 @@ SEAT_TYPE_MESSAGES = {
             "그날의 컨디션에 맞는 자리를 자유롭게 선택해보세요.",
         ],
     },
+}
+
+WEEKDAY_LABELS = {
+    0: "월요일",
+    1: "화요일",
+    2: "수요일",
+    3: "목요일",
+    4: "금요일",
+    5: "토요일",
+    6: "일요일",
 }
 
 
@@ -230,6 +241,106 @@ def classify_seat_type(seat):
     return "일반석"
 
 
+def minutes_between(usage: SeatUsage) -> float:
+    if not usage.check_in_time or not usage.check_out_time:
+        return 0.0
+    duration = (usage.check_out_time - usage.check_in_time).total_seconds() / 60.0
+    return max(duration, 0.0)
+
+
+def sum_focus_within(usages: list, start_time: datetime, end_time: Optional[datetime] = None) -> float:
+    total = 0.0
+    for usage in usages:
+        check_in = usage.check_in_time
+        if check_in < start_time:
+            continue
+        if end_time and check_in >= end_time:
+            continue
+        total += usage.total_in_time or 0
+    return total
+
+
+def build_trend_message(trend: str, difference: float) -> dict:
+    diff_abs = round(abs(difference), 2)
+    if trend == "increase":
+        return {
+            "analysis": f"이번 주 집중 시간이 지난주보다 {diff_abs}분 늘었어요.",
+            "coaching": "상승세를 유지할 수 있도록 비슷한 루틴을 이어가보세요.",
+        }
+    if trend == "decrease":
+        return {
+            "analysis": f"이번 주 집중 시간이 지난주보다 {diff_abs}분 줄었어요.",
+            "coaching": "컨디션 조절과 휴식을 통해 집중 흐름을 다시 만들어보세요.",
+        }
+    return {
+        "analysis": "이번 주와 지난주의 집중 시간이 거의 비슷한 수준이에요.",
+        "coaching": "안정적인 패턴을 유지하면서 조금씩 사용 시간을 늘려보는 건 어떨까요?",
+    }
+
+
+def calculate_best_focus_day(usages: list) -> dict:
+    daily_stats = defaultdict(lambda: {"focus": 0.0, "usage": 0.0})
+    for usage in usages:
+        day_key = usage.check_in_time.date()
+        daily_stats[day_key]["focus"] += usage.total_in_time or 0
+        daily_stats[day_key]["usage"] += minutes_between(usage)
+
+    best_day = None
+    best_ratio = 0.0
+    for day, stat in daily_stats.items():
+        if not stat["usage"]:
+            continue
+        ratio = stat["focus"] / stat["usage"]
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_day = day
+
+    if not best_day:
+        return {"day": None, "focus_ratio": 0.0}
+
+    return {
+        "day": WEEKDAY_LABELS[best_day.weekday()],
+        "focus_ratio": round(best_ratio, 2),
+    }
+
+
+def calculate_top_focus_hour(usages: list) -> dict:
+    hourly_focus = defaultdict(float)
+    for usage in usages:
+        hour = usage.check_in_time.hour
+        hourly_focus[hour] += usage.total_in_time or 0
+
+    if not hourly_focus:
+        return {"hour": None, "total_focus_minute": 0.0}
+
+    top_hour, total_focus = max(hourly_focus.items(), key=lambda item: item[1])
+    return {"hour": top_hour, "total_focus_minute": round(total_focus, 2)}
+
+
+def calculate_average_daily_focus(total_focus: float, days: int) -> float:
+    return round(total_focus / days, 2) if days else 0.0
+
+
+def calculate_longest_streak(usages: list) -> int:
+    dates = sorted({usage.check_in_time.date() for usage in usages})
+    if not dates:
+        return 0
+
+    longest = 1
+    current = 1
+    previous = dates[0]
+
+    for day in dates[1:]:
+        if day == previous + timedelta(days=1):
+            current += 1
+        else:
+            current = 1
+        longest = max(longest, current)
+        previous = day
+
+    return longest
+
+
 """좌석 통계 API"""
 @router.get("/seats")
 def seat_statistics(member_id: int, db: Session = Depends(get_db)):
@@ -291,5 +402,87 @@ def time_statistics(member_id: int, db: Session = Depends(get_db)):
         content={
             "weekly": weekly_stats,
             "monthly": monthly_stats,
+        },
+    )
+
+
+@router.get("/seat/analysis")
+def seat_analysis(member_id: int, db: Session = Depends(get_db)):
+    ensure_valid_member(member_id, db)
+
+    now = datetime.utcnow()
+    month_start = now - timedelta(days=30)
+    usages = load_usages_since(db, member_id, month_start)
+
+    if not usages:
+        empty_message = {
+            "analysis": "아직 집중 기록이 부족해 패턴을 분석하기 어려워요.",
+            "coaching": "조금 더 자주 이용하면 맞춤형 코칭을 전해드릴 수 있어요.",
+        }
+        return JSONResponse(
+            status_code=200,
+            content={
+                "average_focus_minute": 0.0,
+                "best_record": {"minute": 0.0, "date": None},
+                "weekly_change": {"difference_minute": 0.0, "trend": "flat"},
+                "message": empty_message,
+            },
+        )
+
+    focus_values = [usage.total_in_time or 0 for usage in usages]
+    total_focus = sum(focus_values)
+    average_focus = round(total_focus / len(focus_values), 2) if focus_values else 0.0
+
+    best_usage = max(usages, key=lambda u: u.total_in_time or 0)
+    best_minutes = round(best_usage.total_in_time or 0, 2)
+    best_date = best_usage.check_in_time.strftime("%Y-%m-%d") if best_usage.check_in_time else None
+
+    current_week_start = now - timedelta(days=7)
+    previous_week_start = now - timedelta(days=14)
+    current_week_focus = sum_focus_within(usages, current_week_start)
+    previous_week_focus = sum_focus_within(usages, previous_week_start, current_week_start)
+    difference = round(current_week_focus - previous_week_focus, 2)
+
+    if difference > 0:
+        trend = "increase"
+    elif difference < 0:
+        trend = "decrease"
+    else:
+        trend = "flat"
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "average_focus_minute": average_focus,
+            "best_record": {"minute": best_minutes, "date": best_date},
+            "weekly_change": {"difference_minute": difference, "trend": trend},
+            "message": build_trend_message(trend, difference),
+        },
+    )
+
+
+@router.get("/seat/pattern")
+def seat_pattern(member_id: int, db: Session = Depends(get_db)):
+    ensure_valid_member(member_id, db)
+
+    now = datetime.utcnow()
+    month_start = now - timedelta(days=30)
+    week_start = now - timedelta(days=7)
+    usages = load_usages_since(db, member_id, month_start)
+    week_usages = [usage for usage in usages if usage.check_in_time >= week_start]
+
+    best_focus_day = calculate_best_focus_day(week_usages)
+    top_focus_hour = calculate_top_focus_hour(week_usages)
+    total_week_focus = sum(usage.total_in_time or 0 for usage in week_usages)
+    avg_daily_focus = calculate_average_daily_focus(total_week_focus, 7)
+    longest_streak = calculate_longest_streak(usages)
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "top_focus_day": best_focus_day,
+            "top_focus_hour": top_focus_hour,
+            "avg_daily_focus_minute": avg_daily_focus,
+            "longest_streak_days": longest_streak,
         },
     )
