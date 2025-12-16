@@ -479,7 +479,7 @@ def check_out(
 
     # 5. 정산 및 출석 체크
     if member.role != "guest":
-        if time_used_minutes >= 0: 
+        if time_used_minutes >= 60: 
             check_in_date = usage.check_in_time.date()
             existing_attendance = db.query(SeatUsage).filter(
                 SeatUsage.member_id == member.member_id,
