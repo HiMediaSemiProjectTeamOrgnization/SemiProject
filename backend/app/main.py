@@ -10,7 +10,7 @@ from database import create_tables
 from routers.kiosk import kiosk
 from routers.web import auth, ticket, mypage, plan
 from routers.admin import admin
-from routers.ml import detect
+from routers.ml import detect, statics
 from datetime import datetime
 from models import SeatUsage, Seat
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -93,6 +93,7 @@ app.include_router(detect.router)
 app.include_router(mypage.router)
 app.include_router(admin.router)
 app.include_router(plan.router)
+app.include_router(statics.router)
 
 app.add_middleware(
     CORSMiddleware,
