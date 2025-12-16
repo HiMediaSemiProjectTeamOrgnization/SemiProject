@@ -1,3 +1,5 @@
+// src/kiosk/screens/KioskTicketList.jsx
+
 import { useState, useEffect, useCallback } from "react";
 import { FaClock, FaCheckCircle, FaExclamationTriangle, FaRedo, FaCoins } from "react-icons/fa"; // FaCoins 아이콘 추가
 import { FaUser } from "react-icons/fa6"; 
@@ -20,7 +22,11 @@ function KioskTicketList({ onBack, userType, onPaymentRequest, memberInfo }) {
                 throw new Error(`서버 오류: ${response.status}`);
             }
             const data = await response.json();
-            setTickets(data);
+            
+            // [수정] 시간(value) 기준 오름차순 정렬
+            const sortedData = data.sort((a, b) => a.value - b.value);
+            setTickets(sortedData);
+            
         } catch (err) {
             console.error("상품 목록을 가져오는데 오류가 발생했습니다.", err);
             setError("상품 정보를 불러올 수 없습니다.\n네트워크 상태를 확인하거나 관리자에게 문의해 주세요.");

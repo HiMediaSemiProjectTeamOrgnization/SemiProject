@@ -1,8 +1,11 @@
+// src/web/pages/AdminDashboard.jsx
 import { useEffect, useState } from "react"
 import DailySalesChart from "../components/DailySalesChart";
 import MemberStatusChart from "../components/MemberStatusChart";
 import SeatUsageChart from "../components/SeatUsageChart"; 
 import DashboardTodoList from "../components/DashboardTodoList";
+// [추가] 이용권 통계 컴포넌트 import
+import TicketSalesChart from "../components/TicketSalesChart";
 
 function AdminDashboard() {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -42,6 +45,7 @@ function AdminDashboard() {
     return (
         <div className="w-full space-y-6">
             
+            {/* 상단 매출 통계 (Full Width) */}
             <div className={`w-full transition-opacity duration-200 ${loading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                 <DailySalesChart 
                     data={statsData} 
@@ -50,7 +54,9 @@ function AdminDashboard() {
                     onNextMonth={handleNextMonth}
                 />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            {/* 하단 그리드 (2x2 Layout) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
                 {/* 1. 회원 현황 */}
                 <MemberStatusChart />
@@ -58,7 +64,10 @@ function AdminDashboard() {
                 {/* 2. 좌석 현황 */}
                 <SeatUsageChart />
 
-                {/* 3. 투두 리스트 */}
+                {/* [추가] 3. 이용권 통계 (상품 판매 순위) */}
+                <TicketSalesChart currentDate={currentDate} />
+
+                {/* 4. 투두 리스트 */}
                 <DashboardTodoList />
 
             </div>

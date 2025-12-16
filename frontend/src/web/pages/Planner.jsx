@@ -11,7 +11,7 @@ const Planner = () => {
     const scrollRef = useRef(null);
     const chatContainerRef = useRef(null); // 채팅 스크롤용 ref
     const [events, setEvents] = useState([]); // 초기값 빈 배열 (또는 API fetch 필요)
-    const [attendanceData, setAttendanceData] = useState(['2025-12-14', '2025-12-15']); // 가데이터
+    const [attendanceData, setAttendanceData] = useState([]); // 가데이터
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -261,13 +261,10 @@ const Planner = () => {
 
     // 출석 가져오기 함수 추가
     const fetchAttendance = async () => {
-        if (!member?.member_id) return;
         try {
             // 백엔드 API 호출 (가정)
-            const res = await axios.get('/api/web/attendance', {
-                params: { member_id: member.member_id }
-            });
-            // res.data가 ['2025-12-01', '2025-12-02'] 형태라고 가정
+            const res = await axios.get('/api/web/plan/check-attended');
+            console.log(res.data);
             setAttendanceData(res.data);
         } catch (err) {
             console.error(err);
@@ -278,7 +275,7 @@ const Planner = () => {
     useEffect(() => {
         if (member?.member_id) {
             fetchEvents();
-            // fetchAttendance();
+            fetchAttendance();
         }
     }, [member]); // member 정보가 바뀌거나 로드되면 실행
 

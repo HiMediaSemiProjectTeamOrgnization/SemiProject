@@ -12,10 +12,11 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
-from models import AIChatLog, ScheduleEvent
+from models import AIChatLog, ScheduleEvent, SeatUsage
 from schemas import AiResponse, EventResponse, ChatRequest, ManualEventRequest
 from ai_models.sbert import get_embedding_model
 from database import get_db
+from utils.auth_utils import get_cookies_info
 
 router = APIRouter(prefix="/api/web/plan", tags=["plan"])
 
@@ -112,9 +113,9 @@ def search_similar_events(db: Session, member_id: int, query_vector: list, limit
 # ------------------------------------------------------------------
 @router.post("/chat", response_model=AiResponse)
 async def process_chat_request(
-        req: ChatRequest,
-        db: Session = Depends(get_db),
-        model: SentenceTransformer = Depends(get_embedding_model)
+    req: ChatRequest,
+    db: Session = Depends(get_db),
+    model: SentenceTransformer = Depends(get_embedding_model)
 ) -> AiResponse:
 
     try:
@@ -455,8 +456,8 @@ async def process_chat_request(
 # ------------------------------------------------------------------
 @router.get("/events", response_model=List[EventResponse])
 def get_schedule_events(
-        member_id: int,
-        db: Session = Depends(get_db)
+    member_id: int,
+    db: Session = Depends(get_db)
 ):
     events = db.query(ScheduleEvent).filter(ScheduleEvent.member_id == member_id) \
         .order_by(ScheduleEvent.schedule_date.asc(), ScheduleEvent.start_time.asc()).all()
@@ -477,9 +478,9 @@ def get_schedule_events(
 # ------------------------------------------------------------------
 @router.post("/manual/create", response_model=EventResponse)
 def create_manual_event(
-        req: ManualEventRequest,
-        db: Session = Depends(get_db),
-        model: SentenceTransformer = Depends(get_embedding_model)
+    req: ManualEventRequest,
+    db: Session = Depends(get_db),
+    model: SentenceTransformer = Depends(get_embedding_model)
 ):
     # 벡터 생성 (수동으로 추가해도 검색되어야 하므로 필수)
     t_vec = model.encode(req.title).tolist()
@@ -513,9 +514,9 @@ def create_manual_event(
 
 @router.put("/manual/update", response_model=EventResponse)
 def update_manual_event(
-        req: ManualEventRequest,
-        db: Session = Depends(get_db),
-        model: SentenceTransformer = Depends(get_embedding_model)
+    req: ManualEventRequest,
+    db: Session = Depends(get_db),
+    model: SentenceTransformer = Depends(get_embedding_model)
 ):
     event = db.query(ScheduleEvent).filter(ScheduleEvent.event_id == req.event_id).first()
     if not event:
@@ -549,9 +550,23 @@ def update_manual_event(
 
 @router.delete("/manual/delete/{event_id}")
 def delete_manual_event(
-        event_id: int,
-        db: Session = Depends(get_db)
+    event_id: int,
+    db: Session = Depends(get_db)
 ):
     db.query(ScheduleEvent).filter(ScheduleEvent.event_id == event_id).delete()
     db.commit()
     return {"status": "success"}
+
+@router.get("/check-attended")
+def check_attended(
+    member: dict = Depends(get_cookies_info),
+    db: Session = Depends(get_db)
+):
+    seat_usage = db.query(SeatUsage).filter(
+        SeatUsage.member_id == member["member_id"],
+        SeatUsage.is_attended == True
+    ).all()
+    if not seat_usage:
+        raise HTTPException(status_code=404, detail="seat usages not exists")
+
+    return [seat.check_out_time.strftime("%Y-%m-%d") for seat in seat_usage]
