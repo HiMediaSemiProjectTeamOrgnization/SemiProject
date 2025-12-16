@@ -1,465 +1,577 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Response, Depends, Cookie, HTTPException, status, Query, Body
 from sqlalchemy.orm import Session
+from sqlalchemy import func, extract, distinct, or_
+from typing import List
+from datetime import datetime
+
 from database import get_db
-from models import Member, Product, Order, Seat, SeatUsage, MileageHistory # MileageHistory 추가
-from schemas import PinAuthRequest # 추가
-from datetime import datetime, timedelta # timedelta 추가
-from typing import Optional
-from sqlalchemy import cast, Date # 날짜 비교를 위해 추가
+from models import Member, Order, Product, SeatUsage, TODO, UserTODO, Seat
+from schemas import (
+    MemberLogin, DailySalesStat, TodoCreate, TodoUpdate, TodoResponse, 
+    MemberAdminResponse, MemberUpdatePhone,
+    ProductCreate, ProductUpdate, ProductResponse
+)
+from utils.auth_utils import revoke_existing_token, revoke_existing_token_by_id, password_decode, set_token_cookies
 
-router = APIRouter(prefix="/api/kiosk")
+router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
-# ------------------------
-# 전화번호 없이 비회원 조회 또는 생성 (member_id 2 고정)
-# ------------------------
-def get_or_create_guest(db: Session):
-    # SQL INSERT문으로 '비회원'이 들어갔다면 role이 default('user')일 수 있음
-    # 따라서 member_id=2로만 조회 후, role을 보정하는 로직 추가
-    guest = db.query(Member).filter(Member.member_id == 2).first()
+""" 관리자 전용 로그인 (Member ID 1번 고정) """
+@router.post("/login")
+def admin_login(
+    response: Response,
+    member_data: MemberLogin,
+    db: Session = Depends(get_db),
+    refresh_token: str = Cookie(None)
+):
+    revoke_existing_token(db, refresh_token)
 
-    if guest:
-        # SQL Insert로 들어간 데이터가 role='user'라면 'guest'로 수정
-        if guest.role != "guest":
-            guest.role = "guest"
-            db.add(guest)
-            db.commit()
-            db.refresh(guest)
-        return guest
+    member = db.query(Member).filter(Member.login_id == member_data.login_id).first()
 
-    # 존재하지 않으면 새로 생성 (혹시 모를 상황 대비)
-    new_guest = Member(
-        member_id=2,          
-        phone="",             
-        social_type="",
-        role="guest",
-        name="비회원",
-        total_mileage=0,
-        saved_time_minute=0
-    )
-    db.add(new_guest)
-    db.commit()
-    db.refresh(new_guest)
-    return new_guest
+    if not member or not password_decode(member_data.password, member.password):
+        raise HTTPException(status_code=400, detail="incorrect id or password")
 
-# ------------------------
-# [NEW] 1-2) 회원 로그인 (수정: 기간제 보유 여부 반환)
-# ------------------------
-@router.post("/auth/member-login")
-def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
-    # 1. 회원 조회
-    member = db.query(Member).filter(
-        Member.phone == data.phone,
-        Member.role != "guest"
-    ).first()
+    if member.member_id != 1:
+        raise HTTPException(status_code=403, detail="Not authorized (Admin only)")
 
-    if not member:
-        raise HTTPException(status_code=404, detail="등록된 회원 정보가 없습니다.")
-    
-    # 2. PIN 확인
-    if member.pin_code != data.pin:
-        raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
+    revoke_existing_token_by_id(db, member.member_id)
+    set_token_cookies(member.member_id, member.name, db, response)
 
-    # 3. [추가] 유효한 기간제 이용권 보유 여부 확인
-    now = datetime.now()
-    active_period = db.query(Order).join(Product).filter(
-        Order.member_id == member.member_id,
-        Order.period_end_date > now, # 만료되지 않은
-        Product.type == '기간제'
-    ).first()
+@router.post("/logout", status_code=status.HTTP_200_OK)
+async def logout(response: Response):
+    response.delete_cookie(key="access_token")
+    return {"message": "로그아웃 되었습니다."}
 
-    return {
-        "member_id": member.member_id,
-        "name": member.name,
-        "phone": member.phone,
-        "saved_time_minute": member.saved_time_minute, 
-        "total_mileage": member.total_mileage,
-        "has_period_pass": True if active_period else False # [추가] 기간제 보유 여부
-    }
-
-# ------------------------
-# 2) 이용권 목록 조회 (변경 없음)
-# ------------------------
-@router.get("/products")
-def list_products(db: Session = Depends(get_db)):
-    products = db.query(Product).filter(
-        Product.is_exposured == True,
-        Product.type == "시간제"
-    ).all()
-    return [
-        {
-            "product_id": p.product_id,
-            "name": p.name,
-            "type": p.type,
-            "price": p.price,
-            "value": p.value
-        } for p in products
-    ]
-
-# ------------------------
-# 3) 이용권 구매 (마일리지 사용 기능 추가)
-# ------------------------
-@router.post("/purchase")
-def purchase_ticket(
-    product_id: int = Body(...),    
-    member_id: int = Body(...),     
-    phone: str = Body(None),
-    use_mileage: int = Body(0),     # [추가] 사용할 마일리지 (기본값 0)
+"""
+[GET] 월별 일간 매출 통계 조회
+Query Parameter: year (YYYY), month (MM)
+"""
+@router.get("/stats/daily", response_model=List[DailySalesStat])
+def get_daily_sales_stats(
+    year: int = Query(..., description="조회할 연도"),
+    month: int = Query(..., description="조회할 월"),
     db: Session = Depends(get_db)
 ):
-    # 1. 상품 조회
-    product = db.query(Product).filter(Product.product_id == product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="이용권이 존재하지 않습니다.")
+    date_col = func.to_char(Order.created_at, 'YYYY-MM-DD').label("date")
 
-    # 2. 회원 조회
+    stats = (
+        db.query(
+            date_col,
+            Product.type.label("product_type"),
+            func.sum(Order.payment_amount).label("total_sales"),
+            func.count(Order.order_id).label("order_count")
+        )
+        .join(Product, Order.product_id == Product.product_id)
+        .filter(
+            extract('year', Order.created_at) == year,
+            extract('month', Order.created_at) == month
+        )
+        .group_by(date_col, Product.type)
+        .order_by(date_col)
+        .all()
+    )
+
+    return stats
+
+# ----------------------------------------------------------------------------------------------------------------------
+# MEMBERS MANAGEMENT
+# ----------------------------------------------------------------------------------------------------------------------
+@router.get("/members", response_model=List[MemberAdminResponse])
+def get_members(
+    search: str = Query(None, description="이름/전화번호 검색"),
+    db: Session = Depends(get_db)
+):
+    usage_subquery = (
+        db.query(
+            SeatUsage.member_id,
+            func.sum(
+                func.extract('epoch', SeatUsage.check_out_time - SeatUsage.check_in_time) / 60
+            ).label("total_usage_minutes")
+        )
+        .filter(SeatUsage.check_out_time != None)
+        .group_by(SeatUsage.member_id)
+        .subquery()
+    )
+
+    todo_count_subquery = (
+        db.query(
+            UserTODO.member_id,
+            func.count(UserTODO.user_todo_id).label("active_todo_count")
+        )
+        .filter(UserTODO.is_achieved == False) 
+        .group_by(UserTODO.member_id)
+        .subquery()
+    )
+
+    query = (
+        db.query(
+            Member, 
+            func.coalesce(usage_subquery.c.total_usage_minutes, 0).label("total_usage_minutes"),
+            func.coalesce(todo_count_subquery.c.active_todo_count, 0).label("active_todo_count") 
+        )
+        .outerjoin(usage_subquery, Member.member_id == usage_subquery.c.member_id)
+        .outerjoin(todo_count_subquery, Member.member_id == todo_count_subquery.c.member_id) 
+        .filter(Member.member_id.notin_([1, 2]))
+    )
+
+    if search:
+        clean_search = search.replace("-", "")
+
+        query = query.filter(
+            or_(
+                Member.name.like(f"%{search}%"),
+                Member.login_id.like(f"%{search}%"),
+                func.replace(Member.phone, '-', '').like(f"%{clean_search}%")
+            )
+        )
+    
+    results = query.order_by(Member.created_at.desc()).all()
+    
+    response = []
+    for member, usage_min, todo_count in results:
+        response.append(MemberAdminResponse(
+            member_id=member.member_id,
+            name=member.name,
+            login_id=member.login_id,
+            phone=member.phone,
+            email=member.email,
+            birthday=member.birthday,
+            saved_time_minute=member.saved_time_minute if member.saved_time_minute is not None else 0,
+            total_mileage=member.total_mileage if member.total_mileage is not None else 0,
+            created_at=member.created_at,
+            is_deleted_at=bool(member.is_deleted_at) if member.is_deleted_at is not None else False,
+            total_usage_minutes=int(usage_min) if usage_min else 0,
+            active_todo_count=int(todo_count) if todo_count else 0
+        ))
+        
+    return response
+
+@router.put("/members/{member_id}/phone")
+def update_member_phone(
+    member_id: int, 
+    req: MemberUpdatePhone, 
+    db: Session = Depends(get_db)
+):
     member = db.query(Member).filter(Member.member_id == member_id).first()
     if not member:
-        if member_id == 2:
-            member = get_or_create_guest(db)
-        else:
-             raise HTTPException(status_code=404, detail="회원 정보가 없습니다.")
+        raise HTTPException(status_code=404, detail="회원을 찾을 수 없습니다.")
+    
+    if req.phone:
+        exists = db.query(Member).filter(
+            Member.phone == req.phone, 
+            Member.member_id != member_id
+        ).first()
+        if exists:
+            raise HTTPException(status_code=400, detail="이미 존재하는 전화번호입니다.")
 
-    # 2-1. 비회원 전화번호 저장
-    if member.role == "guest" and phone:
-        member.phone = phone
-        db.add(member)
-        db.flush()
-
-    # Null 방지
-    if member.saved_time_minute is None:
-        member.saved_time_minute = 0
-    if member.total_mileage is None:
-        member.total_mileage = 0
-
-    # -------------------------------------------------------
-    # [추가] 마일리지 사용 로직
-    # -------------------------------------------------------
-    if use_mileage > 0:        
-        # 보유량 체크
-        if member.total_mileage < use_mileage:
-            raise HTTPException(status_code=400, detail="보유 마일리지가 부족합니다.")
-        
-        # 결제 금액 초과 사용 체크
-        if use_mileage > product.price:
-            raise HTTPException(status_code=400, detail="상품 금액보다 많은 마일리지를 사용할 수 없습니다.")
-
-        # 마일리지 차감
-        member.total_mileage -= use_mileage
-        
-        # 사용 이력 기록
-        use_history = MileageHistory(
-            member_id=member.member_id,
-            amount=use_mileage,
-            type="use"
-        )
-        db.add(use_history)
-
-    # -------------------------------------------------------
-    # 최종 결제 금액 및 적립 계산
-    # -------------------------------------------------------
-    final_payment_amount = product.price - use_mileage
-
-    if member.role != "guest":
-        # 시간 적립
-        if product.type == "시간제":
-            member.saved_time_minute += product.value * 60
-
-        # 마일리지 적립 (실 결제 금액 기준 10%)
-        # 전액 마일리지 결제 시(final_payment_amount=0) 적립 없음
-        earned_mileage = final_payment_amount // 10
-        
-        if earned_mileage > 0:
-            member.total_mileage += earned_mileage
-            earn_history = MileageHistory(
-                member_id=member_id,
-                amount=earned_mileage,
-                type="earn",
-            )
-            db.add(earn_history)
-
-        db.add(member)
-        db.flush() 
-
-    # 4. 주문 생성
-    order = Order(
-        member_id=member_id,
-        product_id=product_id,
-        buyer_phone=phone,
-        payment_amount=final_payment_amount, # [수정] 실 결제 금액으로 저장
-        created_at=datetime.now()
-    )
-    db.add(order)
+    member.phone = req.phone
     db.commit()
-    db.refresh(order)
+    
+    return {"message": "전화번호가 수정되었습니다."}
 
-    # 5. 응답
-    response_data = {
-        "order_id": order.order_id,
-        "product_name": product.name,
-        "price": product.price,
-        "used_mileage": use_mileage,            # [추가] 사용한 마일리지
-        "final_price": final_payment_amount     # [추가] 최종 결제 금액
-    }
-    if member.role != "guest":
-        response_data["saved_time_minute"] = member.saved_time_minute 
-        response_data["total_mileage"] = member.total_mileage
+# ----------------------------------------------------------------------------------------------------------------------
+# SEAT MANAGEMENT
+# ----------------------------------------------------------------------------------------------------------------------
+@router.get("/stats/seats")
+def get_seat_stats(db: Session = Depends(get_db)):
+    """
+    [GET] 구역별 실시간 좌석 점유 현황 조회
+    """
+    occupied_seat_ids = db.query(SeatUsage.seat_id).filter(
+        SeatUsage.check_out_time == None
+    ).all()
+    occupied_ids = {row[0] for row in occupied_seat_ids}
+
+    # 중앙석(Island) 범위 확장 (31~50 + 61~70)
+    zones = [
+        {"name": "고정석 (Private)", "range": range(1, 21)},
+        {"name": "창가석 (View)", "range": range(21, 31)},
+        {"name": "중앙석 (Island)", "range": list(range(31, 51)) + list(range(61, 71))},
+        {"name": "독립석 (Corner)", "range": range(51, 61)},
+        {"name": "음료대석 (Easy)", "range": range(71, 91)},
+        {"name": "일반석 (Aisle)", "range": range(91, 101)},
+    ]
+
+    stats = []
+    total_used = 0
+    total_count = 0
+
+    for zone in zones:
+        zone_total = len(zone["range"])
+        zone_used = sum(1 for seat_id in zone["range"] if seat_id in occupied_ids)
         
-    return response_data
+        stats.append({
+            "name": zone["name"],
+            "total": zone_total,
+            "used": zone_used,
+            "rate": round((zone_used / zone_total) * 100) if zone_total > 0 else 0
+        })
+        
+        total_used += zone_used
+        total_count += zone_total
 
-# ------------------------
-# 4) 좌석 목록 조회 (수정: role 정보 추가)
-# ------------------------
-@router.get("/seats")
-def list_seats(db: Session = Depends(get_db)):
+    return {
+        "total": total_count,
+        "used": total_used,
+        "remain": total_count - total_used,
+        "usage_rate": round((total_used / total_count) * 100) if total_count > 0 else 0,
+        "zones": stats
+    }
+
+@router.get("/seats/detail")
+def get_seat_detail_stats(db: Session = Depends(get_db)):
+    """
+    [GET] 좌석 관리 페이지용 상세 데이터
+    """
     seats = db.query(Seat).order_by(Seat.seat_id).all()
     
-    results = []
-    now = datetime.now()
-
-    for s in seats:
-        seat_type_str = "기간제" if s.type == "fix" else "자유석"
-
-        seat_data = {
-            "seat_id": s.seat_id,
-            "type": seat_type_str,
-            "near_window": s.near_window,
-            "corner_seat": s.corner_seat,
-            "aisle_seat": s.aisle_seat,
-            "isolated": s.isolated,
-            "near_beverage_table": s.near_beverage_table,
-            "is_center": s.is_center,
-            "is_status": s.is_status,
-            "user_name": None,
-            "remaining_time": None,
-            "ticket_expired_time": None,  # [수정 1] 초기값 필드 추가
-            "role": None
-        }
-
-        if not s.is_status:
-            active_usage = db.query(SeatUsage).filter(
-                SeatUsage.seat_id == s.seat_id,
-                SeatUsage.check_out_time == None
-            ).first()
-
-            if active_usage:
-                # 사용 중인 경우
-                member = db.query(Member).filter(Member.member_id == active_usage.member_id).first()
-                if member:
-                    seat_data["user_name"] = member.name
-                    seat_data["role"] = member.role
-                
-                if active_usage.ticket_expired_time:
-                    # [수정 2] 만료 시간 데이터를 응답에 포함
-                    seat_data["ticket_expired_time"] = active_usage.ticket_expired_time
-                    
-                    remain_delta = active_usage.ticket_expired_time - now
-                    minutes = int(remain_delta.total_seconds() / 60)
-                    seat_data["remaining_time"] = max(minutes, 0)
-            else:
-                # [수정] 사용 중은 아니지만 is_status가 False인 경우 => "점검중"
-                seat_data["user_name"] = "점검중"
-        
-        results.append(seat_data)
-
-    return results
-
-# ------------------------
-# 5) 입실 (수정: 출석 로직 제거 -> 순수 입실 처리)
-# ------------------------
-@router.post("/check-in")
-def check_in(
-    phone: str = Body(...),
-    seat_id: int = Body(...),
-    order_id: Optional[int] = Body(None), 
-    db: Session = Depends(get_db)
-):
-    # 1. 회원 조회
-    member = db.query(Member).filter(Member.phone == phone).first()
-    if not member:
-        clean_phone = phone.replace("-", "")
-        if clean_phone != phone:
-            member = db.query(Member).filter(Member.phone == clean_phone).first()
-    if not member:
-        member = get_or_create_guest(db)
-    
-    member_id_to_use = member.member_id
-
-    # 중복 입실 방지
-    if member.role != "guest":
-        active_usage = db.query(SeatUsage).filter(SeatUsage.member_id == member_id_to_use, SeatUsage.check_out_time == None).first()
-        if active_usage:
-            raise HTTPException(status_code=400, detail="이미 입실 중입니다.")
-
-    # 2. 좌석 조회
-    seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
-    if not seat: raise HTTPException(status_code=404, detail="좌석 정보 없음")
-    if not seat.is_status: raise HTTPException(status_code=400, detail="이미 사용 중인 좌석")
-
-    # 3. 만료 시간 설정
-    expired_time = None
-    now = datetime.now()
-    
-    if member.role != "guest":
-        if seat.type == "fix":
-            active_period_order = db.query(Order).join(Product).filter(
-                Order.member_id == member.member_id,
-                Order.period_end_date > now,
-                Product.type == '기간제'
-            ).order_by(Order.period_end_date.desc()).first()
-
-            if not active_period_order:
-                raise HTTPException(status_code=400, detail="유효한 기간제 이용권이 없습니다.")
-            expired_time = active_period_order.period_end_date
-        else:
-            if member.saved_time_minute <= 0:
-                raise HTTPException(status_code=400, detail="시간제 이용권(잔여 시간)이 부족합니다.")
-            expired_time = now + timedelta(minutes=member.saved_time_minute)
-    else:
-        if not order_id: raise HTTPException(status_code=400, detail="주문 정보 필요")
-        order = db.query(Order).filter(Order.order_id == order_id).first()
-        if not order: raise HTTPException(status_code=404, detail="주문 정보 없음")
-        product = db.query(Product).filter(Product.product_id == order.product_id).first()
-        ticket_duration_minutes = product.value * 60
-        expired_time = now + timedelta(minutes=ticket_duration_minutes)
-        order.period_start_date = now
-        order.period_end_date = expired_time
-        db.add(order)
-        
-    # 4. SeatUsage 생성 (is_attended 기본값 False)
-    usage = SeatUsage(
-        member_id=member_id_to_use,
-        seat_id=seat_id,
-        order_id=order_id,
-        check_in_time=now,
-        ticket_expired_time=expired_time
+    active_usages = (
+        db.query(SeatUsage, Member, Order, Product)
+        .join(Member, SeatUsage.member_id == Member.member_id)
+        .outerjoin(Order, SeatUsage.order_id == Order.order_id)
+        .outerjoin(Product, Order.product_id == Product.product_id)
+        .filter(SeatUsage.check_out_time == None)
+        .all()
     )
-    db.add(usage)
     
-    seat.is_status = False
-    db.add(seat)
-
-    db.commit()
-    db.refresh(usage)
-
-    return {
-        "usage_id": usage.usage_id,
-        "check_in_time": usage.check_in_time,
-        "seat_id": seat_id,  
-        "ticket_expired_time": usage.ticket_expired_time
+    usage_map = {}
+    for usage, member, order, product in active_usages:
+        usage_map[usage.seat_id] = {
+            "usage": usage,
+            "member": member,
+            "order": order,
+            "product": product
+        }
+    
+    seat_list = []
+    total_seats = 0
+    used_seats = 0
+    
+    zones_def = [
+        {"key": "fix", "name": "고정석 (Private)", "range": range(1, 21)},
+        {"key": "view", "name": "창가석 (View)", "range": range(21, 31)},
+        {"key": "island", "name": "중앙석 (Island)", "range": list(range(31, 51)) + list(range(61, 71))},
+        {"key": "corner", "name": "독립석 (Corner)", "range": range(51, 61)},
+        {"key": "easy", "name": "음료대석 (Easy)", "range": range(71, 91)},
+        {"key": "aisle", "name": "일반석 (Aisle)", "range": range(91, 101)},
+    ]
+    
+    zone_stats = {
+        z["key"]: {"name": z["name"], "total": 0, "used": 0} for z in zones_def
     }
 
-
-# ------------------------
-# 6) 퇴실 (수정: 이미 출석한 경우 'already_attended' 플래그 반환)
-# ------------------------
-@router.post("/check-out")
-def check_out(
-    seat_id: int = Body(...),
-    phone: Optional[str] = Body(None),
-    pin: Optional[int] = Body(None),
-    force: bool = Body(False),
-    db: Session = Depends(get_db)
-):
     now = datetime.now()
 
-    # 1. 좌석 정보 조회
-    usage = db.query(SeatUsage).filter(
-        SeatUsage.seat_id == seat_id,
-        SeatUsage.check_out_time == None
-    ).first()
+    for seat in seats:
+        total_seats += 1
+        
+        sid = seat.seat_id
+        current_zone_key = "aisle"
+        for z in zones_def:
+            if sid in z["range"]:
+                current_zone_key = z["key"]
+                break
+        
+        zone_stats[current_zone_key]["total"] += 1
 
-    if not usage:
-        raise HTTPException(status_code=404, detail="해당 좌석의 입실 기록을 찾을 수 없습니다.")
+        seat_info = {
+            "seat_id": seat.seat_id,
+            "type": seat.type,
+            "zone_name": zone_stats[current_zone_key]["name"],
+            "zone_key": current_zone_key,
+            "is_status": seat.is_status,
+            "is_occupied": False,
+            "member_id": None,
+            "user_name": None,
+            "user_phone": None,
+            "login_id": None,
+            "email": None,
+            "created_at": None,
+            "total_mileage": 0,
+            "saved_time_minute": 0,
+            "active_todo_count": 0,
+            "total_usage_minutes": 0,
+            "check_in_time": None,
+            "remaining_info": None,
+            "ticket_type": None
+        }
 
-    # 2. 입실자 조회
-    member = db.query(Member).filter(Member.member_id == usage.member_id).first()
-    if not member:
-        raise HTTPException(status_code=404, detail="입실자 정보를 찾을 수 없습니다.")
-
-    # 3. 본인 확인
-    if member.role == "guest":
-        if not phone: raise HTTPException(status_code=400, detail="비회원은 전화번호 입력이 필요합니다.")
-        if not usage.order: raise HTTPException(status_code=400, detail="비회원 주문 정보를 찾을 수 없습니다.")
-        input_phone = phone.replace("-", "")
-        db_phone = usage.order.buyer_phone.replace("-", "") if usage.order.buyer_phone else ""
-        if input_phone != db_phone: raise HTTPException(status_code=401, detail="전화번호가 일치하지 않습니다.")
-    else:
-        if not force:
-            if pin is None: raise HTTPException(status_code=400, detail="회원은 PIN 번호 입력이 필요합니다.")
-            if member.pin_code != pin: raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
-
-    # 3-5. YOLO 감지
-    if not force: 
-        try:
-            is_detected, img_path, classes, msg = capture_predict(seat_id)
-            if is_detected:
-                web_image_url = "/" + img_path.replace("\\", "/")
-                detected_items = ", ".join(classes)
-                raise HTTPException(
-                    status_code=400, 
-                    detail={
-                        "code": "DETECTED",
-                        "message": f"좌석에 짐({detected_items})이 감지되었습니다.",
-                        "image_url": web_image_url
-                    }
-                )
-        except Exception as e:
-            if isinstance(e, HTTPException): raise e
-            print(f"[Warning] YOLO Error: {e}")
-
-    # 4. 시간 계산
-    time_used = now - usage.check_in_time
-    time_used_minutes = int(time_used.total_seconds() / 60)
-    
-    seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
-    
-    # [추가] 이미 출석했는지 여부를 담을 변수
-    already_attended = False
-
-    # 5. 정산 및 출석 체크
-    if member.role != "guest":
-        # 이용 시간이 60분 이상일 때만 출석 체크 시도
-        if time_used_minutes >= 0:
-            check_in_date = usage.check_in_time.date()
+        if seat.seat_id in usage_map:
+            used_seats += 1
+            zone_stats[current_zone_key]["used"] += 1
             
-            # 오늘 날짜로 이미 출석 인정된 기록이 있는지 확인
-            existing_attendance = db.query(SeatUsage).filter(
-                SeatUsage.member_id == member.member_id,
-                cast(SeatUsage.check_in_time, Date) == check_in_date,
-                SeatUsage.is_attended == True
-            ).first()
+            data = usage_map[seat.seat_id]
+            usage = data["usage"]
+            member = data["member"]
+            order = data["order"]
+            product = data["product"]
 
-            if not existing_attendance:
-                # 기록 없으면 이번에 출석 인정
-                usage.is_attended = True
+            seat_info["is_occupied"] = True
+            seat_info["member_id"] = member.member_id
+            seat_info["user_name"] = member.name
+            seat_info["user_phone"] = member.phone
+            seat_info["login_id"] = member.login_id
+            seat_info["email"] = member.email
+            seat_info["created_at"] = member.created_at
+            seat_info["total_mileage"] = member.total_mileage
+            seat_info["saved_time_minute"] = member.saved_time_minute
+            seat_info["check_in_time"] = usage.check_in_time
+
+            todo_count = db.query(func.count(UserTODO.user_todo_id))\
+                .filter(UserTODO.member_id == member.member_id, UserTODO.is_achieved == False)\
+                .scalar()
+            seat_info["active_todo_count"] = todo_count or 0
+
+            total_usage = db.query(func.sum(
+                func.extract('epoch', SeatUsage.check_out_time - SeatUsage.check_in_time) / 60
+            )).filter(SeatUsage.member_id == member.member_id, SeatUsage.check_out_time != None).scalar()
+            seat_info["total_usage_minutes"] = int(total_usage) if total_usage else 0
+            
+            if product and product.type == '기간제':
+                seat_info["ticket_type"] = "기간권"
+                if order and order.period_end_date:
+                    remain_days = (order.period_end_date.date() - now.date()).days
+                    seat_info["remaining_info"] = f"{remain_days}일 남음"
+                else:
+                    seat_info["remaining_info"] = "-"
             else:
-                # 기록 있으면 '이미 출석됨' 플래그 설정
-                already_attended = True
+                seat_info["ticket_type"] = "시간권"
+                current_duration = (now - usage.check_in_time).total_seconds() / 60
+                remain_min = member.saved_time_minute - int(current_duration)
+                if remain_min < 0:
+                    seat_info["remaining_info"] = f"초과 {abs(remain_min)}분"
+                else:
+                    h, m = divmod(remain_min, 60)
+                    seat_info["remaining_info"] = f"{int(h)}시간 {int(m)}분"
 
-        # 시간 차감 (자유석만)
-        if seat and seat.type != "fix":
-            member.saved_time_minute -= time_used_minutes
-            if member.saved_time_minute < 0:
-                member.saved_time_minute = 0 
+        seat_list.append(seat_info)
+
+    summary = {
+        "total": total_seats,
+        "used": used_seats,
+        "remain": total_seats - used_seats,
+        "rate": round((used_seats / total_seats) * 100) if total_seats > 0 else 0
+    }
     
-    # 6. 퇴실 처리
-    usage.check_out_time = now
-    db.add(usage)
-
-    if seat:
-        seat.is_status = True
-        db.add(seat)
-
-    db.add(member)
-    db.commit()
-    db.refresh(usage)
+    formatted_type_stats = []
+    for z in zones_def:
+        key = z["key"]
+        stat = zone_stats[key]
+        rate = round((stat["used"] / stat["total"]) * 100) if stat["total"] > 0 else 0
+        formatted_type_stats.append({
+            "type": key,
+            "name": stat["name"],
+            "total": stat["total"],
+            "used": stat["used"],
+            "rate": rate
+        })
 
     return {
-        "usage_id": usage.usage_id,
-        "seat_id": seat_id,
-        "check_out_time": usage.check_out_time.isoformat(),
-        "time_used_minutes": time_used_minutes,
-        "remaining_time_minutes": member.saved_time_minute if member.role != "guest" else 0,
-        "is_attended": usage.is_attended, # 이번에 출석 인정되었는가? (True/False)
-        "already_attended": already_attended # [추가] 이미 출석 상태였는가? (True/False)
+        "summary": summary,
+        "type_stats": formatted_type_stats,
+        "seats": seat_list
+    }
+
+@router.put("/seats/{seat_id}/status")
+def update_seat_status(
+    seat_id: int,
+    is_status: bool = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
+    if not seat:
+        raise HTTPException(status_code=404, detail="좌석을 찾을 수 없습니다.")
+    
+    seat.is_status = is_status
+    db.commit()
+    
+    return {"message": "좌석 상태가 변경되었습니다."}
+
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO MANAGEMENT
+# ----------------------------------------------------------------------------------------------------------------------
+@router.get("/todos", response_model=List[TodoResponse])
+def get_todos(db: Session = Depends(get_db)):
+    todos = db.query(TODO).order_by(TODO.created_at.desc()).all()
+    results = []
+    for todo in todos:
+        # 참가자 수
+        p_count = db.query(func.count(UserTODO.user_todo_id))\
+            .filter(UserTODO.todo_id == todo.todo_id).scalar()
+        
+        # 달성자 수 (is_achieved = True)
+        a_count = db.query(func.count(UserTODO.user_todo_id))\
+            .filter(
+                UserTODO.todo_id == todo.todo_id,
+                UserTODO.is_achieved == True
+            ).scalar()
+
+        results.append(TodoResponse(
+            todo_id=todo.todo_id,
+            todo_type=todo.todo_type,
+            todo_title=todo.todo_title,
+            todo_content=todo.todo_content,
+            todo_value=todo.todo_value,
+            betting_mileage=todo.betting_mileage,
+            payback_mileage_percent=todo.payback_mileage_percent,
+            is_exposed=todo.is_exposed,
+            created_at=todo.created_at,
+            updated_at=todo.updated_at,
+            participant_count=p_count or 0,
+            achievement_count=a_count or 0 
+        ))
+    return results
+
+@router.post("/todos", response_model=TodoResponse)
+def create_todo(todo_data: TodoCreate, db: Session = Depends(get_db)):
+    new_todo = TODO(
+        todo_type=todo_data.todo_type,
+        todo_title=todo_data.todo_title,
+        todo_content=todo_data.todo_content,
+        todo_value=todo_data.todo_value,
+        betting_mileage=todo_data.betting_mileage,
+        payback_mileage_percent=todo_data.payback_mileage_percent,
+        is_exposed=todo_data.is_exposed
+    )
+    db.add(new_todo)
+    db.commit()
+    db.refresh(new_todo)
+    
+    return TodoResponse(
+        **new_todo.__dict__,
+        participant_count=0,
+        achievement_count=0
+    )
+
+@router.put("/todos/{todo_id}", response_model=TodoResponse)
+def update_todo(todo_id: int, todo_data: TodoUpdate, db: Session = Depends(get_db)):
+    todo = db.query(TODO).filter(TODO.todo_id == todo_id).first()
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    
+    update_data = todo_data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(todo, key, value)
+    
+    db.commit()
+    db.refresh(todo)
+    
+    # Update 시에도 count 정보를 반환하기 위해 재계산
+    p_count = db.query(func.count(UserTODO.user_todo_id)).filter(UserTODO.todo_id == todo_id).scalar()
+    a_count = db.query(func.count(UserTODO.user_todo_id)).filter(UserTODO.todo_id == todo_id, UserTODO.is_achieved == True).scalar()
+
+    return TodoResponse(
+        **todo.__dict__,
+        participant_count=p_count or 0,
+        achievement_count=a_count or 0
+    )
+
+@router.delete("/todos/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_todo(todo_id: int, db: Session = Depends(get_db)):
+    todo = db.query(TODO).filter(TODO.todo_id == todo_id).first()
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    
+    db.delete(todo)
+    db.commit()
+    return None
+
+# ----------------------------------------------------------------------------------------------------------------------
+# PRODUCTS MANAGEMENT
+# ----------------------------------------------------------------------------------------------------------------------
+@router.get("/products", response_model=List[ProductResponse])
+def get_products(db: Session = Depends(get_db)):
+    return db.query(Product).order_by(Product.product_id).all()
+
+@router.post("/products", response_model=ProductResponse)
+def create_product(product_data: ProductCreate, db: Session = Depends(get_db)):
+    new_product = Product(
+        name=product_data.name,
+        type=product_data.type,
+        price=product_data.price,
+        value=product_data.value,
+        is_exposured=product_data.is_exposured
+    )
+    db.add(new_product)
+    db.commit()
+    db.refresh(new_product)
+    return new_product
+
+@router.put("/products/{product_id}", response_model=ProductResponse)
+def update_product(product_id: int, product_data: ProductUpdate, db: Session = Depends(get_db)):
+    product = db.query(Product).filter(Product.product_id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    update_data = product_data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(product, key, value)
+    
+    db.commit()
+    db.refresh(product)
+    return product
+
+@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_product(product_id: int, db: Session = Depends(get_db)):
+    product = db.query(Product).filter(Product.product_id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    db.delete(product)
+    db.commit()
+    return None
+
+@router.get("/stats/members")
+def get_member_stats(db: Session = Depends(get_db)):
+    now = datetime.now()
+    
+    # 전체 회원 수 (관리자, 비회원 제외)
+    total_members = db.query(Member).filter(
+        Member.is_deleted_at == False,
+        Member.member_id.notin_([1, 2])
+    ).count()
+    
+    # 신규 회원 수
+    new_members = db.query(Member).filter(
+        extract('year', Member.created_at) == now.year,
+        extract('month', Member.created_at) == now.month,
+        Member.is_deleted_at == False,
+        Member.member_id.notin_([1, 2])
+    ).count()
+    
+    # 기간제 회원: 현재 유효한 기간제 이용권을 가진 회원
+    period_members = db.query(distinct(Order.member_id))\
+        .join(Product, Order.product_id == Product.product_id)\
+        .filter(
+            Order.period_end_date > now,
+            Product.type == '기간제',
+            Order.member_id.notin_([1, 2])
+        ).count()
+
+    # 시간제 회원: 남은 시간이 있는 회원
+    time_members = db.query(Member).filter(
+        Member.saved_time_minute > 0,
+        Member.is_deleted_at == False,
+        Member.member_id.notin_([1, 2])
+    ).count()
+    
+    # 실시간 이용자 수
+    current_users = db.query(SeatUsage).filter(
+        SeatUsage.check_out_time == None,
+        SeatUsage.member_id != 1
+    ).count()
+
+    # 비회원(게스트) 이용 건수 (월간)
+    non_members = db.query(distinct(Order.buyer_phone)).filter(
+        Order.member_id == 2,
+        extract('year', Order.created_at) == now.year,
+        extract('month', Order.created_at) == now.month
+    ).count()
+    
+    return {
+        "total_members": total_members,
+        "new_members": new_members,
+        "period_members": period_members,
+        "time_members": time_members,
+        "current_users": current_users,
+        "non_members": non_members
     }

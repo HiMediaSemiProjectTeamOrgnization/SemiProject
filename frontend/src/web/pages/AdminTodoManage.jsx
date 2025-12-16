@@ -137,6 +137,7 @@ const AdminTodoManage = () => {
                             <th className="p-4 font-medium">제목</th>
                             <th className="p-4 font-medium w-32">목표값</th>
                             <th className="p-4 font-medium w-24">참가자</th>
+                            <th className="p-4 font-medium w-24">달성자</th>
                             <th className="p-4 font-medium w-32">참가비용</th>
                             <th className="p-4 font-medium w-28">페이백(%)</th>
                             <th className="p-4 font-medium w-24 text-center">노출</th>
@@ -165,6 +166,13 @@ const AdminTodoManage = () => {
                                     <span className="font-bold text-slate-200">{todo.participant_count}</span>
                                     <span className="text-slate-500 ml-1">명</span>
                                 </td>
+                                
+                                {/* 달성자 수 표시 */}
+                                <td className="p-4 whitespace-nowrap">
+                                    <span className="font-bold text-emerald-400">{todo.achievement_count || 0}</span>
+                                    <span className="text-slate-500 ml-1">명</span>
+                                </td>
+
                                 <td className="p-4 text-slate-400 whitespace-nowrap">{todo.betting_mileage.toLocaleString()} P</td>
                                 <td className="p-4 text-indigo-400 font-semibold">{todo.payback_mileage_percent}%</td>
                                 <td className="p-4 text-center">
@@ -190,7 +198,7 @@ const AdminTodoManage = () => {
                         ))}
                         {todos.length === 0 && !loading && (
                             <tr>
-                                <td colSpan="8" className="p-12 text-center text-slate-500">등록된 Todo가 없습니다.</td>
+                                <td colSpan="9" className="p-12 text-center text-slate-500">등록된 Todo가 없습니다.</td>
                             </tr>
                         )}
                     </tbody>

@@ -87,6 +87,7 @@ class TodoResponse(TodoCreate):
     created_at: datetime
     updated_at: datetime
     participant_count: int = 0
+    achievement_count: int = 0  # [추가] 달성자 수
 
 class MemberAdminResponse(BaseSchema):
     member_id: int

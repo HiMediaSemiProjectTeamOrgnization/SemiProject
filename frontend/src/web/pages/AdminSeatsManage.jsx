@@ -123,10 +123,12 @@ export default function AdminSeatsManage() {
 
   const renderCell = (cellId, r, c) => {
     const key = `${r}-${c}`;
-    if (cellId === 0) return <div key={key} />;
+    // [수정] 빈 공간(0)도 높이(60px)를 가지도록 스타일 추가
+    if (cellId === 0) return <div key={key} className="w-full h-full" />;
     
+    // [수정] 출입구(-1)도 셀 크기에 맞춰 중앙 정렬되도록 w-full h-full 추가
     if (cellId === -1) return (
-      <div key={key} className="flex flex-col items-center justify-center text-slate-500/50">
+      <div key={key} className="w-full h-full flex flex-col items-center justify-center text-slate-500/50">
         <FaDoorOpen size={32} />
         <span className="text-xs font-medium mt-1">EXIT</span>
       </div>
@@ -151,7 +153,7 @@ export default function AdminSeatsManage() {
       switch (type) {
           case 'fix': return "bg-violet-500";
           case 'view': return "bg-blue-400";
-          case 'island': return "bg-emerald-400"; // 그룹석 제거됨 -> 중앙석 컬러 사용
+          case 'island': return "bg-emerald-400"; 
           case 'corner': return "bg-orange-400";
           case 'easy': return "bg-teal-400";
           default: return "bg-slate-500";
@@ -178,10 +180,10 @@ export default function AdminSeatsManage() {
 
       {/* 요약 통계 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="총 좌석" value={`${data.summary.total}석`} icon={<FaChair className="text-slate-400" />} />
-        <StatCard title="현재 이용중" value={`${data.summary.used}명`} icon={<FaUser className="text-blue-400" />} />
-        <StatCard title="잔여 좌석" value={`${data.summary.remain}석`} icon={<FaCheckCircle className="text-emerald-400" />} />
-        <StatCard title="가동률" value={`${data.summary.rate}%`} icon={<FaClock className="text-purple-400" />} />
+        <StatCard title="총 좌석" value={`${data.summary.total || 0}석`} icon={<FaChair className="text-slate-400" />} />
+        <StatCard title="현재 이용중" value={`${data.summary.used || 0}명`} icon={<FaUser className="text-blue-400" />} />
+        <StatCard title="잔여 좌석" value={`${data.summary.remain || 0}석`} icon={<FaCheckCircle className="text-emerald-400" />} />
+        <StatCard title="가동률" value={`${data.summary.rate || 0}%`} icon={<FaClock className="text-purple-400" />} />
       </div>
 
       {/* 메인 컨텐츠 영역 */}
@@ -200,10 +202,16 @@ export default function AdminSeatsManage() {
             </div>
           </div>
           
-          <div className="flex-1 bg-slate-900/40 p-8 flex items-center justify-center overflow-auto">
+          {/* [수정] 오버플로우 문제 해결을 위해 flex center 대신 margin auto 사용 */}
+          <div className="flex-1 bg-slate-900/40 p-8 overflow-auto">
             <div 
-               className="grid gap-3 transition-transform duration-300 ease-out origin-center"
-               style={{ gridTemplateColumns: `repeat(${FLOOR_PLAN[0].length}, 60px)` }}
+               className="grid gap-3 transition-transform duration-300 ease-out origin-center mx-auto"
+               style={{ 
+                   gridTemplateColumns: `repeat(${FLOOR_PLAN[0].length}, 60px)`,
+                   // [수정] 행 높이 강제 지정 (UI 깨짐 방지)
+                   gridAutoRows: '60px',
+                   width: 'fit-content'
+               }}
             >
               {FLOOR_PLAN.map((row, r) => row.map((id, c) => renderCell(id, r, c)))}
             </div>
