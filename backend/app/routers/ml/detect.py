@@ -10,6 +10,7 @@ import base64
 from datetime import datetime
 import asyncio
 import httpx
+from pydantic import BaseModel
 
 
 router = APIRouter(prefix="/ai", tags=["Detect services"])
@@ -20,6 +21,13 @@ CAMERA_SERVER = "http://localhost:12454"
 # 저장폴더
 CAPTURE_DIR = "captures/real"
 os.makedirs(CAPTURE_DIR, exist_ok=True)
+
+
+class CheckTimePayload(BaseModel):
+    seat_id: int
+    usage_id: int
+    minutes: int
+    event_type: str | None = None
 
 # 프레임 캡처 후 저장하는 함수
 def save_base64_image_and_get_path( image_base64 : str,
@@ -145,8 +153,7 @@ async def checkout_web_to_camera(request : Request,
     )
             
 @router.post("/checktime")
-def checktime_seat(payload : dict,
-                   db : Session = Depends(get_db)) :
+def checktime_seat(payload: CheckTimePayload, db: Session = Depends(get_db)) :
     
     #  payload = {
     #         'seat_id' : event.seat_id,
@@ -155,16 +162,20 @@ def checktime_seat(payload : dict,
     #         'usage_id' : event.usage_id
     #     }
     
-    seat_id = payload["seat_id"]
-    usage_id = payload["usage_id"]
+    data = payload.model_dump()
+    seat_id = data["seat_id"]
+    usage_id = data["usage_id"]
     try :
-        seatusage = db.query(SeatUsage).filter(SeatUsage.usage_id == int(usage_id), SeatUsage.seat_id == int(seat_id)).first()
+        seatusage = db.query(SeatUsage).filter(
+            SeatUsage.usage_id == int(usage_id),
+            SeatUsage.seat_id == int(seat_id),
+        ).first()
         
         if not seatusage:
             raise HTTPException(status_code=404, detail="SeatUsage not found")
 
         current = seatusage.total_in_time or 0
-        seatusage.total_in_time = current + int(payload["minutes"])
+        seatusage.total_in_time = current + int(data["minutes"])
 
         db.commit()
         db.refresh(seatusage)

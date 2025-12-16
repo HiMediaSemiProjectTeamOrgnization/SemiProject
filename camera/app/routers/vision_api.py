@@ -2,8 +2,9 @@ from fastapi import APIRouter
 from fastapi import Body, HTTPException
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
-from vision.schemas.schemas import SeatEvent
+from vision.schemas.schemas import SeatEvent, SeatEventType
 import base64
+import httpx
 
 router=APIRouter(prefix="/camera", tags=["감지 상태 업데이트"])
 
@@ -67,17 +68,36 @@ def checkout(request : Request,
     })    
 
 @router.post("/event")
-def checktime_event(request : Request,
-                    payload : dict) :
-   
-    if payload["event_type"] == "CHECK_OUt" :
-        r = request.post(f"{WEB_SERVER_HOST}/ai/checktime", json=payload, timeout=2)
-        
-        if r.status_code != 200 :
-            raise HTTPException(status_code=500, detail="예기치 못한 오류 발생")
-        
-        return JSONResponse(200, content={"status" : True,
-                                          "message" : "Success"})
+async def checktime_event(event: SeatEvent) :
+    if event.event_type != SeatEventType.CHECK_OUT:
+        return JSONResponse(
+            status_code=200,
+            content={"status": True, "message": "이벤트가 체크아웃이 아니어서 무시했어요."},
+        )
+
+    payload = {
+        "seat_id": event.seat_id,
+        "usage_id": event.usage_id,
+        "minutes": event.minutes or 0,
+        "event_type": event.event_type.value,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=3) as client:
+            response = await client.post(f"{WEB_SERVER_HOST}/ai/checktime", json=payload)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"웹 서버 전달 실패: {exc}")
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"웹 서버 응답 오류: {response.text}",
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={"status": True, "message": "Success"},
+    )
 
 
 @router.get("/lost-item/result/{job_id}")
@@ -96,4 +116,3 @@ def lost_item_result(request : Request, job_id : int) :
                             "status" : True,
                             "result" : result
                         })
-

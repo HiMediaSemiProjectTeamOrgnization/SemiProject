@@ -17,7 +17,7 @@ seat_manager
 5. 유실물 검사 요청 상황 처리
 """
 
-WEB_SEVER_URL = 'https://localhost:12454'
+CAMERA_SERVER_URL = 'http://localhost:12454'
 
 class SeatManager :
     def __init__(self, camera_manager) :
@@ -126,17 +126,17 @@ class SeatManager :
                 "detected_at" : event.detected_at.isoformat()
             }
 
-    def _notifiy_web(self, event) :
+    def _notify_web(self, event) :
         """check inout 이벤트 발생 시 웹으로 전달"""
         payload = {
-            'seat_id' : event.seat_id,
-            'event_type' : event.event_type,
-            'minutes' : event.minutes,
-            'usage_id' : event.usage_id
+            'seat_id': event.seat_id,
+            'event_type': str(event.event_type),
+            'minutes': event.minutes,
+            'usage_id': event.usage_id,
         }
         try :
             requests.post(
-                f'{WEB_SEVER_URL}/vision/event', 
+                f'{CAMERA_SERVER_URL}/camera/event',
                 json=payload,
                 timeout=3)
             
