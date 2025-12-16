@@ -106,7 +106,7 @@ class SeatManager :
             elif event.event_type == "CHECK_OUT" or str(event.event_type) == "SeatEventType.CHECK_OUT" :
                 in_out_times["out_time"] = event.detected_at
                 # check_out 이벤트 발생 시 시간계산해서 웹으로 전달
-                event.minutes = (in_out_times["out_time"] - in_out_times["in_time"]).total_seconds() / 60
+                event.minutes = int((in_out_times["out_time"] - in_out_times["in_time"]).total_seconds() / 60)
                 self._notify_web(event)
                 # 전달 이후 in_out_times 초기화
                 in_out_times = {"in_time" : None, "out_time" : None}
