@@ -139,7 +139,7 @@ class EventResponse(BaseSchema):
     start_time: str     # "09:00"
     end_time: str       # "10:30"
     color: str # green, blue, yellow, red
-    description: str
+    description: Optional[str] = None
 
 # 통합 응답 포맷
 class AiResponse(BaseSchema):

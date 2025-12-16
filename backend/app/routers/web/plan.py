@@ -128,7 +128,7 @@ async def process_chat_request(
 
     llm = ChatOpenAI(
         api_key=real_access_token,
-        model="gpt-4", # 모델명 확인 필요
+        model="gpt-4.1", # 모델명 확인 필요
         base_url=baseurl,
         temperature=0,
         default_headers={
