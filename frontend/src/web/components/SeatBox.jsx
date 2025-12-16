@@ -1,3 +1,5 @@
+import { FaChair, FaLock, FaTools, FaUser } from "react-icons/fa";
+
 function SeatBox({
     seat,
     onClick,

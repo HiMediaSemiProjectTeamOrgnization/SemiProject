@@ -1,13 +1,13 @@
 import { useState } from "react";
 import KioskLogin from "../screens/KioskLogin";
 import KioskSeatStatus from "../screens/KioskSeatStatus";
-import KioskAlertModal from "../components/KioskAlertModal"; // [추가]
+import KioskAlertModal from "../components/KioskAlertModal"; 
 
 function KioskCheckIn({ onHome }) {
     const [step, setStep] = useState("login");
     const [memberInfo, setMemberInfo] = useState(null);
     
-    // [추가] 모달 상태
+    // 모달 상태
     const [modal, setModal] = useState({ isOpen: false, title: "", message: "", type: "warning", onOk: null });
 
     const closeModal = () => {
@@ -41,24 +41,25 @@ function KioskCheckIn({ onHome }) {
             }
 
             const data = await res.json();
-            // [수정] alert -> modal
+            
             setModal({
                 isOpen: true,
                 title: "입실 완료",
                 message: `[회원] 입실 완료!\n좌석번호: ${data.seat_id}번\n즐거운 공부 되세요!`,
                 type: "success",
-                onOk: onHome // 확인 누르면 홈으로
+                onOk: onHome // 성공 시에는 홈으로 이동
             });
 
         } catch (e) {
             console.error(e);
-            // [수정] alert -> modal
+            
+            // [수정] 실패 시(예: 기간제 미보유) 홈으로 이동하지 않도록 onOk를 null로 설정
             setModal({
                 isOpen: true,
                 title: "입실 실패",
                 message: e.message,
                 type: "error",
-                onOk: onHome
+                onOk: null // 기존 onHome에서 null로 변경하여 현재 페이지 유지
             });
         }
     };
@@ -81,7 +82,6 @@ function KioskCheckIn({ onHome }) {
                 />
             )}
 
-            {/* [추가] 모달 컴포넌트 */}
             <KioskAlertModal 
                 isOpen={modal.isOpen}
                 onClose={closeModal}

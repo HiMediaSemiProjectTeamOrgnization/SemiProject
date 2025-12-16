@@ -11,11 +11,17 @@ import Signup from './web/pages/Signup.jsx';
 import Login from './web/pages/Login.jsx';
 import GoogleOnBoarding from './web/pages/GoogleOnBoarding.jsx';
 import AccountRecovery from './web/pages/AccountRecovery.jsx';
-import AdminMain from './web/pages/AdminMain.jsx';
+import AdminLayout from './web/components/AdminLayout.jsx';
+import AdminLogin from './web/pages/AdminLogin.jsx';
+import AdminDashboard from './web/pages/AdminDashboard.jsx';
 import MyPage from './web/pages/MyPage.jsx';
 import MyPageEdit from './web/pages/MyPageEdit.jsx';
 import MyPageOrder from './web/pages/MyPageOrder.jsx';
-// import Planner from './web/pages/Planner.jsx';
+import Planner from './web/pages/Planner.jsx';
+import AdminMembersManage from './web/pages/AdminMembersManage.jsx';
+import AdminSeatsManage from './web/pages/AdminSeatsManage.jsx';
+import AdminTodoManage from './web/pages/AdminTodoManage.jsx';
+import AdminProductsManage from './web/pages/AdminProductsManage.jsx';
 
 const router = createBrowserRouter([
     {
@@ -86,8 +92,34 @@ const router = createBrowserRouter([
     },
     {
         path: '/admin',
-        element: <AdminMain />
-    }
+        element: <AdminLayout />,
+        children: [
+            {
+                index: true,
+                element: <AdminDashboard />
+            },
+            {
+                path: 'members',
+                element: <AdminMembersManage />
+            },
+            {
+                path: 'seats',
+                element: <AdminSeatsManage />
+            },
+            {
+                path: 'todos',
+                element: <AdminTodoManage />
+            },
+            {
+                path: 'products',
+                element: <AdminProductsManage />
+            }
+        ]
+    },
+    {
+        path: '/admin/login',
+        element: <AdminLogin />
+    },
 ]);
 
 // eslint-disable-next-line react-refresh/only-export-components
