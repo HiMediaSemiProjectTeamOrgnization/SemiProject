@@ -13,7 +13,7 @@ export default function FocusAnalysis({ focusData, focusPattern }) {
     };
 
     const formatDate = (date = "") => {
-        if (!date) return "-";
+        if (!date) return "";
         const [, month, day] = date.split("-");
         return `${month}/${day}`;
     };
@@ -34,6 +34,30 @@ export default function FocusAnalysis({ focusData, focusPattern }) {
         return "늦은 밤 골든타임";
     }
 
+    const trendStyle = (trend) => {
+        switch (trend) {
+            case "increase":
+                return {
+                    bg: "bg-green-50 dark:bg-green-900/20",
+                    border: "border-green-200 dark:border-green-700",
+                    text: "text-green-600 dark:text-green-400"
+                };
+            case "decrease":
+                return {
+                    bg: "bg-red-50 dark:bg-red-900/20",
+                    border: "border-red-200 dark:border-red-700",
+                    text: "text-red-600 dark:text-red-400"
+                };
+            default:
+                return {
+                    bg: "bg-gray-50 dark:bg-slate-800",
+                    border: "border-gray-200 dark:border-slate-700",
+                    text: "text-gray-600 dark:text-gray-300"
+                };
+        }
+    };
+    const style = trendStyle(focusData?.weekly_change?.trend);
+
     return (
         <div className="bg-white dark:bg-slate-900/50 rounded-2xl shadow-md p-6 transition-colors">
             {/* Header */}
@@ -47,11 +71,8 @@ export default function FocusAnalysis({ focusData, focusPattern }) {
             {/* Main Stat Box */}
             <div className="bg-purple-50 dark:bg-purple-900/30 rounded-xl p-6 flex flex-col items-center mb-6 transition-colors">
                 <div className="flex items-end gap-1">
-                    <span className="text-5xl font-bold text-purple-600 dark:text-purple-400">
-                        {focusData?.average_focus_minute}
-                    </span>
-                    <span className="text-xl text-purple-500 dark:text-purple-300">
-                        분
+                    <span className="text-4xl font-bold text-purple-600 dark:text-purple-400">
+                        {formatTime(focusData?.average_focus_minute)}
                     </span>
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
@@ -60,11 +81,7 @@ export default function FocusAnalysis({ focusData, focusPattern }) {
             </div>
 
             {/* Best Record */}
-            <div
-                className="flex justify-between items-center 
-                p-2 bg-gray-50 dark:bg-gray-800 rounded-xl 
-                mb-4 border border-gray-200 dark:border-gray-700 transition-colors"
-            >
+            <div className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-800 rounded-xl  mb-4 border border-gray-200 dark:border-gray-700 transition-colors">
                 <div className="flex items-center gap-2">
                     <FaMedal className="text-purple-500 dark:text-purple-300" />
                     <span className="text-sm text-gray-700 dark:text-gray-300">
@@ -75,28 +92,27 @@ export default function FocusAnalysis({ focusData, focusPattern }) {
                     <p className="text-sm text-gray-700 dark:text-gray-200 font-medium">
                         {formatTime(focusData?.best_record?.minute ?? 0)}
                     </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                    <p className="text-xs text-gray-400 dark:text-gray-500 text-right">
                         {formatDate(focusData?.best_record?.date)}
                     </p>
                 </div>
             </div>
 
             {/* Trend */}
-            <div
-                className="p-2 bg-green-50 dark:bg-green-900/20 rounded-xl 
-                border border-green-200 dark:border-green-700 
-                flex gap-3 transition-colors"
-            >
-                <MdTrendingUp className="text-green-500 dark:text-green-400 text-xl mt-0.5" />
+
+            <div className={`p-2 rounded-xl flex gap-3 transition-colors ${style.bg} ${style.border} border`}>
+                <MdTrendingUp className={`${style.text} text-xl mt-0.5`} />
+
                 <div>
-                    <p className="text-sm text-green-700 dark:text-green-300">
+                    <p className={`${style.text} text-sm`}>
                         {focusData?.message?.analysis}
                     </p>
-                    <p className="text-xs text-green-600 dark:text-green-400">
+                    <p className={`${style.text} text-xs mt-1`}>
                         {focusData?.message?.coaching}
                     </p>
                 </div>
             </div>
+
 
             {/* Divider */}
             <div className="border-b border-gray-200 dark:border-gray-700 my-6" />
@@ -118,13 +134,7 @@ export default function FocusAnalysis({ focusData, focusPattern }) {
             </div>
 
             {/* Best Time */}
-            <div
-                className="p-3 rounded-2xl text-white mb-6 shadow-sm transition-all"
-                style={{
-                    background:
-                        "linear-gradient(135deg, #FFA63B, #FF6A4E)",
-                }}
-            >
+            <div className="p-3 rounded-2xl text-white mb-6 shadow-sm transition-all" style={{ background: "linear-gradient(135deg, #FFA63B, #FF6A4E)", }}>
                 <p className="text-sm opacity-90">베스트 시간</p>
                 <p className="text-2xl font-bold mt-1">{focusPattern?.top_focus_hour?.hour ? `${focusPattern?.top_focus_hour?.hour}시` : "정보없음"}</p>
                 <p className="text-sm mt-1 opacity-90">{returnTimeLabel(focusPattern?.top_focus_hour?.hour)}</p>

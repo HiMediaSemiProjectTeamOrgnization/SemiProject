@@ -11,7 +11,6 @@ export default function StudyTimeSummary({ studyData, changeData }) {
     const monthlyData = studyData.monthly;
     const currentData = mode === "month" ? monthlyData : weeklyData;
 
-
     const formattingHour = (mins) => {
         const h = Math.floor(mins / 60);
         const m = (mins % 60).toFixed(0);
@@ -25,28 +24,6 @@ export default function StudyTimeSummary({ studyData, changeData }) {
         return `${Math.round((focus / total) * 100)}%`;
     }
 
-    const formattingIcon = (trend) => {
-        if (trend === "flat") {
-            return ""
-        } else if (trend === "increase") {
-            return "📈"
-        } else if (trend === "decrease") {
-            return "📉"
-        }
-    }
-
-    const trendColorClass = (trend) => {
-        switch (trend) {
-            case "increase":
-                return "text-green-600 dark:text-green-400";
-            case "decrease":
-                return "text-red-600 dark:text-red-400";
-            case "flat":
-            default:
-                return "text-gray-500 dark:text-gray-400";
-        }
-    };
-
     return (
         <div className="w-full bg-white dark:bg-slate-900/50 rounded-2xl shadow-md p-6 
                         text-gray-800 dark:text-gray-100 transition-colors duration-300">
@@ -59,25 +36,11 @@ export default function StudyTimeSummary({ studyData, changeData }) {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setMode("week")}
-                        className={`px-3 py-1 rounded-lg text-sm font-semibold transition-colors
-                            ${mode === "week"
-                                ? "bg-indigo-500 text-white"
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300"}
-                        `}
-                    >
+                    <button onClick={() => setMode("week")} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-colors ${mode === "week" ? "bg-indigo-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300"} `}>
                         주간
                     </button>
 
-                    <button
-                        onClick={() => setMode("month")}
-                        className={`px-3 py-1 rounded-lg text-sm font-semibold transition-colors
-                            ${mode === "month"
-                                ? "bg-indigo-500 text-white"
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300"}
-                        `}
-                    >
+                    <button onClick={() => setMode("month")} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-colors ${mode === "month" ? "bg-indigo-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300"}`}>
                         월간
                     </button>
                 </div>
@@ -124,8 +87,7 @@ export default function StudyTimeSummary({ studyData, changeData }) {
                     }
 
                     return (
-                        <div
-                            key={idx}
+                        <div key={idx}
                             className="flex flex-col items-center w-12 relative cursor-pointer"
                             onMouseEnter={() => setHoverIdx(idx)}
                             onMouseLeave={() => setHoverIdx(null)}
@@ -180,20 +142,6 @@ export default function StudyTimeSummary({ studyData, changeData }) {
                 })}
 
 
-            </div>
-
-            {/* Footer */}
-            <div className={`mt-4 text-sm flex items-center gap-1 ${trendColorClass(changeData?.trend)}`}>
-                <span>{formattingIcon(changeData?.trend)}</span>
-                <span>
-                    지난주 대비{" "}
-                    <b className="font-semibold">
-                        {changeData?.difference_minute}%
-                        {changeData?.trend === "increase" && " 증가"}
-                        {changeData?.trend === "decrease" && " 감소"}
-                        {changeData?.trend === "flat" && " 유지"}
-                    </b>
-                </span>
             </div>
         </div>
     );

@@ -503,14 +503,18 @@ def check_out(
             if pin is None: raise HTTPException(status_code=400, detail="회원은 PIN 번호 입력이 필요합니다.")
             if member.pin_code != pin: raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
 
-    if not force: 
+    if not force:
         try:
             is_detected, img_path, classes, msg = capture_predict(seat_id, usage.usage_id)
             if is_detected:
                 web_image_url = img_path.replace("\\", "/") if img_path else ""
-                detected_items = ", ".join(classes)
+
+                # [수정 후] 딕셔너리에서 'name' 필드만 추출하여 문자열로 변환
+                item_names = [str(item.get("name", "Unknown")) for item in classes]
+                detected_items = ", ".join(item_names)
+
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail={
                         "code": "DETECTED",
                         "message": f"좌석에 짐({detected_items})이 감지되었습니다.",

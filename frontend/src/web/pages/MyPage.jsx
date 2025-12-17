@@ -21,6 +21,12 @@ function MyPage() {
         const res = await fetch(`/api/web/mypage`, { credentials: 'include' });
         if (res.ok) {
             const data = await res.json();
+            
+            getSeatList(data.user.member_id);
+            getStudySummary(data.user.member_id);
+            getFocusAnlisis(data.user.member_id);
+            getFocusPattern(data.user.member_id);
+
             if (data.todo) {
                 setTodo({
                     "name": data.todo.todo_name,
@@ -29,10 +35,6 @@ function MyPage() {
                     "type": data.todo.todo_type,
                     "achieved": data.todo.is_achieved
                 });
-                getSeatList(data.user.member_id);
-                getStudySummary(data.user.member_id);
-                getFocusAnlisis(data.user.member_id);
-                getFocusPattern(data.user.member_id);
             } else {
                 const res = await fetch(`/api/web/mypage/todo/selected`, { credentials: 'include' });
                 const data = await res.json();
@@ -56,6 +58,7 @@ function MyPage() {
         if (res.ok) {
             const data = await res.json();
             setSeatData(data);
+            // console.log(data);
         }
     }
 
@@ -84,6 +87,7 @@ function MyPage() {
         if (res.ok) {
             const data = await res.json();
             setFocusPattern(data);
+            // console.log(data);
         }
     }
 
