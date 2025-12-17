@@ -1,6 +1,5 @@
-# app/routers/kiosk/kiosk.py
-
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Member, Product, Order, Seat, SeatUsage, MileageHistory, TODO, UserTODO
@@ -37,14 +36,14 @@ def save_base64_image(image_base64: str, seat_id: int, usage_id: int):
         image_bytes = base64.b64decode(image_base64)
         with open(file_path, "wb") as f:
             f.write(image_bytes)
-        # 웹에서 접근 가능한 경로로 반환 (예: /captures/real/...)
+        # 웹에서 접근 가능한 경로로 반환
         return f"/{CAPTURE_DIR}/{filename}" 
     except Exception as e:
         print(f"[Error] Image save failed: {e}")
         return None
 
 # ------------------------
-# [Helper] AI 예측 요청 함수
+# [Helper] AI 예측 요청 함수 (퇴실용)
 # ------------------------
 def capture_predict(seat_id: int, usage_id: int):
     """
@@ -65,7 +64,7 @@ def capture_predict(seat_id: int, usage_id: int):
 
         job_id = res.json().get("job_id", usage_id)
 
-        # 2. 결과 폴링 (최대 3초 대기)
+        # 2. 결과 폴링
         for _ in range(10):
             time.sleep(0.3)
             res_poll = requests.get(f"{CAMERA_SERVER}/camera/lost-item/result/{job_id}", timeout=2)
@@ -90,6 +89,23 @@ def capture_predict(seat_id: int, usage_id: int):
     except Exception as e:
         print(f"[Error] capture_predict failed: {e}")
         return False, None, [], str(e)
+
+# ------------------------
+# [Helper] AI 입실 알림 요청 함수 (NEW)
+# ------------------------
+def trigger_camera_checkin(seat_id: int, usage_id: int):
+    """
+    입실 시 카메라 서버에 알림을 보냅니다.
+    """
+    try:
+        requests.post(
+            f"{CAMERA_SERVER}/camera/checkin",
+            json={"seat_id": seat_id, "usage_id": usage_id},
+            timeout=2
+        )
+    except Exception as e:
+        # 입실은 카메라 오류가 나도 진행되어야 하므로 로그만 남김
+        print(f"[Warning] Camera check-in request failed: {e}")
 
 
 # ------------------------
@@ -121,6 +137,9 @@ def get_or_create_guest(db: Session):
     return new_guest
 
 
+# ------------------------
+# 1) 회원 로그인 (고정석 정보 강화)
+# ------------------------
 @router.post("/auth/member-login")
 def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
     # 1. 회원 조회
@@ -136,7 +155,7 @@ def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
     if member.pin_code != data.pin:
         raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
 
-    # 3. 유효한 기간제 이용권 확인
+    # 3. 유효한 기간제 이용권 보유 여부 확인
     now = datetime.now()
     active_period = db.query(Order).join(Product).filter(
         Order.member_id == member.member_id,
@@ -144,20 +163,19 @@ def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
         Product.type == '기간제'
     ).order_by(Order.period_end_date.desc()).first()
 
+    # [개선] 내 고정석 찾기 로직 강화
     my_fixed_seat_id = None
-    has_period_pass = False
-
     if active_period:
-        has_period_pass = True
-        # [중요] 1순위: 주문 정보에 지정된 고정석 ID가 있는지 확인
+        # 우선순위 1: 주문 정보에 명시된 고정석 ID 확인
         if active_period.fixed_seat_id:
             my_fixed_seat_id = active_period.fixed_seat_id
-        # 2순위: 없다면 과거 이용 기록에서 추적 (기존 회원 호환용)
+        # 우선순위 2: 이용 기록(SeatUsage)에서 최근 사용한 고정석 추적
         else:
             last_fix_usage = db.query(SeatUsage).join(Seat).filter(
                 SeatUsage.member_id == member.member_id,
                 Seat.type == 'fix'
             ).order_by(SeatUsage.check_in_time.desc()).first()
+            
             if last_fix_usage:
                 my_fixed_seat_id = last_fix_usage.seat_id
 
@@ -167,8 +185,8 @@ def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
         "phone": member.phone,
         "saved_time_minute": member.saved_time_minute, 
         "total_mileage": member.total_mileage,
-        "has_period_pass": has_period_pass,
-        "my_fixed_seat_id": my_fixed_seat_id 
+        "has_period_pass": True if active_period else False,
+        "my_fixed_seat_id": my_fixed_seat_id
     }
 
 # ------------------------
@@ -191,7 +209,7 @@ def list_products(db: Session = Depends(get_db)):
     ]
 
 # ------------------------
-# 3) 이용권 구매 (마일리지 사용 기능 추가)
+# 3) 이용권 구매
 # ------------------------
 @router.post("/purchase")
 def purchase_ticket(
@@ -225,13 +243,10 @@ def purchase_ticket(
     if member.total_mileage is None:
         member.total_mileage = 0
 
-    # -------------------------------------------------------
     # 마일리지 사용 로직
-    # -------------------------------------------------------
     if use_mileage > 0:        
         if member.total_mileage < use_mileage:
             raise HTTPException(status_code=400, detail="보유 마일리지가 부족합니다.")
-        
         if use_mileage > product.price:
             raise HTTPException(status_code=400, detail="상품 금액보다 많은 마일리지를 사용할 수 없습니다.")
 
@@ -244,19 +259,14 @@ def purchase_ticket(
         )
         db.add(use_history)
 
-    # -------------------------------------------------------
-    # 최종 결제 금액 및 적립 계산
-    # -------------------------------------------------------
+    # 결제 및 적립
     final_payment_amount = product.price - use_mileage
 
     if member.role != "guest":
-        # 시간 적립
         if product.type == "시간제":
             member.saved_time_minute += product.value * 60
 
-        # 마일리지 적립 (실 결제 금액 기준 10%)
         earned_mileage = final_payment_amount // 10
-        
         if earned_mileage > 0:
             member.total_mileage += earned_mileage
             earn_history = MileageHistory(
@@ -269,7 +279,7 @@ def purchase_ticket(
         db.add(member)
         db.flush() 
 
-    # 4. 주문 생성
+    # 주문 생성
     order = Order(
         member_id=member_id,
         product_id=product_id,
@@ -281,7 +291,6 @@ def purchase_ticket(
     db.commit()
     db.refresh(order)
 
-    # 5. 응답
     response_data = {
         "order_id": order.order_id,
         "product_name": product.name,
@@ -349,7 +358,7 @@ def list_seats(db: Session = Depends(get_db)):
     return results
 
 # ------------------------
-# 5) 입실
+# 5) 입실 (AI 연동 추가)
 # ------------------------
 @router.post("/check-in")
 def check_in(
@@ -421,6 +430,9 @@ def check_in(
     db.commit()
     db.refresh(usage)
 
+    # [NEW] AI 카메라에 입실 알림 전송
+    trigger_camera_checkin(seat_id, usage.usage_id)
+
     return {
         "usage_id": usage.usage_id,
         "check_in_time": usage.check_in_time,
@@ -429,7 +441,7 @@ def check_in(
     }
 
 # ------------------------
-# 6) 퇴실 (AI YOLO 및 Todo 달성 체크)
+# 6) 퇴실 (AI YOLO 및 Todo)
 # ------------------------
 @router.post("/check-out")
 def check_out(
@@ -522,17 +534,12 @@ def check_out(
 
     db.add(usage)
     db.add(member)
-    
-    # [중요] Todo 계산을 위해 현재 usage 정보를 DB에 반영 (Commit 전 Flush)
     db.flush() 
 
-    # ------------------------------------------------------------------
-    # [NEW] 7. Todo 달성 여부 확인 및 처리
-    # ------------------------------------------------------------------
+    # 7. Todo 달성 여부 확인
     todo_results = []
     
     if member.role != "guest":
-        # 진행 중인 Todo 조회
         active_todos = db.query(UserTODO).join(TODO).filter(
             UserTODO.member_id == member.member_id,
             UserTODO.is_achieved == False
@@ -543,9 +550,7 @@ def check_out(
             is_cleared = False
             current_val = 0
             
-            # (A) 목표 타입: 시간 (time) - 누적 학습 시간(분)
             if todo_def.todo_type == 'time':
-                # 목표 시작일 이후의 총 이용 시간 합산 (현재 세션 포함)
                 total_seconds = db.query(func.sum(
                     func.extract('epoch', SeatUsage.check_out_time - SeatUsage.check_in_time)
                 )).filter(
@@ -554,13 +559,11 @@ def check_out(
                     SeatUsage.check_in_time >= user_todo.started_at
                 ).scalar() or 0
                 
-                current_val = int(total_seconds / 60) # 분 단위 변환
+                current_val = int(total_seconds / 60)
                 if current_val >= todo_def.todo_value:
                     is_cleared = True
 
-            # (B) 목표 타입: 출석 (attendance) - 누적 출석 일수
             elif todo_def.todo_type == 'attendance':
-                # 목표 시작일 이후 출석 인정된(is_attended=True) 날짜 수 (중복 제거)
                 attend_count = db.query(func.count(distinct(cast(SeatUsage.check_in_time, Date)))).filter(
                     SeatUsage.member_id == member.member_id,
                     SeatUsage.is_attended == True,
@@ -571,13 +574,11 @@ def check_out(
                 if current_val >= todo_def.todo_value:
                     is_cleared = True
 
-            # (C) 달성 처리 및 보상 지급
             reward_amount = 0
             if is_cleared:
                 user_todo.is_achieved = True
                 user_todo.achieved_at = now
                 
-                # 보상 계산: 베팅금액 + (베팅금액 * 페이백%)
                 payback_rate = 1 + (todo_def.payback_mileage_percent / 100.0)
                 reward_amount = int(todo_def.betting_mileage * payback_rate)
                 
@@ -589,7 +590,6 @@ def check_out(
                         type="prize"
                     ))
             
-            # 결과 리스트에 추가
             todo_results.append({
                 "title": todo_def.todo_title,
                 "type": todo_def.todo_type,
@@ -599,7 +599,6 @@ def check_out(
                 "reward_amount": reward_amount
             })
 
-    # 최종 커밋
     db.commit()
     db.refresh(usage)
 
@@ -613,3 +612,37 @@ def check_out(
         "already_attended": already_attended,
         "todo_results": todo_results
     }
+
+# ------------------------
+# [NEW] AI로부터 시간 업데이트 수신 (AI Router 병합)
+# ------------------------
+@router.post("/checktime")
+def checktime_seat(payload: dict = Body(...), db: Session = Depends(get_db)):
+    """
+    AI 카메라 서버에서 계산된 실제 착석 시간을 DB에 업데이트합니다.
+    """
+    seat_id = payload.get("seat_id")
+    usage_id = payload.get("usage_id")
+    minutes = payload.get("minutes", 0)
+
+    try:
+        seatusage = db.query(SeatUsage).filter(
+            SeatUsage.usage_id == int(usage_id), 
+            SeatUsage.seat_id == int(seat_id)
+        ).first()
+        
+        if not seatusage:
+            raise HTTPException(status_code=404, detail="SeatUsage not found")
+
+        current = seatusage.total_in_time or 0
+        seatusage.total_in_time = current + int(minutes)
+
+        db.commit()
+        db.refresh(seatusage)
+
+        return {"status": True, "message": "Success"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"예기치 않은 오류: {e}")
