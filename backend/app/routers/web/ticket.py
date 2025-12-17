@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from database import get_db, SessionLocal
 from datetime import datetime, timedelta
-from models import Product, Member, Order, Seat, MileageHistory
+from models import Product, Member, Order, Seat, MileageHistory, SeatUsage
 from utils.auth_utils import get_cookies_info
 from typing import Optional
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -45,19 +45,34 @@ def start_scheduler():
     scheduler.add_job(reset_seat_status, 'cron', hour=0, minute=0)
     scheduler.start()
 
-# ===== 로그인 사용자 정보 가져오기 =====
+# ===== 로그인 사용자 정보 가져오기 (수정함) =====
 @router.get("/me")
 def getMemberInfo(token = Depends(get_cookies_info), db: Session = Depends(get_db)):
-    """로그인한 사용자 정보 가져오는 로직"""
-    
+    """로그인한 사용자 정보 및 계정 상태 가져오기"""
+
     id = token["member_id"]
     result = db.query(Member).filter(Member.member_id == id).filter(Member.is_deleted_at == False).first()
 
+    if not result:
+        return None # 또는 404 에러 처리
+
+    # 1. 비밀번호 보유 여부 확인 (NULL이거나 빈 문자열이면 False)
+    has_password = True if result.password else False
+
+    # 2. 소셜 연동 상태 확인 (각 컬럼에 ID가 있으면 연동된 것)
+    social_connected = {
+        "kakao": bool(result.kakao_id),
+        "naver": bool(result.naver_id),
+        "google": bool(result.google_id)
+    }
+
     user = {
-        "email" : result.email,
-        "phone" : result.phone,
-        "name" : result.name,
-        "total_mileage" : result.total_mileage
+        "email": result.email,
+        "phone": result.phone,
+        "name": result.name,
+        "total_mileage": result.total_mileage,
+        "has_password": has_password,
+        "social_connected": social_connected
     }
 
     return user
@@ -67,8 +82,52 @@ def getMemberInfo(token = Depends(get_cookies_info), db: Session = Depends(get_d
 @router.get("/seat")
 def getSeatStatus(db: Session = Depends(get_db)):
     """좌석현황 조회"""
-    seat = db.query(Seat).order_by(Seat.seat_id).all()
-    return seat
+    seats = db.query(Seat).order_by(Seat.seat_id).all()
+    
+    result = []
+    now = datetime.now()
+
+    for seat in seats:
+        seat_info = {
+            "seat_id": seat.seat_id,
+            "type": seat.type,
+            "is_status": seat.is_status,
+            "near_window": seat.near_window,
+            "corner_seat": seat.corner_seat,
+            "aisle_seat": seat.aisle_seat,
+            "isolated": seat.isolated,
+            "near_beverage_table": seat.near_beverage_table,
+            "is_center": seat.is_center,
+            "user_name": None,
+            "remaining_time": 0
+        }
+
+        if not seat.is_status:
+            usage = db.query(SeatUsage).filter(
+                SeatUsage.seat_id == seat.seat_id,
+                SeatUsage.check_out_time == None
+            ).first()
+
+            if usage:
+                seat_info["user_name"] = "사용중"
+                
+                if usage.ticket_expired_time:
+                    diff = usage.ticket_expired_time - now
+                    if diff.total_seconds() > 0:
+                        seat_info["remaining_time"] = int(diff.total_seconds() / 60)
+            
+            if not seat_info["user_name"]:
+                order = db.query(Order).filter(
+                    Order.fixed_seat_id == seat.seat_id,
+                    Order.period_end_date >= now.date()
+                ).order_by(Order.order_id.desc()).first()
+                
+                if order:
+                    seat_info["user_name"] = "사용중"
+
+        result.append(seat_info)
+
+    return result
 
 # 좌석별 종료시간 조회
 @router.get("/seat/endtime/{id}")
@@ -89,7 +148,7 @@ def getTicketList(db: Session = Depends(get_db)):
     """이용권 목록 조회로직"""
 
     # is_exposured 컬럼이 False인 데이터는 조회 X
-    tickets = db.query(Product).filter(Product.is_exposured).all()
+    tickets = db.query(Product).filter(Product.is_exposured).order_by(Product.value).all()
 
     return tickets
 

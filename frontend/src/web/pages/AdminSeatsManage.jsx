@@ -78,6 +78,33 @@ export default function AdminSeatsManage() {
     }
   };
 
+  // 강제 퇴실 핸들러
+  const handleForceCheckout = async () => {
+      if (!selectedMember) return;
+      
+      const confirmMsg = `${selectedMember.name} 님을 강제 퇴실 처리하시겠습니까?\n(진행 중인 사용이 즉시 종료됩니다.)`;
+      if (!window.confirm(confirmMsg)) return;
+
+      try {
+          const response = await fetch(`/api/admin/members/${selectedMember.member_id}/checkout`, {
+              method: 'POST',
+              credentials: "include"
+          });
+          
+          if (response.ok) {
+              alert("퇴실 처리되었습니다.");
+              setIsModalOpen(false); // 모달 닫기
+              fetchSeats(); // 좌석 데이터 새로고침
+          } else {
+              const err = await response.json();
+              alert(err.detail || "퇴실 처리 실패");
+          }
+      } catch (error) {
+          console.error("Error:", error);
+          alert("서버 통신 오류");
+      }
+  };
+
   const handleSavePhone = async () => {
       if (!selectedMember) return;
       if (!editPhone.trim()) { alert("전화번호를 입력해주세요."); return; }
@@ -371,6 +398,7 @@ export default function AdminSeatsManage() {
                       </div>
                   </div>
                   <div className="p-5 border-t border-slate-700 bg-slate-800/50 flex gap-3">
+                      <button onClick={handleForceCheckout} className="px-4 py-2.5 bg-red-500/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/50 rounded-lg transition-colors font-bold whitespace-nowrap">강제 퇴실</button>
                       <button onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors font-medium">닫기</button>
                       <button onClick={handleSavePhone} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-bold shadow-lg">저장</button>
                   </div>

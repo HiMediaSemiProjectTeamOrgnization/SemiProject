@@ -108,7 +108,12 @@ const Planner = () => {
             });
 
             const data = response.data;
-            setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: data.message }]);
+            setMessages(prev => [...prev, {
+                id: Date.now() + 1,
+                sender: 'ai',
+                text: data.message,
+                searchResults: data.search_results // 백엔드에서 받은 객체 저장
+            }]);
 
             // ★ 핵심: AI가 데이터를 건드렸다면(create/update/delete),
             // 프론트에서 복잡하게 계산하지 말고 DB에서 최신본을 다시 긁어옵니다.
@@ -449,8 +454,51 @@ const Planner = () => {
 
                         <div ref={chatContainerRef} className="flex-1 p-4 overflow-y-auto bg-slate-50 dark:bg-slate-900/50 custom-scrollbar">
                             {messages.map(m => (
-                                <div key={m.id} className={`mb-2 flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    <span className={`px-4 py-3 rounded-2xl text-sm max-w-[80%] ${m.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-md' : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 rounded-tl-md'}`}>{m.text}</span>
+                                <div key={m.id} className={`mb-4 flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
+
+                                    {/* 1. 텍스트 말풍선 */}
+                                    <div className={`px-4 py-3 rounded-2xl text-sm max-w-[85%] whitespace-pre-wrap shadow-sm 
+                                    ${m.sender === 'user'
+                                        ? 'bg-indigo-600 text-white rounded-tr-sm'
+                                        : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 rounded-tl-sm'
+                                    }`}>
+                                        {m.text}
+                                    </div>
+
+                                    {/* 2. 검색 결과 카드 리스트 (여러 개 렌더링 가능) */}
+                                    {m.sender === 'ai' && m.searchResults && m.searchResults.length > 0 && (
+                                        <div className="mt-2 w-[85%] flex flex-col gap-2">
+                                            {m.searchResults.map((result, idx) => {
+                                                // [색상 수정] 회원님의 colors 객체에서 배경색 코드만 추출
+                                                // AI가 뱉은 color가 colors 객체에 없으면 기본값 'blue' 사용
+                                                const colorKey = colors[result.color] ? result.color : 'blue';
+                                                // "bg-[#00aaff] border ..." 문자열에서 첫 번째 클래스("bg-[#00aaff]")만 가져옴
+                                                const bgColorClass = colors[colorKey].split(' ')[0];
+
+                                                return (
+                                                    <div key={idx} className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-indigo-100 dark:border-slate-600 shadow-md animate-in slide-in-from-left-2">
+                                                        <div className="flex items-start gap-3">
+                                                            {/* 왼쪽 컬러 바 */}
+                                                            <div className={`w-1.5 h-10 rounded-full ${bgColorClass}`}></div>
+
+                                                            <div className="flex-1 min-w-0">
+                                                                <h4 className="font-bold text-slate-800 dark:text-white text-base truncate">
+                                                                    {result.title}
+                                                                </h4>
+                                                                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                                                    <Icons.Calendar />
+                                                                    <span>{result.schedule_date}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 font-bold mt-1 bg-indigo-50 dark:bg-indigo-900/30 w-fit px-2 py-1 rounded-md">
+                                                                    <span>{result.start_time?.slice(0,5)} - {result.end_time?.slice(0,5)}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                             {isAiProcessing && (

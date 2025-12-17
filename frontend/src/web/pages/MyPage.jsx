@@ -7,12 +7,15 @@ import TodoProgress from "../components/TodoProgress";
 import TodoModal from "../components/TodoModal";
 
 function MyPage() {
-    const location = useLocation();
     const navigate = useNavigate();
 
     const [todo, setTodo] = useState({});
     const [todoList, setTodoList] = useState([]);
     const [showTodoModal, setShowTodoModal] = useState(false);
+    const [seatData, setSeatData] = useState("");
+    const [studyData, setStudyData] = useState("");
+    const [focusData, setFocusData] = useState("");
+    const [focusPattern, setFocusPattern] = useState("");
 
     const loginCheck = async () => {
         const res = await fetch(`/api/web/mypage`, { credentials: 'include' });
@@ -22,8 +25,14 @@ function MyPage() {
                 setTodo({
                     "name": data.todo.todo_name,
                     "target_value": data.todo.target_value,
-                    "current_value": data.todo.current_value
+                    "current_value": data.todo.current_value,
+                    "type": data.todo.todo_type,
+                    "achieved": data.todo.is_achieved
                 });
+                getSeatList(data.user.member_id);
+                getStudySummary(data.user.member_id);
+                getFocusAnlisis(data.user.member_id);
+                getFocusPattern(data.user.member_id);
             } else {
                 const res = await fetch(`/api/web/mypage/todo/selected`, { credentials: 'include' });
                 const data = await res.json();
@@ -40,6 +49,44 @@ function MyPage() {
     useEffect(() => {
         loginCheck();
     }, []);
+
+    const getSeatList = async (user_id) => {
+        const res = await fetch(`/api/statics/seats?member_id=${user_id}`, { credentials: 'include' });
+
+        if (res.ok) {
+            const data = await res.json();
+            setSeatData(data);
+        }
+    }
+
+    const getStudySummary = async (user_id) => {
+        const res = await fetch(`/api/statics/times?member_id=${user_id}`, { credentials: 'include' });
+
+        if (res.ok) {
+            const data = await res.json();
+            setStudyData(data);
+            console.log(data);
+        }
+    }
+
+    const getFocusAnlisis = async (user_id) => {
+        const res = await fetch(`/api/statics/seat/analysis?member_id=${user_id}`, { credentials: 'include' });
+
+        if (res.ok) {
+            const data = await res.json();
+            setFocusData(data);
+            console.log(data);
+        }
+    }
+    const getFocusPattern = async (user_id) => {
+        const res = await fetch(`/api/statics/seat/pattern?member_id=${user_id}`, { credentials: 'include' });
+
+        if (res.ok) {
+            const data = await res.json();
+            setFocusPattern(data);
+        }
+    }
+
 
 
     useEffect(() => {
@@ -76,7 +123,7 @@ function MyPage() {
             </div>
 
             {!showTodoModal && (
-                <TodoProgress todo={todo.name} goalMinutes={todo.target_value} totalMinutes={todo.current_value} />
+                <TodoProgress todo={todo} />
             )}
 
             {/* Background Section */}
@@ -85,13 +132,18 @@ function MyPage() {
 
                     {/* LEFT 2 columns */}
                     <div className="col-span-2 flex flex-col gap-6">
-                        <StudyTimeSummary />
-                        <SeatAnalysis />
+                        <StudyTimeSummary studyData={studyData} changeData={focusData.weekly_change} />
+                        <SeatAnalysis
+                            topSeats={seatData?.frequently_seat_use ?? []}
+                            message={seatData?.message}
+                            preferences={seatData?.seat_attr}
+                        />
+
                     </div>
 
                     {/* RIGHT 1 column */}
                     <div className="col-span-1 flex flex-col gap-6">
-                        <FocusAnalysis />
+                        <FocusAnalysis focusData={focusData} focusPattern={focusPattern} />
                     </div>
                 </div>
             </div>

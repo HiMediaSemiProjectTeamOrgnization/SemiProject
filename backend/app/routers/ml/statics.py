@@ -8,7 +8,7 @@ from models import Member, Seat, SeatUsage
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 
-router = APIRouter(prefix="/statics", tags=["Statistics services"])
+router = APIRouter(prefix="/api/statics", tags=["Statistics services"])
 
 MIN_VALID_MEMBER_ID = 3
 

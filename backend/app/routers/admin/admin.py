@@ -143,14 +143,25 @@ def get_members(
         .subquery()
     )
 
+    active_seat_subquery = (
+        db.query(
+            SeatUsage.member_id,
+            SeatUsage.seat_id.label("current_seat_id")
+        )
+        .filter(SeatUsage.check_out_time == None)
+        .subquery()
+    )
+
     query = (
         db.query(
             Member, 
             func.coalesce(usage_subquery.c.total_usage_minutes, 0).label("total_usage_minutes"),
-            func.coalesce(todo_count_subquery.c.active_todo_count, 0).label("active_todo_count") 
+            func.coalesce(todo_count_subquery.c.active_todo_count, 0).label("active_todo_count"),
+            active_seat_subquery.c.current_seat_id
         )
         .outerjoin(usage_subquery, Member.member_id == usage_subquery.c.member_id)
         .outerjoin(todo_count_subquery, Member.member_id == todo_count_subquery.c.member_id) 
+        .outerjoin(active_seat_subquery, Member.member_id == active_seat_subquery.c.member_id)
         .filter(Member.member_id.notin_([1, 2]))
     )
 
@@ -168,7 +179,7 @@ def get_members(
     results = query.order_by(Member.created_at.desc()).all()
     
     response = []
-    for member, usage_min, todo_count in results:
+    for member, usage_min, todo_count, seat_id in results:
         response.append(MemberAdminResponse(
             member_id=member.member_id,
             name=member.name,
@@ -181,10 +192,49 @@ def get_members(
             created_at=member.created_at,
             is_deleted_at=bool(member.is_deleted_at) if member.is_deleted_at is not None else False,
             total_usage_minutes=int(usage_min) if usage_min else 0,
-            active_todo_count=int(todo_count) if todo_count else 0
+            active_todo_count=int(todo_count) if todo_count else 0,
+            current_seat_id=seat_id
         ))
         
     return response
+
+@router.post("/members/{member_id}/checkout")
+def force_checkout_member(
+    member_id: int,
+    db: Session = Depends(get_db)
+):
+    # 1. 현재 입실 중인 기록 찾기
+    usage = db.query(SeatUsage).filter(
+        SeatUsage.member_id == member_id,
+        SeatUsage.check_out_time == None
+    ).first()
+
+    if not usage:
+        raise HTTPException(status_code=400, detail="현재 입실 중인 회원이 아닙니다.")
+    
+    seat = db.query(Seat).filter(Seat.seat_id == usage.seat_id).first()
+    member = db.query(Member).filter(Member.member_id == member_id).first()
+    
+    now = datetime.now()
+    
+    # 2. 이용 시간 차감 계산 (시간제 이용권일 경우만)
+    # (고정석/기간제는 시간 차감이 필요 없으나, 로직에 따라 추가 가능)
+    if seat and seat.type != "fix" and member.role != "guest":
+        time_used = now - usage.check_in_time
+        time_used_minutes = int(time_used.total_seconds() / 60)
+        
+        member.saved_time_minute -= time_used_minutes
+        if member.saved_time_minute < 0:
+            member.saved_time_minute = 0
+            
+    # 3. 퇴실 처리 및 좌석 상태 변경
+    usage.check_out_time = now
+    if seat:
+        seat.is_status = True # 좌석 활성화 (비어있음)
+
+    db.commit()
+    
+    return {"message": "강제 퇴실 처리되었습니다."}
 
 @router.put("/members/{member_id}/phone")
 def update_member_phone(

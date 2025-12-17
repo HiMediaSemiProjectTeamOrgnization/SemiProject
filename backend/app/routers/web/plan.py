@@ -1,7 +1,7 @@
 import os
 import requests
 from zoneinfo import ZoneInfo
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from typing import List, Optional
 from fastapi import Depends, APIRouter, HTTPException
 from sqlalchemy.orm import Session
@@ -26,7 +26,41 @@ apikey = os.getenv("OPENAI_API_KEY")
 KST = ZoneInfo("Asia/Seoul")
 
 # ------------------------------------------------------------------
-# [Helper] 24:00 처리 및 시간 변환기 (핵심 수정 사항)
+# [Helper] 소요 시간 텍스트 생성기 (예: "2시간 30분")
+# ------------------------------------------------------------------
+def get_duration_text(start: time, end: time) -> str:
+    """
+    time 객체 두 개를 받아서 'X시간 Y분' 형태의 문자열로 반환
+    벡터 검색 시 '10시간 공부' 같은 쿼리에 걸리게 하기 위함
+    """
+    if not start or not end:
+        return ""
+
+    # datetime으로 변환하여 차이 계산 (임의의 날짜 사용)
+    dummy_date = datetime(2000, 1, 1).date()
+    dt_start = datetime.combine(dummy_date, start)
+    dt_end = datetime.combine(dummy_date, end)
+
+    # 종료 시간이 시작 시간보다 빠르면(자정 넘김) 하루 추가
+    if dt_end < dt_start:
+        dt_end += timedelta(days=1)
+
+    diff = dt_end - dt_start
+    total_minutes = int(diff.total_seconds() / 60)
+
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+
+    result = []
+    if hours > 0:
+        result.append(f"{hours}시간")
+    if minutes > 0:
+        result.append(f"{minutes}분")
+
+    return " ".join(result) if result else "0분"
+
+# ------------------------------------------------------------------
+# [Helper] 24:00 처리 및 시간 변환기
 # ------------------------------------------------------------------
 def safe_parse_time(time_str: str) -> Optional[time]:
     """
@@ -37,13 +71,12 @@ def safe_parse_time(time_str: str) -> Optional[time]:
     if time_str == "24:00":
         return time(23, 59, 59)
     try:
-        # HH:MM 또는 HH:MM:SS 처리
         if len(time_str.split(":")) == 2:
             return datetime.strptime(time_str, "%H:%M").time()
         else:
             return datetime.strptime(time_str, "%H:%M:%S").time()
     except ValueError:
-        return time(0, 0) # 파싱 실패 시 기본값 00:00
+        return time(0, 0)
 
 # ------------------------------------------------------------------
 # 토큰 교환 함수
@@ -66,7 +99,7 @@ def get_copilot_token(github_token: str):
 # ------------------------------------------------------------------
 # [Helper] Context Injection
 # ------------------------------------------------------------------
-def get_recent_chat_history(db: Session, member_id: int, limit: int = 10):
+def get_recent_chat_history(db: Session, member_id: int, limit: int = 20):
     logs = db.query(AIChatLog).filter(AIChatLog.member_id == member_id) \
         .order_by(AIChatLog.created_at.desc()).limit(limit).all()
     logs.reverse()
@@ -82,7 +115,7 @@ def get_recent_chat_history(db: Session, member_id: int, limit: int = 10):
 # ------------------------------------------------------------------
 # [Helper] 벡터 검색
 # ------------------------------------------------------------------
-def search_similar_events(db: Session, member_id: int, query_vector: list, limit: int = 5):
+def search_similar_events(db: Session, member_id: int, query_vector: list, limit: int = 20):
     title_dist = ScheduleEvent.title_embedding.cosine_distance(query_vector)
     desc_dist = func.coalesce(
         ScheduleEvent.description_embedding.cosine_distance(query_vector),
@@ -102,8 +135,13 @@ def search_similar_events(db: Session, member_id: int, query_vector: list, limit
     for idx, ev in enumerate(results):
         start_str = ev.start_time.strftime("%H:%M")
         end_str = ev.end_time.strftime("%H:%M")
+
+        # [수정] Context에 시간 소요 정보(duration) 추가
+        duration_info = get_duration_text(ev.start_time, ev.end_time)
+
         context_str += (
-            f"ID:{idx+1} | Date:{ev.schedule_date} | Time:{start_str}~{end_str} | Title:{ev.title} | Desc:{ev.description or 'None'}\n"
+            f"ID:{idx+1} | Date:{ev.schedule_date} | Time:{start_str}~{end_str} ({duration_info}) | "
+            f"Color:{ev.color} | Title:{ev.title} | Desc:{ev.description or 'None'}\n"
         )
 
     return context_str if context_str else "검색된 관련 일정이 없습니다."
@@ -129,7 +167,7 @@ async def process_chat_request(
 
     llm = ChatOpenAI(
         api_key=real_access_token,
-        model="gpt-4.1", # 모델명 확인 필요
+        model="gpt-4.1",
         base_url=baseurl,
         temperature=0,
         default_headers={
@@ -140,16 +178,13 @@ async def process_chat_request(
         }
     )
 
-    # [수정] AI에게 날짜와 시간을 모두 알려주기 위해 포맷 변경
     now_dt = datetime.now(KST)
-    today_str = now_dt.strftime("%Y-%m-%d")        # 날짜
-    current_time_str = now_dt.strftime("%H:%M")    # 시간
+    today_str = now_dt.strftime("%Y-%m-%d")
+    current_time_str = now_dt.strftime("%H:%M")
 
     # ------------------------------------------------------------------
-    # [Step 1] Router
+    # Router
     # ------------------------------------------------------------------
-    # 프롬프트 유지를 원하셔서 {today}에 시간 정보를 병기하거나, 별도 변수로 주입합니다.
-    # 여기서는 프롬프트 텍스트를 최소한으로 건드려 {current_time}을 추가합니다.
     router_system = """
     당신은 스터디 플래너의 분류기입니다. 
     오늘 날짜: {today}
@@ -186,7 +221,7 @@ async def process_chat_request(
         search_query = router_res.get("search_query", "")
 
         # ------------------------------------------------------------------
-        # [Step 2] Vector Search
+        # Vector Search
         # ------------------------------------------------------------------
         found_context = ""
         if decision == "search" and search_query:
@@ -194,8 +229,9 @@ async def process_chat_request(
             found_context = search_similar_events(db, member_id, query_vec)
 
         # ------------------------------------------------------------------
-        # [Step 3] Solver
+        # Solver
         # ------------------------------------------------------------------
+        # 프롬프트는 요청하신 대로 제공해주신 원본 그대로 유지합니다.
         solver_system = """
         당신은 친절하고 똑똑한 스터디 플래너 AI입니다. 
         오늘 날짜: {today}
@@ -206,57 +242,73 @@ async def process_chat_request(
         [핵심 답변 원칙]
         1. <database_context>에 정보가 있다면 그것을 최우선으로 사용하여 답변하세요.
         2. <database_context>가 비어있더라도 무조건 "없다"고 답변하지 마세요. 
-           - 만약 사용자가 **"이전 답변의 근거(어떻게 알았어?, 왜?, 진짜야?)"**를 묻는다면, **대화 기록(chat_history)**을 참고하여 답변하세요.
-           - 예: "방금 DB에서 검색된 기록을 바탕으로 말씀드린 것입니다." 라고 설명.
+           - 만약 사용자가 **"이전 답변의 근거"**를 묻는다면, **대화 기록(chat_history)**을 참고하여 답변하세요.
         3. DB에는 24:00를 넣을 수 없습니다. '23:59' 또는 다음날 '00:00'로 바꾸세요.
-        4. DB를 조작했으면 ~하겠습니다가 아닌 ~했습니다 라고 대답하세요 이래야 조작을 했단걸 명확히 사용자에게 알려줄 수 있어요.
+        4. DB를 조작했으면 ~하겠습니다가 아닌 ~했습니다 라고 대답하세요.
         
         <database_context>
         {context}
         </database_context>
         
         [행동 분류 및 규칙]
-        1. 사용자의 입력이 과거 기록에 대한 질문이면, 위 <past_records>를 참고하여 대답하세요.
-        2. 사용자의 입력이 새로운 일정 생성/수정/삭제라면, 해당 명령만 수행하세요.
-        3. 과거 기록에 있는 내용이 사용자의 현재 요청과 무관하다면 무시하세요.
         - 'create': 일정 생성. (events 배열에 여러 개 담기)
-        - 'update': 일정 수정. (한 번에 하나만 수정 권장)
+        - 'update': 일정 수정. (여러 일정 동시 수정 가능)
         - 'delete': 일정 삭제. (events 배열에 삭제할 대상들을 담기)
         - 'chat': 일반 대화.
 
-        [삭제(delete) 규칙]
-        - 단일건 뿐만 아니라 여러개 삭제 가능함
-        - "14일, 15일 다 지워줘" -> events에 2개의 객체를 담을 것.
-        - 특정 제목만 지우라면 title을 명시, 날짜 전체 삭제면 title은 null.
+        [삭제(delete) 규칙 - 중요]
+        1. **전체 삭제 요청 시**: 사용자가 "모든 일정 삭제", "전체 삭제", "싹 다 지워줘" 등을 요청하면 **`delete_mode`를 "all"로 설정**하고 `events` 배열은 비워두세요. 
+        (Context에 일정이 없어도 실행해야 함)
+        2. **부분 삭제 요청 시**: `delete_mode`는 "specific"으로 설정하고 `events` 배열에 삭제 대상을 넣으세요.
         
-        [제약 사항]
-        - 10일 이상 요청 시 9일까지만 생성하고 메시지로 안내.
-        - 수정/삭제 시 검색 결과에 있는 날짜와 제목을 정확히 사용.
-        - 신규 생성(create) 시에만 색깔을 파란색, 초록색, 노란색, 빨간색 중에서 랜덤으로 선택하세요.
-        - 만약 사용자가 한꺼번에 일정을 수정하라 하려하면 일정 수정은 한번에 하나씩만 된다는식으로 알려줘야함
+        [매우 중요한 규칙 - 수정(update) 시]
+        1. **여러 일정을 한 번에 수정할 수 있습니다.**
+        2. **수정 대상 찾기**: events 배열에 `original_title`, `original_date`를 포함하세요.
+        3. **변경 내용 적용(중요)**: 
+           - 사용자가 구체적으로 변경을 요청한 필드만 새 값을 넣으세요.
+           - **사용자가 언급하지 않은 필드(색상, 설명, 시간 등)는 반드시 `null`로 보내세요.**
+           - **절대로 임의로 'blue' 등의 기본값을 채우지 마세요.**
+        4. 사용자가 시간을 말하지 않았다면 절대로 임의로 시간을 바꾸지 마세요.
 
-        [매우 중요한 규칙]
-        1. **수정(update) 시**: 사용자가 변경을 요청한 부분(예: 제목)만 바꾸고, **나머지(날짜, 시작/종료 시간, 설명, 색상 등)는 <database_context>의 값을 그대로 events 배열에 넣으세요.**
-        2. 사용자가 시간을 말하지 않았다면 절대로 임의로 시간을 바꾸지 마세요. context의 시간 그대로 유지하세요.
-        3. 만약 context에 정보가 없어서 알 수 없다면 해당 필드는 json에서 null로 보내세요.
-        4. 사용자가 모호하게 가령 수학 일정 지워줘라하면 수학 일정 다 지우는게 아니라 어떤 수학 일정을 지울지 물어보면서 수학 일정 리스트를 보여주세요.
+        [제약 사항]
+        - 수정/삭제 시 검색 결과에 있는 날짜와 제목을 정확히 사용.
+        - 신규 생성 시 색깔을 랜덤으로 선택하고, 랜덤으로 n개 이상 생성같은 비슷한 지시가 있으면 1시간 단위로 일정을 생성 하세요.
+        - 정보가 불충분하여 대상을 찾을 수 없다면 사용자에게 질문하세요.
+        
+        # ▼ [추가] 검색(Search) 규칙
+        - 사용자가 특정 조건(예: 가장 긴 공부, 특정 날짜 일정 등)을 검색 요청했을 때,
+          조건에 맞는 일정을 찾았다면 그 상세 정보를 `search_results` 필드에 담아서 보내세요.
+          이때 `type`은 'chat'으로 유지하세요.
+        - 만약 일정을 찾지 못하면 search_results에 null을 반환하세요.
+        - 조건에 맞는 일정을 찾았으면 해당 일정의 색상을 search_results의 color에 반영해주세요.
 
         [JSON 포맷]
         {{
             "type": "create" | "update" | "delete" | "chat",
+            "delete_mode": "specific" | "all",
             "message": "사용자에게 할 말",
+            "search_results": [
+                {{ 
+                    "event_id": 0 (모르면 0),
+                    "title": "제목",
+                    "schedule_date": "YYYY-MM-DD",
+                    "start_time": "HH:MM",
+                    "end_time": "HH:MM",
+                    "color": "blue" | "green" | "yellow" | "red",
+                }}
+            ],
             "events": [
                 {{
-                    "title": "제목",
-                    "date": "YYYY-MM-DD (모르면 null)",
-                    "start": "HH:MM (모르면 null)",
-                    "end": "HH:MM (모르면 null)",
+                    "original_title": "수정 대상 원본 제목 (update시 필수, 그외 null)",
+                    "original_date": "수정 대상 원본 날짜 (update시 필수, 그외 null)",
+                    "title": "제목 (신규 생성 혹은 수정 후 제목)",
+                    "date": "YYYY-MM-DD (신규 생성 혹은 수정 후 날짜)",
+                    "start": "HH:MM",
+                    "end": "HH:MM",
                     "color": "blue" | "green" | "yellow" | "red",
                     "description": "내용"
                 }}
-            ],
-            "target_date": "YYYY-MM-DD (수정 대상 원본 날짜, 모르면 null)",
-            "target_title": "수정 대상 원본 제목 (없으면 null)"
+            ]
         }}
         """
 
@@ -275,10 +327,22 @@ async def process_chat_request(
         })
 
         res_type = ai_result.get("type", "chat")
+        delete_mode = ai_result.get("delete_mode", "specific")
         ai_msg = ai_result.get("message", "")
         events_data = ai_result.get("events", [])
-        target_date_str = ai_result.get("target_date")
-        target_title = ai_result.get("target_title")
+        search_results_raw = ai_result.get("search_results", [])
+        final_search_results = []
+
+        if search_results_raw and isinstance(search_results_raw, list):
+            for item in search_results_raw:
+                final_search_results.append(EventResponse(
+                    event_id=item.get('event_id', 0),
+                    title=item.get('title', ''),
+                    schedule_date=item.get('schedule_date') or today_str,
+                    start_time=item.get('start_time', '00:00'),
+                    end_time=item.get('end_time', '00:00'),
+                    color=item.get('color', 'blue')
+                ))
 
         # ------------------------------------------------------------------
         # [Step 4] DB 트랜잭션
@@ -295,26 +359,18 @@ async def process_chat_request(
             for ev in events_data:
                 try:
                     s_date = datetime.strptime(ev['date'], "%Y-%m-%d").date()
-
                     temp_start = safe_parse_time(ev.get('start'))
                     temp_end = safe_parse_time(ev.get('end'))
 
-                    # 시작 시간이 없으면, 자동 증가 변수(next_default_hour) 사용
                     if temp_start is None:
-                        # 23시 넘어가면 09시로 초기화 하거나 23시로 고정
                         if next_default_hour >= 24:
                             next_default_hour = 9
-
                         s_start = time(next_default_hour, 0)
-
-                        # 다음 루프때는 1시간 뒤로 잡히도록 증가
                         next_default_hour += 1
                     else:
                         s_start = temp_start
-                        # 만약 사용자가 시간을 명시했다면, 다음 기본 시간은 그 이후로 설정
                         next_default_hour = s_start.hour + 1
 
-                    # 종료 시간 설정 (시작 시간 + 1시간)
                     if temp_end is None:
                         end_h = s_start.hour + 1
                         if end_h >= 24:
@@ -325,12 +381,19 @@ async def process_chat_request(
                         s_end = temp_end
 
                 except (ValueError, TypeError) as e:
-                    # 필수 값이 없으면 스킵
                     print(f"Date/Time Parse Error: {e}")
                     continue
 
+                # 임베딩에 시간/소요시간 정보 포함 (Semantic Search 강화)
+                duration_str = get_duration_text(s_start, s_end)
+                time_range_str = f"{s_start.strftime('%H:%M')}~{s_end.strftime('%H:%M')}"
+
+                # Title Embedding은 제목만
                 t_vec = model.encode(ev['title']).tolist()
-                d_vec = model.encode(ev['description']).tolist() if ev.get('description') else None
+
+                # Description Embedding에 풍부한 정보(Rich Text) 포함
+                rich_text_for_embedding = f"{ev['title']} {time_range_str} ({duration_str}) {ev.get('description', '')}"
+                d_vec = model.encode(rich_text_for_embedding).tolist()
 
                 new_event = ScheduleEvent(
                     member_id=member_id,
@@ -357,81 +420,124 @@ async def process_chat_request(
                 ))
 
         elif res_type == "update" and events_data:
-            update_data = events_data[0]
+            updated_count = 0
 
-            query = db.query(ScheduleEvent).filter(ScheduleEvent.member_id == member_id)
+            for update_data in events_data:
+                # 수정 대상 찾기 (original_title/date 우선, 없으면 현재 값 Fallback)
+                target_date_str = update_data.get('original_date')
+                target_title = update_data.get('original_title')
 
-            if target_date_str:
-                target_dt = datetime.strptime(target_date_str, "%Y-%m-%d").date()
-                query = query.filter(ScheduleEvent.schedule_date == target_dt)
+                if not target_date_str:
+                    target_date_str = update_data.get('date')
+                if not target_title:
+                    target_title = update_data.get('title')
 
-            search_title = target_title if target_title else update_data.get('title')
-            if search_title:
-                query = query.filter(ScheduleEvent.title.like(f"%{search_title}%"))
+                query = db.query(ScheduleEvent).filter(ScheduleEvent.member_id == member_id)
 
-            target_event = query.order_by(ScheduleEvent.schedule_date.desc(), ScheduleEvent.start_time.asc()).first()
+                if target_date_str:
+                    try:
+                        target_dt = datetime.strptime(target_date_str, "%Y-%m-%d").date()
+                        query = query.filter(ScheduleEvent.schedule_date == target_dt)
+                    except ValueError:
+                        pass
 
-            if target_event:
-                if update_data.get('title'):
-                    target_event.title = update_data['title']
-                    target_event.title_embedding = model.encode(update_data['title']).tolist()
+                if target_title:
+                    query = query.filter(ScheduleEvent.title.like(f"%{target_title}%"))
 
-                if update_data.get('date'):
-                    target_event.schedule_date = datetime.strptime(update_data['date'], "%Y-%m-%d").date()
+                target_event = query.order_by(ScheduleEvent.schedule_date.desc(), ScheduleEvent.start_time.asc()).first()
 
-                if update_data.get('start'):
-                    target_event.start_time = safe_parse_time(update_data['start'])
+                if target_event:
+                    # 값 업데이트 (None 체크로 기존 값 유지)
+                    if update_data.get('title'):
+                        target_event.title = update_data['title']
 
-                if update_data.get('end'):
-                    target_event.end_time = safe_parse_time(update_data['end'])
+                    if update_data.get('date'):
+                        try:
+                            target_event.schedule_date = datetime.strptime(update_data['date'], "%Y-%m-%d").date()
+                        except ValueError:
+                            pass
 
-                if update_data.get('description') is not None:
-                    target_event.description = update_data['description']
-                    target_event.description_embedding = model.encode(update_data['description']).tolist() if update_data['description'] else None
+                    if update_data.get('start') is not None:
+                        target_event.start_time = safe_parse_time(update_data['start'])
 
-                if update_data.get('color'):
-                    target_event.color = update_data['color']
+                    if update_data.get('end') is not None:
+                        target_event.end_time = safe_parse_time(update_data['end'])
 
-                response_events.append(EventResponse(
-                    event_id=target_event.event_id,
-                    title=target_event.title,
-                    schedule_date=target_event.schedule_date.strftime("%Y-%m-%d"),
-                    start_time=target_event.start_time.strftime("%H:%M"),
-                    end_time=target_event.end_time.strftime("%H:%M"),
-                    color=target_event.color,
-                    description=target_event.description
-                ))
-            else:
-                ai_msg = f"조건에 맞는 일정을 찾을 수 없습니다."
+                    if update_data.get('description') is not None:
+                        target_event.description = update_data['description']
+
+                    if update_data.get('color'):
+                        target_event.color = update_data['color']
+
+                    # 임베딩 갱신 (시간이나 내용이 바뀌었을 수 있으므로 항상 수행)
+                    current_start = target_event.start_time
+                    current_end = target_event.end_time
+                    current_desc = target_event.description or ""
+                    current_title = target_event.title
+
+                    duration_str = get_duration_text(current_start, current_end)
+                    time_range_str = f"{current_start.strftime('%H:%M')}~{current_end.strftime('%H:%M')}"
+
+                    rich_text = f"{current_title} {time_range_str} ({duration_str}) {current_desc}"
+
+                    target_event.title_embedding = model.encode(current_title).tolist()
+                    target_event.description_embedding = model.encode(rich_text).tolist()
+
+                    updated_count += 1
+
+                    response_events.append(EventResponse(
+                        event_id=target_event.event_id,
+                        title=target_event.title,
+                        schedule_date=target_event.schedule_date.strftime("%Y-%m-%d"),
+                        start_time=target_event.start_time.strftime("%H:%M"),
+                        end_time=target_event.end_time.strftime("%H:%M"),
+                        color=target_event.color,
+                        description=target_event.description
+                    ))
+
+            if updated_count == 0:
+                if not ai_msg:
+                    ai_msg = "조건에 맞는 수정할 일정을 찾지 못했습니다."
 
         elif res_type == "delete":
-            targets = events_data if events_data else []
-            if not targets and (target_date_str or target_title):
-                targets.append({"date": target_date_str, "title": target_title})
-            if not targets and not target_date_str and not target_title:
-                targets = [{}]
-
             deleted_count = 0
-            for ev in targets:
-                query = db.query(ScheduleEvent).filter(ScheduleEvent.member_id == member_id)
-                del_date_str = ev.get('date') or target_date_str
-                del_title = ev.get('title') or target_title
 
-                if del_date_str:
-                    del_date = datetime.strptime(del_date_str, "%Y-%m-%d").date()
-                    query = query.filter(ScheduleEvent.schedule_date == del_date)
-
-                if del_title:
-                    query = query.filter(ScheduleEvent.title.like(f"%{del_title}%"))
-
-                result = query.delete(synchronize_session=False)
-                deleted_count += result
-
-            if deleted_count > 0:
-                ai_msg = f"요청하신 대로 총 {deleted_count}개의 일정을 삭제했습니다."
-            else:
+            # [삭제 모드 확인] 'all'이면 전체 삭제
+            if delete_mode == "all":
+                result = db.query(ScheduleEvent).filter(ScheduleEvent.member_id == member_id).delete()
+                deleted_count = result
                 if not ai_msg:
-                    ai_msg = "조건에 맞는 삭제할 일정을 찾지 못했습니다."
+                    ai_msg = f"요청하신 대로 모든 일정({deleted_count}개)을 삭제했습니다."
+
+            else:
+                # 개별 삭제 로직
+                targets = events_data if events_data else []
+                for ev in targets:
+                    query = db.query(ScheduleEvent).filter(ScheduleEvent.member_id == member_id)
+                    del_date_str = ev.get('date') or ev.get('original_date')
+                    del_title = ev.get('title') or ev.get('original_title')
+
+                    if del_date_str:
+                        try:
+                            del_date = datetime.strptime(del_date_str, "%Y-%m-%d").date()
+                            query = query.filter(ScheduleEvent.schedule_date == del_date)
+                        except ValueError:
+                            continue
+
+                    if del_title:
+                        query = query.filter(ScheduleEvent.title.like(f"%{del_title}%"))
+
+                    if not del_date_str and not del_title:
+                        continue
+
+                    result = query.delete(synchronize_session=False)
+                    deleted_count += result
+
+                if not ai_msg:
+                    if deleted_count > 0:
+                        ai_msg = f"요청하신 대로 총 {deleted_count}개의 일정을 삭제했습니다."
+                    else:
+                        ai_msg = "조건에 맞는 삭제할 일정을 찾지 못했습니다."
 
         db.add(AIChatLog(member_id=member_id, role="ai", message=ai_msg))
         db.commit()
@@ -439,7 +545,8 @@ async def process_chat_request(
         return AiResponse(
             type=res_type,
             message=ai_msg,
-            events=response_events
+            events=response_events,
+            search_results=final_search_results
         )
 
     except Exception as e:
@@ -482,17 +589,23 @@ def create_manual_event(
     db: Session = Depends(get_db),
     model: SentenceTransformer = Depends(get_embedding_model)
 ):
-    # 벡터 생성 (수동으로 추가해도 검색되어야 하므로 필수)
-    t_vec = model.encode(req.title).tolist()
-    d_vec = model.encode(req.description).tolist() if req.description else None
+    # 수동 생성 시에도 시간/소요시간 정보를 벡터에 포함
+    s_time = safe_parse_time(req.start)
+    e_time = safe_parse_time(req.end)
 
-    # safe_parse_time 사용하여 24:00 처리
+    t_vec = model.encode(req.title).tolist()
+
+    # Rich Text 생성 (Duration 포함)
+    duration_str = get_duration_text(s_time, e_time)
+    rich_text = f"{req.title} {req.start}~{req.end} ({duration_str}) {req.description}"
+    d_vec = model.encode(rich_text).tolist()
+
     new_event = ScheduleEvent(
         member_id=req.member_id,
         title=req.title,
         schedule_date=datetime.strptime(req.date, "%Y-%m-%d").date(),
-        start_time=safe_parse_time(req.start),
-        end_time=safe_parse_time(req.end),
+        start_time=s_time,
+        end_time=e_time,
         description=req.description,
         color=req.color,
         title_embedding=t_vec,
@@ -524,18 +637,17 @@ def update_manual_event(
 
     event.title = req.title
     event.schedule_date = datetime.strptime(req.date, "%Y-%m-%d").date()
-    # safe_parse_time 사용하여 24:00 처리
     event.start_time = safe_parse_time(req.start)
     event.end_time = safe_parse_time(req.end)
     event.description = req.description
     event.color = req.color
 
-    # 임베딩 갱신
+    # [수정] 수동 수정 시에도 임베딩 갱신
+    duration_str = get_duration_text(event.start_time, event.end_time)
+    rich_text = f"{req.title} {req.start}~{req.end} ({duration_str}) {req.description}"
+
     event.title_embedding = model.encode(req.title).tolist()
-    if req.description:
-        event.description_embedding = model.encode(req.description).tolist()
-    else:
-        event.description_embedding = None
+    event.description_embedding = model.encode(rich_text).tolist()
 
     db.commit()
     return EventResponse(
