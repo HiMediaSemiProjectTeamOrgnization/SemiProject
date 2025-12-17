@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from vision.schemas.schemas import SeatEvent, SeatEventType
 
 class SeatStateMachine :
-    def __init__(self, seat_id:int, roi : tuple, threshold : int = 10) :
+    def __init__(self, seat_id:int, roi : tuple, threshold : int = 20) :
         """
         :param seat_id: 좌석번호
         :type seat_id: int
@@ -16,22 +16,20 @@ class SeatStateMachine :
         self.roi = roi
 
         # 초기 상태 정의
-        self.state = "EMPHTY"
+        self.state = "EMPTY"
         self.threshold = threshold
         self.counter = 0 # 상태 변화 카운터
 
     # ROI안에 사람이 있는지 판정
     # boxes : YOLO에서 반환한 bounding boxes
-    def _person_in_roi(self, boxes) :
+    def _person_in_roi(self, boxes):
         x1, y1, x2, y2 = self.roi
-        
-        for box in boxes :
-            bx1, by1, bx2, by2 = box
-
-            if not (bx2 < x1 or bx1 > x2 or by2 < y1 or by1 > y2) :
+        for bx1, by1, bx2, by2 in boxes:
+            # 겹치지 않는 조건이 False이면 (= 겹친다면) True 반환
+            if not (bx2 < x1 or bx1 > x2 or by2 < y1 or by1 > y2):
                 return True
-        
         return False
+
     
     # YOLO 감지 결과 기반 상태 업데이트
     def update(self, boxes) -> SeatEvent | None :
@@ -39,8 +37,8 @@ class SeatStateMachine :
 
         person_inside = self._person_in_roi(boxes)
         
-        # Emphty 상태일 때 사람이 들어오면 Check_in
-        if self.state == "EMPHTY" :
+        # Empty 상태일 때 사람이 들어오면 Check_in
+        if self.state == "EMPTY" :
             if person_inside :
                 self.counter += 1
                 if self.counter >= self.threshold :
@@ -61,7 +59,7 @@ class SeatStateMachine :
                 self.counter += 1
                 if self.counter >= self.threshold :
                     # Checkout 이벤트 발생
-                    self.state = "EMPHTY"
+                    self.state = "EMPTY"
                     self.counter = 0
                     return SeatEvent(seat_id = self.seat_id,
                                      event_type=SeatEventType.CHECK_OUT,
@@ -77,8 +75,6 @@ class SeatStateMachine :
 
 
         
-
-
 
 
 

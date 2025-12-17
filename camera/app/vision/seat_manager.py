@@ -2,6 +2,7 @@ import queue
 import threading
 import requests
 from datetime import datetime
+from vision.schemas.schemas import SeatEventType
 
 
 """
@@ -93,26 +94,38 @@ class SeatManager :
 
     def _event_loop(self) :
         """카메라로부터 받은 이벤트 처리 메서드"""
-        # 이벤트 메니저 실행중에서만 이벤트 처리
         while self.running :
-            # 큐에서 카메라에 전달 받은 이벤트 불러오기
             event = self.event_queue.get()
-            in_out_times = self.seat_states[event.seat_id]["in_out_times"]
+            try:
+                current = self.seat_states.get(event.seat_id)
+                if not current:
+                    continue
 
-            # 카메라에서 전달받은 이벤트 정보로 상태 업데이트
-            if str(event.event_type) == "CHECK_IN" or str(event.event_type) == "SeatEventType.CHECK_IN":
-                in_out_times["in_time"] = event.detected_at
+                current["last_update"] = event.detected_at
+                in_out_times = current["in_out_times"]
+                event_type = event.event_type
+                if isinstance(event_type, str):
+                    try:
+                        event_type = SeatEventType(event_type)
+                    except ValueError:
+                        continue
 
-            elif event.event_type == "CHECK_OUT" or str(event.event_type) == "SeatEventType.CHECK_OUT" :
-                in_out_times["out_time"] = event.detected_at
-                # check_out 이벤트 발생 시 시간계산해서 웹으로 전달
-                event.minutes = int((in_out_times["out_time"] - in_out_times["in_time"]).total_seconds() / 60)
-                self._notify_web(event)
-                # 전달 이후 in_out_times 초기화
-                in_out_times = {"in_time" : None, "out_time" : None}
-            
-            elif str(event.event_type) == "LOST_ITEM" or str(event.event_type) == "SeatEventType.LOST_ITEM" :
-                self._store_lost_item_result(event)
+                if event_type == SeatEventType.CHECK_IN:
+                    in_out_times["in_time"] = event.detected_at
+                    current["in_out_times"] = in_out_times
+
+                elif event_type == SeatEventType.CHECK_OUT:
+                    in_time = in_out_times.get("in_time")
+                    in_out_times["out_time"] = event.detected_at
+                    if in_time:
+                        event.minutes = int((event.detected_at - in_time).total_seconds() / 60)
+                        self._notify_web(event)
+                    current["in_out_times"] = {"in_time": None, "out_time": None}
+
+                elif event_type == SeatEventType.LOST_ITEM:
+                    self._store_lost_item_result(event)
+            except Exception as exc:
+                print(f"[SeatManager] event 처리 중 오류: {exc}")
 
     def _store_lost_item_result(self, event) :
         usage_id = event.usage_id
@@ -130,7 +143,8 @@ class SeatManager :
         """check inout 이벤트 발생 시 웹으로 전달"""
         payload = {
             'seat_id': event.seat_id,
-            'event_type': str(event.event_type),
+            'event_type': event.event_type.value if hasattr(event.event_type, "value") else str(event.event_type),
+            'detected_at': event.detected_at.isoformat(),
             'minutes': event.minutes,
             'usage_id': event.usage_id,
         }

@@ -29,10 +29,10 @@ class CameraWorker :
         self.seat_rois = seat_rois
 
         # 좌석 별 상태머신 설정
-        self.state_machines = {
-            seat_id : SeatStateMachine(seat_id, roi)
-            for seat_id, roi in seat_rois.items()
-        }
+        self.state_machines = {}
+        for seat_id, roi in seat_rois.items():
+            pixel_roi = self._to_pixel_roi(roi)
+            self.state_machines[seat_id] = SeatStateMachine(seat_id, pixel_roi)
 
         # 자리마다 usage_id 저장
         self.usage_ids = {seat_id : None for seat_id in seat_rois.keys()}
@@ -137,3 +137,16 @@ class CameraWorker :
         )
 
         self.event_manager.push_event(event)
+    def _to_pixel_roi(self, roi):
+        if max(roi) <= 1.0:
+            width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            if not width or not height:
+                # 기본 FHD에 맞춰 임시 변환
+                width, height = 1920, 1080
+            x1 = int(roi[0] * width)
+            y1 = int(roi[1] * height)
+            x2 = int(roi[2] * width)
+            y2 = int(roi[3] * height)
+            return (x1, y1, x2, y2)
+        return tuple(map(int, roi))
