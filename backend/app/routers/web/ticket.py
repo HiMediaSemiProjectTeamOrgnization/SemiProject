@@ -148,7 +148,7 @@ def getTicketList(db: Session = Depends(get_db)):
     """이용권 목록 조회로직"""
 
     # is_exposured 컬럼이 False인 데이터는 조회 X
-    tickets = db.query(Product).filter(Product.is_exposured).all()
+    tickets = db.query(Product).filter(Product.is_exposured).order_by(Product.value).all()
 
     return tickets
 

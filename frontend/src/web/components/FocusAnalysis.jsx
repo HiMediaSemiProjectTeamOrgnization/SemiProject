@@ -2,7 +2,39 @@ import { BsLightningChargeFill } from "react-icons/bs";
 import { FaMedal, FaCalendarAlt } from "react-icons/fa";
 import { MdTrendingUp } from "react-icons/md";
 
-export default function FocusAnalysis() {
+export default function FocusAnalysis({ focusData, focusPattern }) {
+
+    const formatTime = (mins = 0) => {
+        const h = Math.floor(mins / 60);
+        const m = (mins % 60).toFixed(0);
+        if (h > 0) return `${h}시간 ${m}분`;
+        if (m > 0) return `${m}분`;
+        return "0분";
+    };
+
+    const formatDate = (date = "") => {
+        if (!date) return "-";
+        const [, month, day] = date.split("-");
+        return `${month}/${day}`;
+    };
+
+    const formatRatio = (ratio = 0) => {
+        if (ratio == 0) return ""
+        return `집중도 ${(ratio * 100).toFixed(0)}점`
+    };
+
+    const returnTimeLabel = (hour = 0) => {
+        if (hour == null || hour < 0) return "";
+        if (hour <= 4) return "새벽 골든타임";
+        if (hour <= 8) return "이른 오전 골든타임";
+        if (hour <= 11) return "오전 골든타임";
+        if (hour <= 13) return "점심 시간대 골든타임";
+        if (hour <= 17) return "오후 골든타임";
+        if (hour <= 21) return "저녁 골든타임";
+        return "늦은 밤 골든타임";
+
+    }
+
     return (
         <div className="bg-white dark:bg-slate-900/50 rounded-2xl shadow-md p-6 transition-colors">
             {/* Header */}
@@ -17,7 +49,7 @@ export default function FocusAnalysis() {
             <div className="bg-purple-50 dark:bg-purple-900/30 rounded-xl p-6 flex flex-col items-center mb-6 transition-colors">
                 <div className="flex items-end gap-1">
                     <span className="text-5xl font-bold text-purple-600 dark:text-purple-400">
-                        82
+                        {focusData?.average_focus_minute}
                     </span>
                     <span className="text-xl text-purple-500 dark:text-purple-300">
                         분
@@ -42,10 +74,10 @@ export default function FocusAnalysis() {
                 </div>
                 <div className="text-center">
                     <p className="text-sm text-gray-700 dark:text-gray-200 font-medium">
-                        95분
+                        {formatTime(focusData?.best_record?.minute ?? 0)}
                     </p>
                     <p className="text-xs text-gray-400 dark:text-gray-500">
-                        12/7
+                        {formatDate(focusData?.best_record?.date)}
                     </p>
                 </div>
             </div>
@@ -59,10 +91,10 @@ export default function FocusAnalysis() {
                 <MdTrendingUp className="text-green-500 dark:text-green-400 text-xl mt-0.5" />
                 <div>
                     <p className="text-sm text-green-700 dark:text-green-300">
-                        집중력이 꾸준히 향상되고 있어요 🎯
+                        {focusData?.message?.analysis}
                     </p>
                     <p className="text-xs text-green-600 dark:text-green-400">
-                        지난주 대비 +8분
+                        {focusData?.message?.coaching}
                     </p>
                 </div>
             </div>
@@ -88,8 +120,8 @@ export default function FocusAnalysis() {
                 }}
             >
                 <p className="text-sm opacity-90">베스트 요일</p>
-                <p className="text-2xl font-bold mt-1">금요일</p>
-                <p className="text-sm mt-1 opacity-90">집중도 92점</p>
+                <p className="text-2xl font-bold mt-1">{focusPattern?.top_focus_day?.day ?? "정보없음"}</p>
+                <p className="text-sm mt-1 opacity-90">{formatRatio(focusPattern?.top_focus_day?.focus_ratio)}</p>
             </div>
 
             {/* Best Time */}
@@ -101,15 +133,15 @@ export default function FocusAnalysis() {
                 }}
             >
                 <p className="text-sm opacity-90">베스트 시간</p>
-                <p className="text-2xl font-bold mt-1">14–17시</p>
-                <p className="text-sm mt-1 opacity-90">오후 골든타임</p>
+                <p className="text-2xl font-bold mt-1">{focusPattern?.top_focus_hour?.hour ?? "정보없음"}시</p>
+                <p className="text-sm mt-1 opacity-90">{returnTimeLabel(focusPattern?.top_focus_hour?.hour)}</p>
             </div>
 
             {/* Stats bottom */}
             <div className="grid grid-cols-2 gap-3">
                 <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-100 dark:border-purple-700 rounded-xl py-4 flex flex-col items-center shadow-sm transition-colors">
                     <span className="text-lg font-bold text-purple-600 dark:text-purple-300">
-                        5.2
+                        {formatTime(focusPattern.avg_daily_focus_minute)}
                     </span>
                     <span className="text-sm text-gray-600 dark:text-gray-400">
                         일평균(h)
@@ -118,7 +150,7 @@ export default function FocusAnalysis() {
 
                 <div className="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-700 rounded-xl py-4 flex flex-col items-center shadow-sm transition-colors">
                     <span className="text-lg font-bold text-indigo-600 dark:text-indigo-300">
-                        7일
+                        {focusPattern.longest_streak_days ?? 0}일
                     </span>
                     <span className="text-sm text-gray-600 dark:text-gray-400">
                         연속 이용
