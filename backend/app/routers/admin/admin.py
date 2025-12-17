@@ -312,9 +312,12 @@ def get_seat_stats(db: Session = Depends(get_db)):
 def get_seat_detail_stats(db: Session = Depends(get_db)):
     """
     [GET] 좌석 관리 페이지용 상세 데이터
+    (수정: 입실하지 않은 기간제/고정석 예약자도 '사용중'으로 표시하여 점검중 오해 방지)
     """
     seats = db.query(Seat).order_by(Seat.seat_id).all()
+    now = datetime.now()
     
+    # 1. 현재 입실 중인 정보 조회 (Active Usage)
     active_usages = (
         db.query(SeatUsage, Member, Order, Product)
         .join(Member, SeatUsage.member_id == Member.member_id)
@@ -332,11 +335,30 @@ def get_seat_detail_stats(db: Session = Depends(get_db)):
             "order": order,
             "product": product
         }
+
+    # 2. [추가] 기간제/고정석 예약 정보 조회 (입실 안 한 상태여도 주인 있는 좌석)
+    # period_end_date가 남아있고, fixed_seat_id가 설정된 주문 검색
+    fixed_orders = (
+        db.query(Order, Member, Product)
+        .join(Member, Order.member_id == Member.member_id)
+        .join(Product, Order.product_id == Product.product_id)
+        .filter(
+            Order.period_end_date > now,
+            Order.fixed_seat_id != None
+        )
+        .all()
+    )
+    # 좌석 ID를 Key로 매핑
+    fixed_map = {
+        order.fixed_seat_id: {"order": order, "member": member, "product": product}
+        for order, member, product in fixed_orders
+    }
     
     seat_list = []
     total_seats = 0
     used_seats = 0
     
+    # 구역 정의
     zones_def = [
         {"key": "fix", "name": "고정석 (Private)", "range": range(1, 21)},
         {"key": "view", "name": "창가석 (View)", "range": range(21, 31)},
@@ -349,8 +371,6 @@ def get_seat_detail_stats(db: Session = Depends(get_db)):
     zone_stats = {
         z["key"]: {"name": z["name"], "total": 0, "used": 0} for z in zones_def
     }
-
-    now = datetime.now()
 
     for seat in seats:
         total_seats += 1
@@ -370,7 +390,7 @@ def get_seat_detail_stats(db: Session = Depends(get_db)):
             "zone_name": zone_stats[current_zone_key]["name"],
             "zone_key": current_zone_key,
             "is_status": seat.is_status,
-            "is_occupied": False,
+            "is_occupied": False, # 논리적 점유 여부 (입실 or 예약)
             "member_id": None,
             "user_name": None,
             "user_phone": None,
@@ -386,6 +406,7 @@ def get_seat_detail_stats(db: Session = Depends(get_db)):
             "ticket_type": None
         }
 
+        # Case A: 현재 입실 중인 경우 (가장 우선)
         if seat.seat_id in usage_map:
             used_seats += 1
             zone_stats[current_zone_key]["used"] += 1
@@ -407,6 +428,7 @@ def get_seat_detail_stats(db: Session = Depends(get_db)):
             seat_info["saved_time_minute"] = member.saved_time_minute
             seat_info["check_in_time"] = usage.check_in_time
 
+            # Todo 및 총 이용시간 통계
             todo_count = db.query(func.count(UserTODO.user_todo_id))\
                 .filter(UserTODO.member_id == member.member_id, UserTODO.is_achieved == False)\
                 .scalar()
@@ -417,6 +439,7 @@ def get_seat_detail_stats(db: Session = Depends(get_db)):
             )).filter(SeatUsage.member_id == member.member_id, SeatUsage.check_out_time != None).scalar()
             seat_info["total_usage_minutes"] = int(total_usage) if total_usage else 0
             
+            # 티켓 타입 및 남은 시간 표시
             if product and product.type == '기간제':
                 seat_info["ticket_type"] = "기간권"
                 if order and order.period_end_date:
@@ -433,6 +456,48 @@ def get_seat_detail_stats(db: Session = Depends(get_db)):
                 else:
                     h, m = divmod(remain_min, 60)
                     seat_info["remaining_info"] = f"{int(h)}시간 {int(m)}분"
+
+        # Case B: 입실은 안 했지만, 기간제/고정석 예약이 있는 경우 (추가된 로직)
+        elif seat.seat_id in fixed_map:
+            # 예약되어 있으므로 사용 중(occupied)으로 간주
+            used_seats += 1
+            zone_stats[current_zone_key]["used"] += 1
+
+            data = fixed_map[seat.seat_id]
+            order = data["order"]
+            member = data["member"]
+            product = data["product"]
+
+            seat_info["is_occupied"] = True
+            seat_info["member_id"] = member.member_id
+            seat_info["user_name"] = member.name
+            seat_info["user_phone"] = member.phone
+            seat_info["login_id"] = member.login_id
+            seat_info["email"] = member.email
+            seat_info["created_at"] = member.created_at
+            seat_info["total_mileage"] = member.total_mileage
+            seat_info["saved_time_minute"] = member.saved_time_minute
+            seat_info["ticket_type"] = "기간권 (미입실)"
+            
+            # 남은 기간 계산
+            remain_days = (order.period_end_date.date() - now.date()).days
+            seat_info["remaining_info"] = f"{remain_days}일 남음"
+
+            # 기타 통계 (필요 시 조회)
+            todo_count = db.query(func.count(UserTODO.user_todo_id))\
+                .filter(UserTODO.member_id == member.member_id, UserTODO.is_achieved == False)\
+                .scalar()
+            seat_info["active_todo_count"] = todo_count or 0
+
+            total_usage = db.query(func.sum(
+                func.extract('epoch', SeatUsage.check_out_time - SeatUsage.check_in_time) / 60
+            )).filter(SeatUsage.member_id == member.member_id, SeatUsage.check_out_time != None).scalar()
+            seat_info["total_usage_minutes"] = int(total_usage) if total_usage else 0
+
+        # Case C: 입실도 예약도 없는 경우 -> 빈 좌석 or 진짜 점검중
+        else:
+            # is_status가 False인데 사용자 정보가 없으면 '점검중'으로 표시됨 (프론트엔드 로직)
+            pass
 
         seat_list.append(seat_info)
 

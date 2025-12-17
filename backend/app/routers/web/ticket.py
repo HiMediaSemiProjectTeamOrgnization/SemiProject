@@ -109,7 +109,9 @@ def getSeatStatus(db: Session = Depends(get_db)):
             ).first()
 
             if usage:
-                seat_info["user_name"] = "사용중"
+                # 단순 "사용중" 텍스트 대신 사용자 이름 조회 (필요 시 마스킹 처리 가능)
+                user = db.query(Member).filter(Member.member_id == usage.member_id).first()
+                seat_info["user_name"] = user.name if user else "사용중"
                 
                 if usage.ticket_expired_time:
                     diff = usage.ticket_expired_time - now
@@ -117,13 +119,15 @@ def getSeatStatus(db: Session = Depends(get_db)):
                         seat_info["remaining_time"] = int(diff.total_seconds() / 60)
             
             if not seat_info["user_name"]:
+                # 예약된 좌석 확인 로직
                 order = db.query(Order).filter(
                     Order.fixed_seat_id == seat.seat_id,
                     Order.period_end_date >= now.date()
                 ).order_by(Order.order_id.desc()).first()
                 
                 if order:
-                    seat_info["user_name"] = "사용중"
+                    user = db.query(Member).filter(Member.member_id == order.member_id).first()
+                    seat_info["user_name"] = user.name if user else "사용중"
 
         result.append(seat_info)
 
