@@ -3,6 +3,7 @@ import threading
 import requests
 from datetime import datetime
 from vision.schemas.schemas import SeatEventType
+import math
 
 
 """
@@ -118,7 +119,7 @@ class SeatManager :
                     in_time = in_out_times.get("in_time")
                     in_out_times["out_time"] = event.detected_at
                     if in_time:
-                        event.minutes = int((event.detected_at - in_time).total_seconds() / 60)
+                        event.minutes = math.ceil((event.detected_at - in_time).total_seconds() / 60)
                         self._notify_web(event)
                     current["in_out_times"] = {"in_time": None, "out_time": None}
 
