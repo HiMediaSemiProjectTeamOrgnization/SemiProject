@@ -120,9 +120,7 @@ def get_or_create_guest(db: Session):
     db.refresh(new_guest)
     return new_guest
 
-# ------------------------
-# [NEW] 1-2) 회원 로그인 (수정: 기간제 보유 여부 반환)
-# ------------------------
+
 @router.post("/auth/member-login")
 def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
     # 1. 회원 조회
@@ -138,13 +136,30 @@ def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
     if member.pin_code != data.pin:
         raise HTTPException(status_code=401, detail="PIN 번호가 일치하지 않습니다.")
 
-    # 3. 유효한 기간제 이용권 보유 여부 확인
+    # 3. 유효한 기간제 이용권 확인
     now = datetime.now()
     active_period = db.query(Order).join(Product).filter(
         Order.member_id == member.member_id,
         Order.period_end_date > now,
         Product.type == '기간제'
-    ).first()
+    ).order_by(Order.period_end_date.desc()).first()
+
+    my_fixed_seat_id = None
+    has_period_pass = False
+
+    if active_period:
+        has_period_pass = True
+        # [중요] 1순위: 주문 정보에 지정된 고정석 ID가 있는지 확인
+        if active_period.fixed_seat_id:
+            my_fixed_seat_id = active_period.fixed_seat_id
+        # 2순위: 없다면 과거 이용 기록에서 추적 (기존 회원 호환용)
+        else:
+            last_fix_usage = db.query(SeatUsage).join(Seat).filter(
+                SeatUsage.member_id == member.member_id,
+                Seat.type == 'fix'
+            ).order_by(SeatUsage.check_in_time.desc()).first()
+            if last_fix_usage:
+                my_fixed_seat_id = last_fix_usage.seat_id
 
     return {
         "member_id": member.member_id,
@@ -152,7 +167,8 @@ def member_login(data: PinAuthRequest, db: Session = Depends(get_db)):
         "phone": member.phone,
         "saved_time_minute": member.saved_time_minute, 
         "total_mileage": member.total_mileage,
-        "has_period_pass": True if active_period else False
+        "has_period_pass": has_period_pass,
+        "my_fixed_seat_id": my_fixed_seat_id 
     }
 
 # ------------------------
