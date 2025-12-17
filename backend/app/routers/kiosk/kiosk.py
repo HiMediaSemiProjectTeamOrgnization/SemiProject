@@ -338,7 +338,23 @@ def list_seats(db: Session = Depends(get_db)):
                     minutes = int(remain_delta.total_seconds() / 60)
                     seat_data["remaining_time"] = max(minutes, 0)
             else:
-                seat_data["user_name"] = "점검중"
+                # [수정] 실제 이용(SeatUsage) 기록이 없으면, 실제 입실 상태가 아님을 명시
+                seat_data["is_real_checkin"] = False
+
+                # 입실은 안 했지만, 기간제/고정석 예약이 있는 경우 확인
+                reserved_order = db.query(Order).filter(
+                    Order.fixed_seat_id == s.seat_id,
+                    Order.period_end_date > now
+                ).order_by(Order.period_end_date.desc()).first()
+
+                if reserved_order:
+                    owner = db.query(Member).filter(Member.member_id == reserved_order.member_id).first()
+                    if owner:
+                        seat_data["user_name"] = owner.name # 예약자 이름 표시
+                        seat_data["role"] = "member"
+                        seat_data["ticket_expired_time"] = reserved_order.period_end_date
+                else:
+                    seat_data["user_name"] = "점검중" # 예약도 없고 입실도 없으면 점검중
         
         results.append(seat_data)
 

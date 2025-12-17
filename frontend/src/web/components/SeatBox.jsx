@@ -1,5 +1,3 @@
-import { FaChair, FaLock, FaTools, FaUser } from "react-icons/fa";
-
 function SeatBox({
     seat,
     onClick,
@@ -41,15 +39,8 @@ function SeatBox({
                         </span>
 
                         <span className="text-sm font-bold text-white mt-0.5">
-                            {/* [수정] 사용자 이름이 없을 경우(점검 시) '점검중'으로 표시 */}
-                            {seat.user_name || "점검중"}
+                            사용중
                         </span>
-
-                        {seat.remaining_time > 0 && (
-                            <span className="text-[11px] text-slate-400 dark:text-gray-300 mt-0.5">
-                                {formatTime(seat.remaining_time)}
-                            </span>
-                        )}
                     </div>
                 )}
             </div>
