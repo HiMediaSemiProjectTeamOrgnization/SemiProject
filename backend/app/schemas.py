@@ -105,6 +105,7 @@ class MemberAdminResponse(BaseSchema):
     is_deleted_at: bool
     total_usage_minutes: int = 0
     active_todo_count: int = 0
+    current_seat_id: Optional[int] = None
 
 class MemberUpdatePhone(BaseSchema):
     phone: str
