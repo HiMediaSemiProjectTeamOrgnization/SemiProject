@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import StudyTimeSummary from "../components/StudyTimeSummary";
 import SeatAnalysis from "../components/SeatAnalysis";
@@ -65,7 +65,7 @@ function MyPage() {
         if (res.ok) {
             const data = await res.json();
             setStudyData(data);
-            console.log(data);
+            // console.log(data);
         }
     }
 
@@ -75,7 +75,7 @@ function MyPage() {
         if (res.ok) {
             const data = await res.json();
             setFocusData(data);
-            console.log(data);
+            // console.log(data);
         }
     }
     const getFocusPattern = async (user_id) => {
@@ -87,17 +87,13 @@ function MyPage() {
         }
     }
 
-
-
     useEffect(() => {
         window.scrollTo(0, 0);
-
-        if (showTodoModal) {
+        if (showTodoModal && todoList.length > 0) {
             document.body.style.overflow = "hidden";
         } else {
             document.body.style.overflow = "auto";
         }
-
         return () => {
             document.body.style.overflow = "auto";
         };

@@ -5,10 +5,6 @@ export default function StudyTimeSummary({ studyData, changeData }) {
     const [hoverIdx, setHoverIdx] = useState(null);
     const [mode, setMode] = useState("week");
 
-    const totalUse = [3, 2, 4, 3, 4, 5, 4];
-    const focusTime = [2, 1.5, 3, 2.5, 3, 4, 3.5];
-
-    const labels = ["월", "화", "수", "목", "금", "토", "일"];
     const getHeight = (v) => `${v * 23}px`;
 
     const weeklyData = studyData.weekly;
@@ -39,6 +35,17 @@ export default function StudyTimeSummary({ studyData, changeData }) {
         }
     }
 
+    const trendColorClass = (trend) => {
+        switch (trend) {
+            case "increase":
+                return "text-green-600 dark:text-green-400";
+            case "decrease":
+                return "text-red-600 dark:text-red-400";
+            case "flat":
+            default:
+                return "text-gray-500 dark:text-gray-400";
+        }
+    };
 
     return (
         <div className="w-full bg-white dark:bg-slate-900/50 rounded-2xl shadow-md p-6 
@@ -176,10 +183,16 @@ export default function StudyTimeSummary({ studyData, changeData }) {
             </div>
 
             {/* Footer */}
-            <div className="mt-4 text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+            <div className={`mt-4 text-sm flex items-center gap-1 ${trendColorClass(changeData?.trend)}`}>
                 <span>{formattingIcon(changeData?.trend)}</span>
                 <span>
-                    지난주 대비 <b className="font-semibold">{changeData?.difference_minute}% 증가</b>
+                    지난주 대비{" "}
+                    <b className="font-semibold">
+                        {changeData?.difference_minute}%
+                        {changeData?.trend === "increase" && " 증가"}
+                        {changeData?.trend === "decrease" && " 감소"}
+                        {changeData?.trend === "flat" && " 유지"}
+                    </b>
                 </span>
             </div>
         </div>

@@ -32,7 +32,6 @@ export default function FocusAnalysis({ focusData, focusPattern }) {
         if (hour <= 17) return "오후 골든타임";
         if (hour <= 21) return "저녁 골든타임";
         return "늦은 밤 골든타임";
-
     }
 
     return (
@@ -112,13 +111,7 @@ export default function FocusAnalysis({ focusData, focusPattern }) {
             </div>
 
             {/* Best Day */}
-            <div
-                className="p-3 rounded-2xl text-white mb-4 shadow-sm transition-all"
-                style={{
-                    background:
-                        "linear-gradient(135deg, #6A5BEA, #9F6BFF)",
-                }}
-            >
+            <div className="p-3 rounded-2xl text-white mb-4 shadow-sm transition-all" style={{ background: "linear-gradient(135deg, #6A5BEA, #9F6BFF)", }}>
                 <p className="text-sm opacity-90">베스트 요일</p>
                 <p className="text-2xl font-bold mt-1">{focusPattern?.top_focus_day?.day ?? "정보없음"}</p>
                 <p className="text-sm mt-1 opacity-90">{formatRatio(focusPattern?.top_focus_day?.focus_ratio)}</p>
@@ -133,7 +126,7 @@ export default function FocusAnalysis({ focusData, focusPattern }) {
                 }}
             >
                 <p className="text-sm opacity-90">베스트 시간</p>
-                <p className="text-2xl font-bold mt-1">{focusPattern?.top_focus_hour?.hour ?? "정보없음"}시</p>
+                <p className="text-2xl font-bold mt-1">{focusPattern?.top_focus_hour?.hour ? `${focusPattern?.top_focus_hour?.hour}시` : "정보없음"}</p>
                 <p className="text-sm mt-1 opacity-90">{returnTimeLabel(focusPattern?.top_focus_hour?.hour)}</p>
             </div>
 

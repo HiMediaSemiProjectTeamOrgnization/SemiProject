@@ -191,6 +191,8 @@ def insert_select_todo(data: TodoSelectReq, db = Depends(get_db), token = Depend
     # 선택한 todo가 있으면 에러처리
     if len(selected_todo) > 0:
         raise HTTPException(status_code=400, detail="이번달에 이미 도전하고 있는 과제가 있습니다.")
+    
+    print(data)
 
     # 없을 경우 insert
     todo = UserTODO(
