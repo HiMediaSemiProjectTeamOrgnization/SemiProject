@@ -286,16 +286,17 @@ def list_seats(db: Session = Depends(get_db)):
             "isolated": s.isolated,
             "near_beverage_table": s.near_beverage_table,
             "is_center": s.is_center,
-            "is_status": s.is_status, 
+            "is_status": s.is_status, # 나중에 기간제 로직에 의해 덮어씌워질 수 있음
+            "is_real_checkin": not s.is_status, # [추가] 실제 입실 여부 (DB 물리 상태 기준)
             "user_name": None,
             "remaining_time": None,
             "ticket_expired_time": None,
             "role": None
         }
 
-        # [수정] 1. 고정석(fix)인 경우, 유효한 주인 및 만료일 확인
+        # 1. 고정석(fix)인 경우, 유효한 주인 및 만료일 확인
         fixed_owner_name = None
-        fixed_expire_time = None  # 만료일 변수 추가
+        fixed_expire_time = None
 
         if s.type == "fix":
             active_fixed_order = db.query(Order).filter(
@@ -307,16 +308,16 @@ def list_seats(db: Session = Depends(get_db)):
                 owner_member = db.query(Member).filter(Member.member_id == active_fixed_order.member_id).first()
                 if owner_member:
                     fixed_owner_name = owner_member.name
-                    fixed_expire_time = active_fixed_order.period_end_date # 만료일 저장
+                    fixed_expire_time = active_fixed_order.period_end_date
 
         # 2. 실제 입실 중인지 확인
-        if s.is_status:
-            # 입실 안 했지만 고정석 주인이 있는 경우
+        if s.is_status: # 물리적으로 비어있음
+            # 입실 안 했지만 고정석 주인이 있는 경우 -> 입실 모드에서는 '사용중'으로 보여야 함
             if fixed_owner_name:
-                seat_data["is_status"] = False  # 사용 중으로 표시
+                seat_data["is_status"] = False  
                 seat_data["user_name"] = fixed_owner_name
                 seat_data["role"] = "member"
-                seat_data["ticket_expired_time"] = fixed_expire_time # 만료일 정보 추가
+                seat_data["ticket_expired_time"] = fixed_expire_time
         
         # 입실 중인 경우
         else:
