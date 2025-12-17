@@ -1,7 +1,7 @@
 import { FaClock } from 'react-icons/fa';
 import { useState } from 'react';
 
-export default function StudyTimeSummary() {
+export default function StudyTimeSummary({ studyData, changeData }) {
     const [hoverIdx, setHoverIdx] = useState(null);
     const [mode, setMode] = useState("week");
 
@@ -10,6 +10,35 @@ export default function StudyTimeSummary() {
 
     const labels = ["월", "화", "수", "목", "금", "토", "일"];
     const getHeight = (v) => `${v * 23}px`;
+
+    const weeklyData = studyData.weekly;
+    const monthlyData = studyData.monthly;
+    const currentData = mode === "month" ? monthlyData : weeklyData;
+
+
+    const formattingHour = (mins) => {
+        const h = Math.floor(mins / 60);
+        const m = (mins % 60).toFixed(0);
+        if (h > 0) return `${h}시간 ${m}분`;
+        if (m > 0) return `${m}분`;
+        return "0분";
+    };
+
+    const formattingPercent = (focus = 0, total = 0) => {
+        if (!total || total === 0) return 0;
+        return `${Math.round((focus / total) * 100)}%`;
+    }
+
+    const formattingIcon = (trend) => {
+        if (trend === "flat") {
+            return ""
+        } else if (trend === "increase") {
+            return "📈"
+        } else if (trend === "decrease") {
+            return "📉"
+        }
+    }
+
 
     return (
         <div className="w-full bg-white dark:bg-slate-900/50 rounded-2xl shadow-md p-6 
@@ -50,17 +79,21 @@ export default function StudyTimeSummary() {
             {/* Stats Cards */}
             <div className="grid grid-cols-3 gap-4 mb-8">
                 <div className="p-5 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 text-center">
-                    <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-300">44h</p>
+                    <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-300">
+                        {formattingHour(currentData?.total_usage_minute) ?? 0}
+                    </p>
+
+
                     <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">총 이용</p>
                 </div>
 
                 <div className="p-5 rounded-2xl bg-purple-50 dark:bg-purple-900/30 text-center">
-                    <p className="text-3xl font-bold text-purple-600 dark:text-purple-300">35h</p>
+                    <p className="text-2xl font-bold text-purple-600 dark:text-purple-300">{formattingHour(currentData?.focus_time_minute) ?? 0}</p>
                     <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">집중 시간</p>
                 </div>
 
                 <div className="p-5 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-center">
-                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-300">80%</p>
+                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">{formattingPercent(currentData?.focus_time_minute, currentData?.total_usage_minute)}</p>
                     <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">집중도</p>
                 </div>
             </div>
@@ -68,75 +101,85 @@ export default function StudyTimeSummary() {
             {/* Weekly Bar Chart */}
             <div className="flex justify-between items-end h-64 px-4 relative">
 
-                {labels.map((label, idx) => (
-                    <div
-                        key={idx}
-                        className="flex flex-col items-center w-12 relative cursor-pointer"
-                        onMouseEnter={() => setHoverIdx(idx)}
-                        onMouseLeave={() => setHoverIdx(null)}
-                    >
-                        {/* Hover highlight */}
+                {studyData?.days?.map((value, idx) => {
+                    const totalHour = value.usage_minute / 60;
+                    const focusHour = value.focus_minute / 60;
+
+                    const formatDate = (date = "") => {
+                        if (!date) return "-";
+                        const [, month, day] = date.split("-");
+                        return `${month}/${day}`;
+                    };
+
+                    const formatDay = (day) => {
+                        if (!day) return "";
+                        return day.split("요일")[0];
+                    }
+
+                    return (
                         <div
-                            className={`
-                                absolute bottom-0 w-full rounded-xl transition-all pointer-events-none 
-                                ${hoverIdx === idx
-                                    ? "h-full bg-indigo-100/70 dark:bg-indigo-900/20"
-                                    : "h-0"}
-                            `}
-                        ></div>
+                            key={idx}
+                            className="flex flex-col items-center w-12 relative cursor-pointer"
+                            onMouseEnter={() => setHoverIdx(idx)}
+                            onMouseLeave={() => setHoverIdx(null)}
+                        >
+                            {/* Hover background */}
+                            <div className={`absolute bottom-0 w-full rounded-xl transition-all pointer-events-none ${hoverIdx === idx ? "h-full bg-indigo-100/70 dark:bg-indigo-900/20" : "h-0"}`}
+                            />
 
-                        {/* Tooltip */}
-                        {hoverIdx === idx && (
-                            <div className="
-                                absolute -top-28 bg-white dark:bg-gray-800 
-                                border border-gray-200 dark:border-gray-700 
-                                p-3 rounded-xl shadow-lg z-20 w-32 
-                                animate-fadeIn transition-colors
-                            ">
-                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
-                                    {label}
-                                </p>
-                                <p className="text-xs text-gray-600 dark:text-gray-300">
-                                    이용 시간 :
-                                    <b className="text-indigo-600 dark:text-indigo-300 ml-1">
-                                        {totalUse[idx].toFixed(1)}
-                                    </b>
-                                </p>
-                                <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                                    집중 시간 :
-                                    <b className="text-purple-600 dark:text-purple-300 ml-1">
-                                        {focusTime[idx].toFixed(1)}
-                                    </b>
-                                </p>
+                            {/* Tooltip */}
+                            {hoverIdx === idx && (
+                                <div className="absolute -top-28 bg-white dark:bg-gray-800  border border-gray-200 dark:border-gray-700 p-3 rounded-xl shadow-lg z-20 w-40">
+                                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                                        {value.weekday}
+                                    </p>
+                                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                                        이용 시간 :
+                                        <b className="text-indigo-600 dark:text-indigo-300 ml-1">
+                                            {formattingHour(value.usage_minute)}
+                                        </b>
+                                    </p>
+                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                                        집중 시간 :
+                                        <b className="text-purple-600 dark:text-purple-300 ml-1">
+                                            {formattingHour(value.focus_minute)}
+                                        </b>
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Bars */}
+                            <div className="flex gap-1 items-end z-10">
+                                <div
+                                    className="w-5 bg-indigo-500 rounded transition-all"
+                                    style={{ height: getHeight(totalHour) }}
+                                />
+                                <div
+                                    className="w-5 bg-purple-500 rounded transition-all"
+                                    style={{ height: getHeight(focusHour) }}
+                                />
                             </div>
-                        )}
 
-                        {/* Bars */}
-                        <div className="flex gap-1 items-end z-10">
-                            <div
-                                className="w-5 bg-indigo-500 rounded-none transition-all"
-                                style={{ height: getHeight(totalUse[idx]) }}
-                            ></div>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 mt-3 z-10">
+                                {formatDate(value.date)}
+                            </span>
 
-                            <div
-                                className="w-5 bg-purple-500 rounded-none transition-all"
-                                style={{ height: getHeight(focusTime[idx]) }}
-                            ></div>
+                            {/* Label */}
+                            <span className="text-sm text-gray-500 dark:text-gray-400 z-10">
+                                {formatDay(value.weekday)}
+                            </span>
                         </div>
+                    );
+                })}
 
-                        <span className="text-sm text-gray-500 dark:text-gray-400 mt-3 z-10">
-                            {label}
-                        </span>
-                    </div>
-                ))}
 
             </div>
 
             {/* Footer */}
             <div className="mt-4 text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-                <span>📈</span>
+                <span>{formattingIcon(changeData?.trend)}</span>
                 <span>
-                    지난주 대비 <b className="font-semibold">12% 증가</b>
+                    지난주 대비 <b className="font-semibold">{changeData?.difference_minute}% 증가</b>
                 </span>
             </div>
         </div>

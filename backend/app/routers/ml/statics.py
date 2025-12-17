@@ -8,7 +8,7 @@ from models import Member, Seat, SeatUsage
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 
-router = APIRouter(prefix="/statics", tags=["Statistics services"])
+router = APIRouter(prefix="/api/statics", tags=["Statistics services"])
 
 MIN_VALID_MEMBER_ID = 3
 
@@ -341,6 +341,34 @@ def calculate_longest_streak(usages: list) -> int:
     return longest
 
 
+def aggregate_daily_usage(usages: list, start_time: datetime, days: int = 7) -> list:
+    end_time = start_time + timedelta(days=days)
+    daily_data = defaultdict(lambda: {"usage": 0.0, "focus": 0.0})
+
+    for usage in usages:
+        check_in = usage.check_in_time
+        if check_in < start_time or check_in >= end_time:
+            continue
+        day_key = check_in.date()
+        daily_data[day_key]["usage"] += minutes_between(usage)
+        daily_data[day_key]["focus"] += usage.total_in_time or 0
+
+    day_stats = []
+    for i in range(days):
+        day_date = (start_time + timedelta(days=i)).date()
+        stats = daily_data.get(day_date, {"usage": 0.0, "focus": 0.0})
+        day_stats.append(
+            {
+                "date": day_date.isoformat(),
+                "weekday": WEEKDAY_LABELS[day_date.weekday()],
+                "usage_minute": round(stats["usage"], 2),
+                "focus_minute": round(stats["focus"], 2),
+            }
+        )
+
+    return day_stats
+
+
 """좌석 통계 API"""
 @router.get("/seats")
 def seat_statistics(member_id: int, db: Session = Depends(get_db)):
@@ -396,12 +424,14 @@ def time_statistics(member_id: int, db: Session = Depends(get_db)):
     usages = load_usages_since(db, member_id, month_start)
     weekly_stats = aggregate_time_stats(usages, week_start)
     monthly_stats = aggregate_time_stats(usages, month_start)
+    daily_stats = aggregate_daily_usage(usages, week_start)
 
     return JSONResponse(
         status_code=200,
         content={
             "weekly": weekly_stats,
             "monthly": monthly_stats,
+            "days": daily_stats,
         },
     )
 

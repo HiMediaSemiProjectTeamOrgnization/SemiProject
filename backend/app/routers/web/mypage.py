@@ -45,8 +45,6 @@ def get_member_info(token = Depends(get_cookies_info), db: Session = Depends(get
             total_minutes += minutes
         else:
             continue
-
-        
         
     result = {
         # 선택한 todo 이름
@@ -54,7 +52,9 @@ def get_member_info(token = Depends(get_cookies_info), db: Session = Depends(get
         # 선택한 todo의 달성조건
         "target_value": select_todo_info.todo_value,
         # 선택한 todo의 현재 달성 값
-        "current_value": total_minutes
+        "current_value": total_minutes, 
+        # 선택한 todo의 타입
+        "todo_type": select_todo_info.todo_type
     }
 
     return {"user" : user, "todo" : result}
@@ -173,7 +173,7 @@ def modify_pw(input: CheckOrModifyPw, db = Depends(get_db), token = Depends(get_
 def read_selected_todos(db = Depends(get_db)):
     current_month = datetime.now().month
 
-    todoList = db.query(TODO).filter(extract('month', TODO.created_at) == current_month).all()
+    todoList = db.query(TODO).filter(TODO.is_exposed, extract('month', TODO.created_at) == current_month).all()
 
     return todoList
 
