@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { PiChairBold } from "react-icons/pi";
-import { FaDoorOpen, FaTools } from "react-icons/fa"; // [추가] FaTools 아이콘
+import { FaDoorOpen, FaTools } from "react-icons/fa";
 import axios from "axios";
 import KioskHeader from "../components/KioskHeader";
-import KioskAlertModal from "../components/KioskAlertModal"; // [추가] 모달 컴포넌트
+import KioskAlertModal from "../components/KioskAlertModal";
 
-// ... (FLOOR_PLAN 등 기존 상수 유지)
+// 좌석 배치도 (0: 빈공간, -1: 출입구, 숫자: 좌석번호)
 const FLOOR_PLAN = [
   [1, 0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 0, 51, 52],
   [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 53, 54],
@@ -25,14 +25,14 @@ const KioskSeatStatus = ({
   onSeatSelect,
   isCheckOutMode = false,
   isViewOnly = false,
-  memberInfo = null, // [추가] 로그인한 회원 정보
+  memberInfo = null,
 }) => {
   const [seats, setSeats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSeatId, setSelectedSeatId] = useState(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, message: "" });
 
-  // ... (calculateRemainingSeconds, formatTime 등 기존 함수 유지)
+  // [기존] 초 단위 남은 시간 계산
   const calculateRemainingSeconds = (expiredTime) => {
     if (!expiredTime) return 0;
     const now = new Date();
@@ -41,6 +41,25 @@ const KioskSeatStatus = ({
     return diff > 0 ? diff : 0;
   };
 
+  // [추가] D-Day 계산 (기간제 좌석용)
+  const calculateDDay = (expiredTime) => {
+    if (!expiredTime) return "";
+    const now = new Date();
+    const end = new Date(expiredTime);
+    
+    // 시간 부분 무시하고 날짜만 비교
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const target = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+
+    const diffTime = target - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return "D-Day";
+    if (diffDays > 0) return `D-${diffDays}`;
+    return "만료됨";
+  };
+
+  // 시간 포맷팅 (00:00:00)
   const formatTime = (sec) => {
     if (sec <= 0) return "00:00:00";
     const h = Math.floor(sec / 3600);
@@ -53,12 +72,11 @@ const KioskSeatStatus = ({
     ].join(":");
   };
 
-  // 서버에서 좌석 정보 가져오기 (백그라운드 실행 시 로딩바 숨김)
+  // 서버에서 좌석 정보 가져오기
   const fetchSeats = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
       const res = await axios.get("/api/kiosk/seats");
-      // 받아온 데이터에 남은 시간 계산하여 저장
       const formatted = res.data.map((s) => ({
         ...s,
         remaining_seconds: calculateRemainingSeconds(s.ticket_expired_time),
@@ -77,6 +95,7 @@ const KioskSeatStatus = ({
     return () => clearInterval(interval);
   }, [fetchSeats]);
 
+  // 1초마다 남은 시간 감소 (타이머 효과)
   useEffect(() => {
     const timer = setInterval(() => {
       setSeats((prev) =>
@@ -94,22 +113,22 @@ const KioskSeatStatus = ({
 
   const getSeat = (id) => seats.find((s) => s.seat_id === id);
 
-  // [수정] 이름 포맷팅: "점검중"일 경우 마스킹 없이 그대로 반환
+  // 이름 포맷팅 (XX*, 점검중, 비회원 등)
   const formatName = (name) => {
     if (!name) return "사용중";
     if (name === "비회원") return "비회원";
-    if (name === "점검중") return "점검중"; // [추가]
+    if (name === "점검중") return "점검중";
     return name.length <= 2
       ? `${name[0]}*`
       : `${name[0]}*${name[name.length - 1]}`;
   };
 
-  // [추가] 좌석 클릭 핸들러 (권한 검증 로직 포함)
+  // 좌석 클릭 핸들러
   const handleSeatClick = (seatId) => {
     const seat = getSeat(seatId);
     if (!seat) return;
 
-    // [추가] 점검 중인 좌석은 클릭 불가 (모든 모드에서)
+    // 점검중인 좌석 클릭 불가
     if (seat.user_name === "점검중") {
         setAlertModal({
             isOpen: true,
@@ -118,11 +137,12 @@ const KioskSeatStatus = ({
         return;
     }
 
-    // 사용 중인 좌석은 퇴실 모드가 아니면 클릭 불가
+    // 사용 중인 좌석 처리
+    // 퇴실 모드가 아니고 뷰 모드도 아닐 때, 사용 중인 좌석(is_status=false)은 선택 불가
     if (!seat.is_status && !isCheckOutMode && !isViewOnly) return;
 
+    // 기간제 좌석 권한 체크 (일반 모드 진입 시)
     const isFixedSeat = seat.type === "fix" || seat.type === "기간제";
-    
     if (isFixedSeat && !isCheckOutMode && !isViewOnly) {
       if (!memberInfo || memberInfo.role === "guest") {
         setAlertModal({
@@ -135,6 +155,7 @@ const KioskSeatStatus = ({
 
     setSelectedSeatId(seatId);
     
+    // 모드에 따른 동작
     if (isCheckOutMode) {
       if (!seat.is_status) onSeatSelect(seat); 
     } else {
@@ -144,6 +165,7 @@ const KioskSeatStatus = ({
 
   const pressEffect = "active:scale-95 active:brightness-110";
 
+  // 개별 좌석 렌더링
   const renderSeat = (seatId) => {
     if (seatId === -1) {
       return (
@@ -159,20 +181,19 @@ const KioskSeatStatus = ({
     if (!seat) return <div className="rounded-md bg-[#1C2437]" />;
 
     const isAvailable = seat.is_status;
-    const isMaintenance = seat.user_name === "점검중"; // [추가] 점검 상태 확인
+    const isMaintenance = seat.user_name === "점검중";
     const isFixed = seat.type === "기간제" || seat.type === "fix";
     const isSelected = selectedSeatId === seatId;
 
     let base = "w-full h-full rounded-md flex flex-col items-center justify-center transition-all duration-150 select-none ";
 
-    // VIEW ONLY
+    // [CASE 1] VIEW ONLY 모드 (현황판)
     if (isViewOnly) {
       if (isAvailable) {
         base += isFixed
           ? " bg-gradient-to-br from-[#c0b6ff] to-[#a89af3] border border-[#c0b6ff] text-white"
           : " bg-gradient-to-br from-[#a8c7ff] to-[#8bb3ff] border border-[#a8c7ff] text-[#1A2233]";
       } else {
-        // [수정] 점검 중일 때는 다른 스타일 적용
         if (isMaintenance) {
             base += " bg-slate-800 border border-slate-700 text-slate-500";
         } else {
@@ -186,7 +207,6 @@ const KioskSeatStatus = ({
             <span className="text-lg">{seatId}</span>
           ) : (
             <div className="flex flex-col items-center text-center leading-tight">
-                {/* [수정] 점검중이면 아이콘 표시 */}
                 {isMaintenance ? (
                     <>
                         <FaTools className="text-xl mb-1 opacity-50" />
@@ -198,9 +218,13 @@ const KioskSeatStatus = ({
                         <span className="text-sm font-bold text-white mt-0.5">
                             {formatName(seat.user_name)}
                         </span>
-                        {seat.remaining_seconds > 0 && (
+                        {/* 기간제는 D-Day, 일반석은 남은 시간 표시 */}
+                        {seat.ticket_expired_time && (
                             <span className="text-[11px] text-slate-400 mt-0.5">
-                            {formatTime(seat.remaining_seconds)}
+                                {isFixed 
+                                    ? calculateDDay(seat.ticket_expired_time)
+                                    : formatTime(seat.remaining_seconds)
+                                }
                             </span>
                         )}
                     </>
@@ -211,8 +235,8 @@ const KioskSeatStatus = ({
       );
     }
 
-    // CHECKOUT / NORMAL MODE
-    // 점검중인 좌석은 항상 비활성 스타일
+    // [CASE 2] 일반 모드 (입/퇴실)
+    // 점검중 처리
     if (isMaintenance) {
         base += " bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed";
         return (
@@ -225,8 +249,9 @@ const KioskSeatStatus = ({
         );
     }
 
+    // 퇴실 모드
     if (isCheckOutMode) {
-      if (!isAvailable) {
+      if (!isAvailable) { // 사용 중인 좌석만 선택 가능
         base += isSelected
           ? " bg-gradient-to-br from-[#FF5C7A] to-[#FF3F62] text-white ring-2 ring-rose-300 scale-95 shadow-lg"
           : " bg-[#B94163]/40 text-[#FF8FA5] border border-[#B94163] cursor-pointer " +
@@ -235,7 +260,9 @@ const KioskSeatStatus = ({
         base +=
           " bg-gradient-to-br from-[#383e55] to-[#2f3446] opacity-40 border border-[#202A3E]";
       }
-    } else {
+    } 
+    // 입실 모드
+    else {
       if (isAvailable) {
         if (isSelected) {
           base += " bg-gradient-to-br from-[#4A6DFF] to-[#6A86FF] text-white shadow-lg ring-2 ring-blue-300 scale-95";
@@ -247,6 +274,7 @@ const KioskSeatStatus = ({
               pressEffect;
         }
       } else {
+        // 사용 중인 좌석
         base +=
           " bg-gradient-to-br from-[#383e55] to-[#2f3446] border border-[#383e55] text-[#8E97A8]";
       }
@@ -262,9 +290,13 @@ const KioskSeatStatus = ({
             <span className="text-sm font-bold text-white mt-0.5">
               {formatName(seat.user_name)}
             </span>
-            {seat.remaining_seconds > 0 && (
+            {/* 사용 중 상태 표시 (기간제: D-Day, 일반: 남은 시간) */}
+            {seat.ticket_expired_time && (
               <span className="text-[11px] text-slate-400 mt-0.5">
-                {formatTime(seat.remaining_seconds)}
+                {isFixed 
+                    ? calculateDDay(seat.ticket_expired_time)
+                    : formatTime(seat.remaining_seconds)
+                }
               </span>
             )}
           </div>
@@ -273,7 +305,7 @@ const KioskSeatStatus = ({
     );
   };
 
-  // 타이틀 텍스트 결정 로직
+  // 타이틀 텍스트 설정
   let titleText = "이용하실 좌석을 선택해주세요";
   if (isCheckOutMode) titleText = "퇴실하실 좌석을 선택해주세요";
   if (isViewOnly) titleText = "좌석 현황";
