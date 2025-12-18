@@ -41,7 +41,7 @@ function KioskAlertModal({ isOpen, onClose, title, message, type = "warning", im
                     <div className="w-full mb-6 rounded-xl overflow-hidden border-2 border-slate-500 shadow-inner bg-black">
                         <img 
                             // 개발 환경에서만 로컬호스트를 붙이도록 수정 (또는 무조건 붙임)
-                            src={`http://192.168.0.31:8000${imageUrl}`}
+                            src={`http://localhost:8000${imageUrl}`}
                             alt="확인된 이미지" 
                             className="w-full h-48 object-contain" 
                         />
