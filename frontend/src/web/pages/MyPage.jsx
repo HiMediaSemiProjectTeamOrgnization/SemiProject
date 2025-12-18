@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import StudyTimeSummary from "../components/StudyTimeSummary";
 import SeatAnalysis from "../components/SeatAnalysis";
@@ -21,6 +21,12 @@ function MyPage() {
         const res = await fetch(`/api/web/mypage`, { credentials: 'include' });
         if (res.ok) {
             const data = await res.json();
+            
+            getSeatList(data.user.member_id);
+            getStudySummary(data.user.member_id);
+            getFocusAnlisis(data.user.member_id);
+            getFocusPattern(data.user.member_id);
+
             if (data.todo) {
                 setTodo({
                     "name": data.todo.todo_name,
@@ -29,10 +35,6 @@ function MyPage() {
                     "type": data.todo.todo_type,
                     "achieved": data.todo.is_achieved
                 });
-                getSeatList(data.user.member_id);
-                getStudySummary(data.user.member_id);
-                getFocusAnlisis(data.user.member_id);
-                getFocusPattern(data.user.member_id);
             } else {
                 const res = await fetch(`/api/web/mypage/todo/selected`, { credentials: 'include' });
                 const data = await res.json();
@@ -56,6 +58,7 @@ function MyPage() {
         if (res.ok) {
             const data = await res.json();
             setSeatData(data);
+            // console.log(data);
         }
     }
 
@@ -65,7 +68,7 @@ function MyPage() {
         if (res.ok) {
             const data = await res.json();
             setStudyData(data);
-            console.log(data);
+            // console.log(data);
         }
     }
 
@@ -75,7 +78,7 @@ function MyPage() {
         if (res.ok) {
             const data = await res.json();
             setFocusData(data);
-            console.log(data);
+            // console.log(data);
         }
     }
     const getFocusPattern = async (user_id) => {
@@ -84,20 +87,17 @@ function MyPage() {
         if (res.ok) {
             const data = await res.json();
             setFocusPattern(data);
+            // console.log(data);
         }
     }
 
-
-
     useEffect(() => {
         window.scrollTo(0, 0);
-
-        if (showTodoModal) {
+        if (showTodoModal && todoList.length > 0) {
             document.body.style.overflow = "hidden";
         } else {
             document.body.style.overflow = "auto";
         }
-
         return () => {
             document.body.style.overflow = "auto";
         };

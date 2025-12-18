@@ -64,9 +64,9 @@ export default function TodoSelectModal({ isOpen, onClose, todoList }) {
 
                             <div>
                                 <p className="text-lg font-semibold">{todo.todo_title}</p>
-                                <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                                <pre className="text-gray-500 dark:text-gray-400 text-sm mt-1">
                                     {todo.todo_content}
-                                </p>
+                                </pre>
                             </div>
                         </label>
                     ))}

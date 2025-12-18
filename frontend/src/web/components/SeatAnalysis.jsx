@@ -18,7 +18,7 @@ export default function SeatAnalysis({ topSeats = [], message, preferences }) {
 
     const formatTime = (mins) => {
         const h = Math.floor(mins / 60);
-        const m = mins % 60;
+        const m = (mins % 60).toFixed(0);
         if (h > 0) return `${h}시간 ${m}분`;
         if (m > 0) return `${m}분`;
         return "0분";
@@ -50,11 +50,8 @@ export default function SeatAnalysis({ topSeats = [], message, preferences }) {
                     {/* Top Seats */}
                     <div className="grid grid-cols-3 gap-4 mb-10">
                         {topSeats.map((item, idx) => (
-                            <div
-                                key={idx + 1}
-                                className="relative p-4 rounded-xl border border-gray-200 dark:border-gray-700 
-                        bg-gray-50 dark:bg-gray-800/40 transition-colors"
-                            >
+                            <div key={idx + 1} className="relative p-4 rounded-xl border border-gray-200 dark:border-gray-700 
+                        bg-gray-50 dark:bg-gray-800/40 transition-colors" >
                                 {/* Rank Badge */}
                                 <div className="absolute -top-3 -right-3 w-8 h-8 flex items-center justify-center 
                             bg-indigo-600 dark:bg-indigo-500 text-white rounded-full text-sm font-semibold shadow">
@@ -66,9 +63,7 @@ export default function SeatAnalysis({ topSeats = [], message, preferences }) {
                                 </p>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{formatTime(item.seat_use_time)}</p>
 
-                                <span className="inline-block mt-2 px-3 py-1 text-xs rounded-md 
-                            bg-indigo-100 dark:bg-indigo-700/40 
-                            text-indigo-600 dark:text-indigo-300 font-medium transition-colors">
+                                <span className="inline-block mt-2 px-3 py-1 text-xs rounded-md bg-indigo-100 dark:bg-indigo-700/40 text-indigo-600 dark:text-indigo-300 font-medium transition-colors">
                                     {item.seat_type}
                                 </span>
                             </div>

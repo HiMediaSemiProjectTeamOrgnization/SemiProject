@@ -5,16 +5,11 @@ export default function StudyTimeSummary({ studyData, changeData }) {
     const [hoverIdx, setHoverIdx] = useState(null);
     const [mode, setMode] = useState("week");
 
-    const totalUse = [3, 2, 4, 3, 4, 5, 4];
-    const focusTime = [2, 1.5, 3, 2.5, 3, 4, 3.5];
-
-    const labels = ["월", "화", "수", "목", "금", "토", "일"];
     const getHeight = (v) => `${v * 23}px`;
 
     const weeklyData = studyData.weekly;
     const monthlyData = studyData.monthly;
     const currentData = mode === "month" ? monthlyData : weeklyData;
-
 
     const formattingHour = (mins) => {
         const h = Math.floor(mins / 60);
@@ -29,17 +24,6 @@ export default function StudyTimeSummary({ studyData, changeData }) {
         return `${Math.round((focus / total) * 100)}%`;
     }
 
-    const formattingIcon = (trend) => {
-        if (trend === "flat") {
-            return ""
-        } else if (trend === "increase") {
-            return "📈"
-        } else if (trend === "decrease") {
-            return "📉"
-        }
-    }
-
-
     return (
         <div className="w-full bg-white dark:bg-slate-900/50 rounded-2xl shadow-md p-6 
                         text-gray-800 dark:text-gray-100 transition-colors duration-300">
@@ -52,25 +36,11 @@ export default function StudyTimeSummary({ studyData, changeData }) {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setMode("week")}
-                        className={`px-3 py-1 rounded-lg text-sm font-semibold transition-colors
-                            ${mode === "week"
-                                ? "bg-indigo-500 text-white"
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300"}
-                        `}
-                    >
+                    <button onClick={() => setMode("week")} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-colors ${mode === "week" ? "bg-indigo-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300"} `}>
                         주간
                     </button>
 
-                    <button
-                        onClick={() => setMode("month")}
-                        className={`px-3 py-1 rounded-lg text-sm font-semibold transition-colors
-                            ${mode === "month"
-                                ? "bg-indigo-500 text-white"
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300"}
-                        `}
-                    >
+                    <button onClick={() => setMode("month")} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-colors ${mode === "month" ? "bg-indigo-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300"}`}>
                         월간
                     </button>
                 </div>
@@ -117,8 +87,7 @@ export default function StudyTimeSummary({ studyData, changeData }) {
                     }
 
                     return (
-                        <div
-                            key={idx}
+                        <div key={idx}
                             className="flex flex-col items-center w-12 relative cursor-pointer"
                             onMouseEnter={() => setHoverIdx(idx)}
                             onMouseLeave={() => setHoverIdx(null)}
@@ -173,14 +142,6 @@ export default function StudyTimeSummary({ studyData, changeData }) {
                 })}
 
 
-            </div>
-
-            {/* Footer */}
-            <div className="mt-4 text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-                <span>{formattingIcon(changeData?.trend)}</span>
-                <span>
-                    지난주 대비 <b className="font-semibold">{changeData?.difference_minute}% 증가</b>
-                </span>
             </div>
         </div>
     );
