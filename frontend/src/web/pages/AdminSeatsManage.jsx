@@ -167,9 +167,8 @@ export default function AdminSeatsManage() {
     return (
       <SeatBox
         key={key}
-        seat={{ ...seat, remaining_text: seat.remaining_info }}
-        tabType={seat.type === 'fix' ? 'period' : 'daily'}
-        simpleMode={true}
+        seat={seat} // 서버에서 준 user_name, remaining_info가 포함된 객체
+        simpleMode={true} // 관리자 상세 모드 활성화
         onClick={handleSeatClick}
         hideSelectText
       />

@@ -81,7 +81,7 @@ def getMemberInfo(token = Depends(get_cookies_info), db: Session = Depends(get_d
 # 좌석현황 조회
 @router.get("/seat")
 def getSeatStatus(db: Session = Depends(get_db)):
-    """좌석현황 조회"""
+    """좌석현황 조회 (웹 사용자용 - 보안을 위해 정보 제한)"""
     seats = db.query(Seat).order_by(Seat.seat_id).all()
     
     result = []
@@ -91,44 +91,37 @@ def getSeatStatus(db: Session = Depends(get_db)):
         seat_info = {
             "seat_id": seat.seat_id,
             "type": seat.type,
-            "is_status": seat.is_status,
+            "is_status": seat.is_status, # DB의 물리적 상태
+            "is_occupied": False,        # 논리적 점유 여부 (사용중/점검중 구분용)
             "near_window": seat.near_window,
             "corner_seat": seat.corner_seat,
             "aisle_seat": seat.aisle_seat,
             "isolated": seat.isolated,
             "near_beverage_table": seat.near_beverage_table,
-            "is_center": seat.is_center,
-            "user_name": None,
-            "remaining_time": 0
+            "is_center": seat.is_center
         }
 
+        # 좌석이 비어있지 않은 경우(is_status=False) 상세 체크
         if not seat.is_status:
-            usage = db.query(SeatUsage).filter(
+            # 1. 현재 입실(사용) 중인지 확인
+            usage_exists = db.query(SeatUsage).filter(
                 SeatUsage.seat_id == seat.seat_id,
                 SeatUsage.check_out_time == None
             ).first()
 
-            if usage:
-                # 단순 "사용중" 텍스트 대신 사용자 이름 조회 (필요 시 마스킹 처리 가능)
-                user = db.query(Member).filter(Member.member_id == usage.member_id).first()
-                seat_info["user_name"] = user.name if user else "사용중"
-                
-                if usage.ticket_expired_time:
-                    diff = usage.ticket_expired_time - now
-                    if diff.total_seconds() > 0:
-                        seat_info["remaining_time"] = int(diff.total_seconds() / 60)
-            
-            if not seat_info["user_name"]:
-                # 예약된 좌석 확인 로직
-                order = db.query(Order).filter(
+            if usage_exists:
+                seat_info["is_occupied"] = True
+            else:
+                # 2. 입실은 안 했지만 기간제/고정석 예약이 있는지 확인
+                order_exists = db.query(Order).filter(
                     Order.fixed_seat_id == seat.seat_id,
                     Order.period_end_date >= now.date()
-                ).order_by(Order.order_id.desc()).first()
+                ).first()
                 
-                if order:
-                    user = db.query(Member).filter(Member.member_id == order.member_id).first()
-                    seat_info["user_name"] = user.name if user else "사용중"
-
+                if order_exists:
+                    seat_info["is_occupied"] = True
+        
+        # is_status=False인데 is_occupied=False라면 -> 실제 점검중인 상태가 됨
         result.append(seat_info)
 
     return result
