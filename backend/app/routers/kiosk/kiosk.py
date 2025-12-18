@@ -511,13 +511,12 @@ def check_out(
 
                 # [수정 후] 딕셔너리에서 'name' 필드만 추출하여 문자열로 변환
                 item_names = [str(item.get("name", "Unknown")) for item in classes]
-                detected_items = ", ".join(item_names)
 
                 raise HTTPException(
                     status_code=400,
                     detail={
                         "code": "DETECTED",
-                        "message": f"좌석에 짐({detected_items})이 감지되었습니다.",
+                        "message": f"이용하신 좌석에 놓고 가신 물건이 감지되었습니다.",
                         "image_url": web_image_url
                     }
                 )

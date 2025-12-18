@@ -77,11 +77,12 @@ function KioskCheckOut({ onHome }) {
                 if (errData.detail && typeof errData.detail === "object" && errData.detail.code === "DETECTED") {
                      setModal({
                         isOpen: true,
-                        title: "짐이 감지되었습니다",
-                        message: errData.detail.message + "\n\n그래도 퇴실하시겠습니까?",
+                        title: "잠깐!!!!!!!!!!!!",
+                        message: errData.detail.message + "\n\n소지품을 확인 후 퇴실해 주세요.",
                         imageUrl: errData.detail.image_url, 
-                        type: "error",
-                        confirmText: "확인했습니다 (퇴실하기)",
+                        type: "warning",
+                        confirmText: "퇴실하기", // 버튼 텍스트 변경
+                        showCancel: false,      // [추가] 취소 버튼 숨기기
                         onConfirm: () => {
                             handleCheckOutComplete(authData, true);
                         }
@@ -214,6 +215,7 @@ function KioskCheckOut({ onHome }) {
                 imageUrl={modal.imageUrl}
                 onConfirm={modal.onConfirm}     
                 confirmText={modal.confirmText} 
+                showCancel={modal.showCancel} // [추가] showCancel 프롭 전달
             />
         </>
     );

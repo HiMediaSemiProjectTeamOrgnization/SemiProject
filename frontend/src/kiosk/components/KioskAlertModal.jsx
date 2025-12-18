@@ -1,10 +1,15 @@
+//
 import { FaExclamationCircle, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 
 /**
- * @param {function} onConfirm - (옵션) 확인/강제진행 버튼 클릭 시 실행될 함수
- * @param {string} confirmText - (옵션) 확인 버튼 텍스트 (기본: "확인")
+ * @param {function} onConfirm - 확인/강제진행 버튼 클릭 시 실행될 함수
+ * @param {string} confirmText - 확인 버튼 텍스트 (기본: "확인")
+ * @param {boolean} showCancel - 취소(다시 확인) 버튼 표시 여부 (기본: true)
  */
-function KioskAlertModal({ isOpen, onClose, title, message, type = "warning", imageUrl, onConfirm, confirmText }) {
+function KioskAlertModal({ 
+    isOpen, onClose, title, message, type = "warning", 
+    imageUrl, onConfirm, confirmText, showCancel = true 
+}) {
     if (!isOpen) return null;
 
     const config = {
@@ -36,12 +41,10 @@ function KioskAlertModal({ isOpen, onClose, title, message, type = "warning", im
                     {title}
                 </h3>
 
-                {/* [수정] 이미지가 있으면 표시 */}
                 {imageUrl && (
                     <div className="w-full mb-6 rounded-xl overflow-hidden border-2 border-slate-500 shadow-inner bg-black">
                         <img 
-                            // 개발 환경에서만 로컬호스트를 붙이도록 수정 (또는 무조건 붙임)
-                            src={`http://localhost:8000${imageUrl}`}
+                            src={`http://localhost:8000${imageUrl}`} 
                             alt="확인된 이미지" 
                             className="w-full h-48 object-contain" 
                         />
@@ -51,36 +54,27 @@ function KioskAlertModal({ isOpen, onClose, title, message, type = "warning", im
                     {message}
                 </p>
 
-                {/* 버튼 영역: onConfirm이 있으면 2개, 없으면 1개 */}
                 <div className="flex w-full gap-4">
-                    {onConfirm ? (
-                        <>
-                            {/* 취소/닫기 버튼 */}
-                            <button
-                                onClick={onClose}
-                                className="flex-1 py-4 rounded-xl text-xl font-bold text-slate-300 bg-slate-700 hover:bg-slate-600 transition-transform active:scale-95"
-                            >
-                                다시 확인
-                            </button>
-                            {/* 강제 진행 버튼 */}
-                            <button
-                                onClick={() => {
-                                    onConfirm();
-                                    onClose(); // 클릭 후 모달 닫기
-                                }}
-                                className={`flex-1 py-4 rounded-xl text-xl font-bold text-white shadow-lg transition-transform active:scale-95 ${currentConfig.btnColor}`}
-                            >
-                                {confirmText || "확인했습니다"}
-                            </button>
-                        </>
-                    ) : (
+                    {/* [수정] onConfirm이 있고 showCancel이 true일 때만 취소 버튼 표시 */}
+                    {onConfirm && showCancel && (
                         <button
                             onClick={onClose}
-                            className={`w-full py-4 rounded-xl text-xl font-bold text-white shadow-lg border-t border-white/10 transition-transform active:scale-95 ${currentConfig.btnColor}`}
+                            className="flex-1 py-4 rounded-xl text-xl font-bold text-slate-300 bg-slate-700 hover:bg-slate-600 transition-transform active:scale-95"
                         >
-                            확인
+                            다시 확인
                         </button>
                     )}
+                    
+                    {/* [수정] 메인 버튼: onConfirm 유무에 따라 동작 결정 */}
+                    <button
+                        onClick={() => {
+                            if (onConfirm) onConfirm();
+                            onClose();
+                        }}
+                        className={`flex-1 py-4 rounded-xl text-xl font-bold text-white shadow-lg transition-transform active:scale-95 ${currentConfig.btnColor}`}
+                    >
+                        {onConfirm ? (confirmText || "확인했습니다") : "확인"}
+                    </button>
                 </div>
             </div>
         </div>
