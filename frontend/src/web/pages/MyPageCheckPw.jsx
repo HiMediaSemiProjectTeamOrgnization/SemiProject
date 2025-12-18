@@ -46,7 +46,7 @@ export default function MyPageCheckPw({ setCanModify, userName }) {
     return (
         // z-index를 높여서(z-50) 다른 요소 위에 확실히 뜨게 함
         // fixed inset-0 으로 화면 전체를 덮음
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity h-full">
 
             <div className="
                 w-full max-w-md mx-4

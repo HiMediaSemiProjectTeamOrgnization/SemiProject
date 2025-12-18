@@ -2,7 +2,7 @@ import cv2
 
 def detect_person_boxes(model, frame) :
     """ 사람 감지만 하고 BBOX만 리턴"""
-    results = model(frame)[0]
+    results = model(frame, imgsz=768, conf=0.2, iou=0.3)[0]
 
     boxes = []
     for box in results.boxes :

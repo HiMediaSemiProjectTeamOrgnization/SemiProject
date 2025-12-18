@@ -44,7 +44,7 @@ class CameraWorker :
 
         # Yolo 모델
         self.person_model = YOLO("app/vision/models/yolo11n.pt")
-        self.lost_item_model = YOLO("app/vision/models/yolo11n.pt")
+        self.lost_item_model = YOLO("app/vision/models/semi_yolo_model.pt")
 
         # 메인 루프 시작
         threading.Thread(target=self._loop, daemon=True).start()
