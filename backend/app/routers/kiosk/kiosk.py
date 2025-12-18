@@ -389,11 +389,21 @@ def check_in(
     seat = db.query(Seat).filter(Seat.seat_id == seat_id).first()
     if not seat: raise HTTPException(status_code=404, detail="좌석 정보 없음")
     
-    # [수정] 고정석 입실 시, '이미 사용 중' 체크 로직 개선
-    # 본인이 주인인 고정석이면 입실 허용, 남이 주인으면 차단
+    # [수정 부분]
+    # 물리적으로 사용 중(False)이더라도, 고정석 주인이 본인인지 먼저 확인해야 합니다.
     if not seat.is_status:
-        # 물리적으로 누군가 앉아 있다면(is_status=False) -> 무조건 차단
-        raise HTTPException(status_code=400, detail="이미 사용 중인 좌석입니다.")
+        # 현재 이 좌석을 실제로 사용 중인 기록(SeatUsage)이 있는지 확인
+        active_usage = db.query(SeatUsage).filter(
+            SeatUsage.seat_id == seat_id, 
+            SeatUsage.check_out_time == None
+        ).first()
+        
+        # 실제 입실 기록이 있다면 진짜로 사용 중인 것임
+        if active_usage:
+            # 단, 그 사용자가 본인이면 이미 입실 중인 상태이므로 예외 처리
+            if active_usage.member_id == member.member_id:
+                raise HTTPException(status_code=400, detail="이미 입실 중인 좌석입니다.")
+            raise HTTPException(status_code=400, detail="이미 사용 중인 좌석입니다.")
     
     # 논리적 점유(기간제) 체크
     if seat.type == "fix":
